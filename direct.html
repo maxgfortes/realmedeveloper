@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RealMe</title>
+  <link rel="icon" href="./src/icon/icon.png" type="image/png" />
+  <meta name="theme-color" content="#1F1F1F" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="./src/icon/icon.png" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="./src/styles/base.css" />
+  <link rel="stylesheet" href="./src/styles/layout.css" />
+  <link rel="stylesheet" href="./src/styles/components.css" />
+  <link rel="stylesheet" href="./src/styles/media-queries.css" />
+  <link rel="stylesheet" href="./src/styles/navbars.css" />
+    <link rel="stylesheet" href="./src/styles/mensagens.css" />
+    <link rel="stylesheet" href="./src/styles/tags.css" />
+    <link rel="stylesheet" href="./src/styles/mobile.css" />
+    <link rel="stylesheet" href="./src/styles/new-popup.css" />
+    <link rel="stylesheet" href="./src/styles/depoimentos.css" />
+    <link rel="stylesheet" href="./src/styles/loading.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+ <div class="glass-overlay"></div>
+     <!-- Barra de progresso para recarregamentos -->
+    <div class="progress-bar" id="progressBar"></div>
+
+  <!-- Navbar -->
+  <nav>
+    <div class="logo_area">
+      <div class="logo">RealMe</div>
+    </div>
+<div class="search-area">
+  <div class="search-box">
+    <button><i class="fas fa-search"></i></button>
+    <input type="text" id="searchInput" placeholder="Buscar" autocomplete="off"  />
+  </div>
+</div>
+
+    <div class="last-update-area">
+      <div class="last-update">
+        <p>Novidades!</p>
+      </div>
+    </div>
+    <div class="marquee-container">
+      <div class="marquee"></div>
+    </div>
+  </nav>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <a href="feed.html"><i class="fas fa-home"></i> Início</a>
+    <a href="#"><i class="fas fa-user-friends"></i> Achar Amigos</a>
+    <a href="direct.html"><i class="fas fa-comments"></i> Mensagens</a>
+    <a href="#"><i class="fas fa-bell"></i> Notificações</a>
+    <a href="feed.html" onclick=""><i class="fas fa-plus-square"></i> Criar</a>
+    <a href="#" id="linkPerfilSidebar"><i class="fas fa-user"></i> Perfil</a>
+    <!-- Menu Mais com submenu flutuante -->
+        <div class="more-menu" id="moreMenu">
+            <a href="#" class="more-toggle" id="moreToggle">
+                <i class="fa-solid fa-bars"></i>
+                Mais
+            </a>
+            <div class="floating-menu" id="floatingMenu">
+                <a href="config.html"><i class="fas fa-cog"></i> Configurações</a>
+                <a href="#"><i class="fa-solid fa-user-plus"></i> Convites</a>
+                <a href="como-usar.html"><i class="fa-solid fa-book-open"></i> Como Usar</a>
+                <a href="sobre.html"><i class="fas fa-question-circle"></i> Sobre</a>
+                <a href="#" id="btnSair"><i class="fas fa-sign-out-alt"></i> Sair</a>
+            </div>
+        </div>
+  </aside>
+
+
+
+  <ul id="searchResults"></ul>
+
+
+<div class="full-dm-container">
+  <div class="users-dms">
+    <h1>Mensagens</h1>
+    <input class="buscar-chats" type="text" placeholder="Buscar conversas..." autocomplete="off" />
+    <div class="recents-users">
+      <!-- Os botões serão carregados dinamicamente pelo JavaScript -->
+      <!-- Removendo os botões estáticos para que sejam substituídos pelos dados reais -->
+    </div>
+  </div>
+  <div class="chat-container">
+    <div class="user-selected">
+      <img src="./src/icon/default.jpg" alt="Foto do usuário">
+      <p><span></span></p>
+    </div>
+    <div class="chat-area">
+      <!-- As mensagens serão carregadas dinamicamente aqui -->
+      <div class="no-chat-selected" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; color: #999;">
+        <div style="font-size: 3em; margin-bottom: 20px; opacity: 0.5;"><i class="fas fa-comment-dots"></i></div>
+        <h3 style="color: #ccc;">Nenhuma conversa selecionada</h3>
+        <p>Escolha uma conversa da lista ao lado para começar.</p>
+      </div>
+    </div>
+    <div class="send-area">
+      <input class="msg-area" id="textbox" type="text" placeholder="Digite sua mensagem..." autocomplete="off" />
+      <button>Enviar!</button>
+    </div>
+  </div>
+</div>
+
+
+
+  <script src="./src/js/profile.js" defer></script>
+  <script src="./src/js/search.js" defer></script>
+  <script src="./src/js/all-mensagens.js" type="module"></script>
+  <script src="./src/js/new-popup.js" defer></script>
+  <script src="./src/js/modal-post.js"></script>
+  <script type="module" src="./src/js/new-pf.js"></script>
+  <script src="./src/js/more.js"></script>
+  <script src="./src/js/typing.js"></script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  getDocs,
+  serverTimestamp,
+  onSnapshot,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+import {
+  getAuth,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+// Config Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyB2N41DiH0-Wjdos19dizlWSKOlkpPuOWs",
+  authDomain: "ifriendmatch.firebaseapp.com",
+  projectId: "ifriendmatch",
+  storageBucket: "ifriendmatch.appspot.com",
+  messagingSenderId: "306331636603",
+  appId: "1:306331636603:web:c0ae0bd22501803995e3de",
+  measurementId: "G-D96BEW6RC3"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+// Áudios
+const audioSend = new Audio('./src/audio/msg send.mp3');
+const audioReceive = new Audio('./src/audio/msg recive.mp3');
+
+// Variáveis globais
+let loggedUser = null; // UID do usuário autenticado
+let chatArea = document.querySelector(".chat-area");
+let msgInput = document.querySelector(".msg-area");
+let sendBtn = document.querySelector(".send-area button");
+let recentsUsersDiv = document.querySelector(".recents-users");
+let userSelectedDiv = document.querySelector(".user-selected p");
+let userSelectedImg = document.querySelector(".user-selected img");
+let selectedUser = null;
+let unsubscribeMessages = null;
+let ultimaQtdMensagens = 0;
+
+// Função para gerar ID único do chat usando userids
+function gerarChatId(user1, user2) {
+  return `chat-${[user1, user2].sort().join("-")}`;
+}
+
+// Função para formatar tempo relativo
+function formatarTempoRelativo(date) {
+  const agora = new Date();
+  const diffMs = agora - date;
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffSec < 60) return "agora";
+  if (diffMin < 60) return `há ${diffMin} minuto${diffMin > 1 ? "s" : ""}`;
+  if (diffHour < 24) return `há ${diffHour} hora${diffHour > 1 ? "s" : ""}`;
+  return `há ${diffDay} dia${diffDay > 1 ? "s" : ""}`;
+}
+
+// Selecionar usuário
+async function selecionarUsuario(userId) {
+  selectedUser = userId;
+  try {
+    // Busca o documento de user-infos/user-media
+    const userMediaDoc = await getDoc(doc(db, "users", userId, "user-infos", "user-media"));
+    let displayName = userId;
+    let photoUrl = "./src/icon/default.jpg";
+    if (userMediaDoc.exists()) {
+      const data = userMediaDoc.data();
+      if (data.userphoto) photoUrl = data.userphoto;
+    }
+    // Busca displayname normalmente
+    const userDoc = await getDoc(doc(db, "users", userId));
+    if (userDoc.exists()) {
+      const data = userDoc.data();
+      displayName = data.displayname || data.username || userId;
+    }
+    userSelectedDiv.innerHTML = `${displayName} • online`;
+    userSelectedImg.src = photoUrl;
+    carregarMensagensTempoReal();
+  } catch (error) {
+    userSelectedDiv.innerHTML = `${userId} • online`;
+    userSelectedImg.src = "./src/icon/default.jpg";
+  }
+}
+// Criar ou obter chat
+async function criarOuObterChat(user1, user2) {
+  const chatId = gerarChatId(user1, user2);
+  const chatRef = doc(db, "chats", chatId);
+
+  const chatDoc = await getDoc(chatRef);
+  if (!chatDoc.exists()) {
+    await setDoc(chatRef, {
+      participants: [user1, user2].sort(),
+      createdAt: serverTimestamp(),
+      lastMessage: null,
+      lastMessageTime: null
+    });
+  }
+  return chatId;
+}
+
+// Enviar mensagem
+async function enviarMensagem(conteudo) {
+  if (!conteudo || !selectedUser) return;
+
+  const chatId = await criarOuObterChat(loggedUser, selectedUser);
+
+  // Gera um ID aleatório para a mensagem
+  const msgDocRef = doc(collection(db, "chats", chatId, "messages"));
+  await setDoc(msgDocRef, {
+    content: conteudo,
+    sender: loggedUser,
+    timestamp: serverTimestamp()
+  });
+
+  const chatRef = doc(db, "chats", chatId);
+  await updateDoc(chatRef, {
+    lastMessage: conteudo,
+    lastMessageTime: serverTimestamp()
+  });
+
+  msgInput.value = "";
+
+  // Toca som de envio
+  audioSend.play();
+}
+
+// Carregar mensagens em tempo real
+function carregarMensagensTempoReal() {
+  if (unsubscribeMessages) unsubscribeMessages();
+
+  const chatId = gerarChatId(loggedUser, selectedUser);
+
+  const mensagensRef = collection(db, "chats", chatId, "messages");
+  const mensagensQuery = query(mensagensRef, orderBy("timestamp", "asc"));
+
+  unsubscribeMessages = onSnapshot(mensagensQuery, (snapshot) => {
+    const mensagens = [];
+    snapshot.forEach((doc) => mensagens.push(doc.data()));
+
+    // Detecta se chegou mensagem nova recebida
+    if (
+      mensagens.length > ultimaQtdMensagens &&
+      mensagens.length > 0 &&
+      mensagens[mensagens.length - 1].sender !== loggedUser
+    ) {
+      audioReceive.play();
+    }
+    ultimaQtdMensagens = mensagens.length;
+
+    renderizarMensagens(mensagens);
+  });
+}
+
+// Renderizar mensagens
+function renderizarMensagens(mensagens) {
+  chatArea.innerHTML = "";
+
+  mensagens.forEach((m) => {
+    const div = document.createElement("div");
+    div.classList.add("message");
+    div.classList.add(m.sender === loggedUser ? "sent" : "received");
+
+    let tempoFormatado = "";
+    if (m.timestamp) {
+      const date = m.timestamp.toDate ? m.timestamp.toDate() : new Date(m.timestamp.seconds * 1000);
+      tempoFormatado = formatarTempoRelativo(date);
+    }
+
+    div.innerHTML = `<p>${m.content}</p><span class="time">${tempoFormatado}</span>`;
+    chatArea.appendChild(div);
+  });
+
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+// Carregar conversas
+async function carregarConversas() {
+  if (!loggedUser) return;
+  recentsUsersDiv.innerHTML = "";
+  const friendsUnicos = new Set();
+
+  const chatsRef = collection(db, "chats");
+  const chatsSnap = await getDocs(chatsRef);
+
+  for (const chatDoc of chatsSnap.docs) {
+    const chatData = chatDoc.data();
+    if (chatData.participants && chatData.participants.includes(loggedUser)) {
+      const friendId = chatData.participants.find(p => p !== loggedUser);
+      if (friendId && !friendsUnicos.has(friendId)) {
+        friendsUnicos.add(friendId);
+
+        let friendPhotoUrl = "./src/icon/default.jpg";
+        let friendDisplayName = friendId;
+        try {
+          // Busca o documento de user-infos/user-media
+          const friendMediaDoc = await getDoc(doc(db, "users", friendId, "user-infos", "user-media"));
+          if (friendMediaDoc.exists()) {
+            const data = friendMediaDoc.data();
+            if (data.userphoto) friendPhotoUrl = data.userphoto;
+          }
+          // Busca displayname normalmente
+          const friendDoc = await getDoc(doc(db, "users", friendId));
+          if (friendDoc.exists()) {
+            const data = friendDoc.data();
+            friendDisplayName = data.displayname || data.username || friendId;
+          }
+        } catch (error) {}
+
+        const btn = document.createElement("button");
+        btn.innerHTML = `<img src="${friendPhotoUrl}" alt="Foto do usuário"><span>${friendDisplayName}</span>`;
+        btn.addEventListener("click", () => selecionarUsuario(friendId));
+        recentsUsersDiv.appendChild(btn);
+      }
+    }
+  }
+}
+// Logout
+function logout() {
+  if (unsubscribeMessages) unsubscribeMessages();
+  auth.signOut();
+  window.location.href = "login.html";
+}
+window.logout = logout;
+
+// Inicialização após Auth
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    loggedUser = user.uid;
+    carregarConversas();
+  } else {
+    window.location.href = "login.html";
+  }
+});
+
+// Eventos
+sendBtn?.addEventListener("click", () => enviarMensagem(msgInput.value.trim()));
+msgInput?.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") enviarMensagem(msgInput.value.trim());
+});
+</script>
+
+<script src="./src/js/loading.js"></script>
+</body>
+</html>
