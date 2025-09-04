@@ -168,10 +168,18 @@ async function atualizarEstatisticasPerfil(userid) {
   const statsElement = document.querySelector('.profile-stats');
   if (statsElement) {
     statsElement.innerHTML = `
-      <span><strong>${numPosts}</strong> posts</span>
-      <span><strong>${numSeguidores}</strong> seguidores</span>
-      <span><strong>0</strong> amigos</span>
-      <span><strong>${numSeguindo}</strong> seguindo</span>
+      <div class="stats">
+          <span><strong>${numPosts}</strong> posts</span>
+        </div>
+        <div class="stats">
+          <span><strong>${numSeguidores}</strong> seguidores</span>
+        </div>
+        <div class="stats">
+          <span><strong>0</strong> amigos</span>
+        </div>
+        <div class="stats">
+          <span><strong>${numSeguindo}</strong> seguindo</span>
+        </div>
     `;
   }
 }
@@ -716,6 +724,7 @@ async function carregarPerfilCompleto() {
   atualizarImagensPerfil(userData, userid);
   await atualizarEstatisticasPerfil(userid);
   await configurarBotaoSeguir(userid);
+  await tocarMusicaDoUsuario(userid);
   await carregarPostsDoMural(userid);
 
   // Configura botão de mensagem
@@ -878,6 +887,15 @@ async function atualizarImagensPerfil(userData, userid) {
     pic.onerror = () => { pic.src = './src/icon/default.jpg'; };
   });
 
+   // Fotos navbar
+  const navPic = document.querySelectorAll('.profile-mini');
+  navPic.forEach(pic => {
+    pic.src = mediaData.userphoto || './src/icon/default.jpg';
+    pic.onerror = () => { pic.src = './src/icon/default.jpg'; };
+  });
+
+  
+
   // Background
   const bgUrl = mediaData.background;
   if (bgUrl) {
@@ -986,3 +1004,5 @@ service cloud.firestore {
   }
 }
 */
+
+

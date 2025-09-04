@@ -17,11 +17,12 @@
   <link rel="stylesheet" href="./src/styles/navbars.css" />
   <link rel="stylesheet" href="./src/styles/profile.css" />
   <link rel="stylesheet" href="./src/styles/tags.css" />
-  <link rel="stylesheet" href="./src/styles/mobile.css" />
   <link rel="stylesheet" href="./src/styles/new-popup.css" />
   <link rel="stylesheet" href="./src/styles/depoimentos.css" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="./src/styles/loading.css">
+  <link rel="stylesheet" href="./src/styles/mobile-profile.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
 
 
@@ -93,16 +94,26 @@
 
   <ul id="searchResults"></ul>
 
-  <!-- Navbar Bottom (Mobile) -->
-  <div class="navbar-bottom">
-    <div class="navbar-bottom-content">
-      <a href="iFeed.html"><i class="fas fa-home"></i></a>
-      <a href="#"><i class="fas fa-user-friends"></i></a>
-      <a href="#"><i class="fas fa-comments"></i></a>
-      <a href="PF.html" id="linkPerfilMobile"><i class="fas fa-user"></i></a>
-      <a href="config.html"><i class="fas fa-cog"></i></a>
-    </div>
+
+  <nav class="navbar-bottom">
+  <div class="navbar-bottom-content">
+    <a href="/">
+      <i class="fas fa-home"></i>
+    </a>
+    <a href="/amigos">
+      <i class="fas fa-users"></i>
+    </a>
+    <a href="/criar">
+      <i class="fas fa-plus"></i>
+    </a>
+    <a href="/mensagens">
+      <i class="fas fa-comments"></i>
+    </a>
+    <a href="/perfil">
+      <img src="./src/icon/default.jpg" alt="Perfil" id="nav-pic" class="profile-mini" style="width: 24px; height: 24px; border-radius: 50%;">
+    </a>
   </div>
+</nav>
 
     <!-- Barra de progresso para recarregamentos -->
     <div class="progress-bar" id="progressBar"></div>
@@ -134,10 +145,18 @@
       <div class="handle" id="username">@username</div>
 
       <div class="profile-stats">
-        <span><strong>0</strong> posts</span>
-        <span><strong>0</strong> seguidores</span>
-        <span><strong>0</strong> amigos</span>
-        <span><strong>0</strong> seguindo</span>
+        <div class="stats">
+          <span><strong>0</strong> posts</span>
+        </div>
+        <div class="stats">
+          <span><strong>0</strong> posts</span>
+        </div>
+        <div class="stats">
+          <span><strong>0</strong> posts</span>
+        </div>
+        <div class="stats">
+          <span><strong>0</strong> posts</span>
+        </div>
       </div>
       <div class="action-buttons">
         <button class="btn-follow">seguir</button>
@@ -341,3 +360,4 @@
 
 </body>
 </html>
+
