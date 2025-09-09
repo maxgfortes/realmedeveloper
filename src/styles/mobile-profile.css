@@ -71,8 +71,8 @@
   }
 
   .profile-pic {
-    width: 100px;
-    height: 100px;
+    width: 120px !important;
+    height: 120px !important;
     border-radius: 15px;
     border: 2px solid rgba(255, 255, 255, 0.2);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
@@ -80,8 +80,8 @@
 
   /* Info do perfil */
   .profile-info-block {
-    flex: 1;
     min-width: 0; /* Para permitir text overflow */
+    padding: 0px 10px;
   }
 
   /* Nome e pronomes */
@@ -122,7 +122,7 @@
   .profile-stats {
     display: flex;
     gap: 16px;
-    font-size: 16px;
+    font-size: 14px;
     color: #ddd;
     margin-bottom: 16px;
     text-align: center;
@@ -142,6 +142,7 @@
     flex-direction: column;
   }
 
+
     .stats span{
     display: flex;
     flex-direction: column;
@@ -159,7 +160,7 @@
     color: #fff;
     padding: 10px 20px;
     border-radius: 8px;
-    font-size: 16px;
+    font-size: 16px !important;
     font-weight: 600;
     backdrop-filter: blur(8px);
     transition: all 0.3s ease;
@@ -178,11 +179,11 @@
   }
 
   .btn-nudge p {
-    display: none;
+    display: block !important;
   }
 
   .btn-nudge i {
-    display: block !important;
+    display: none !important;
     font-size: 16px;
   }
 
@@ -240,11 +241,11 @@
     font-weight: 500;
     white-space: nowrap;
     cursor: pointer;
-    flex: 1;
   }
     .menu-item i{
     display: block;
     align-items: center;
+    font-size: 22px;
   }
 
   .menu-item p{
@@ -343,9 +344,10 @@
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 20px;
-    padding: 8px 16px;
+    padding: 4px 16px;
     margin: 0 16px 0 0;
     backdrop-filter: blur(8px);
+    flex: 1;
   }
 
   .search-box input {
@@ -355,6 +357,11 @@
     color: #fff;
     font-size: 14px;
     width: 100%;
+  }
+
+  .search-area {
+    flex: 1;
+    max-width: 900px;
   }
 
   .search-box input::placeholder {
@@ -399,7 +406,7 @@
   #searchResults {
     position: fixed;
     top: 70px;
-    left: 16px;
+    left: 50%px;
     right: 16px;
     width: auto;
     max-height: 300px;
@@ -485,5 +492,8 @@
   .menu-item {
     font-size: 13px;
     padding: 10px 6px;
+  }
+  .last-update-area {
+    display: none !important;
   }
 }

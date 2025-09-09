@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RealMe</title>
   <link rel="icon" href="./src/icon/icon.png" type="image/png" />
   <meta name="theme-color" content="#1F1F1F" />
@@ -18,9 +19,9 @@
   <link rel="stylesheet" href="./src/styles/tags.css" />
   <link rel="stylesheet" href="./src/styles/new-popup.css" />
   <link rel="stylesheet" href="./src/styles/depoimentos.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="./src/styles/loading.css">
   <link rel="stylesheet" href="./src/styles/mobile-profile.css">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 
 
@@ -95,7 +96,7 @@
 
   <nav class="navbar-bottom">
   <div class="navbar-bottom-content">
-    <a href="/">
+    <a href="">
       <i class="fas fa-home"></i>
     </a>
     <a href="/amigos">
@@ -107,7 +108,7 @@
     <a href="/mensagens">
       <i class="fas fa-comments"></i>
     </a>
-    <a href="/perfil">
+    <a href="PF.html">
       <img src="./src/icon/default.jpg" alt="Perfil" id="nav-pic" class="profile-mini" style="width: 24px; height: 24px; border-radius: 50%;">
     </a>
   </div>
@@ -120,11 +121,12 @@
   <div class="full-profile-container">
     <!-- Topo do perfil -->
     <div class="profile-header">
-      <div class="profile-pic-block">
+      <div class="full-header">
+        <div class="profile-pic-block">
         <img src="./src/icon/default.jpg" alt="Foto de perfil" class="profile-pic" />
       </div>
     
-      <div class="profile-info-block">
+    <div class="profile-info-block">
       <div class="name-line">
         <h2 class="profile-name" id="displayname">usuario do RealMe</h2>
         <div class="tag-area">
@@ -156,13 +158,15 @@
           <span><strong>0</strong> posts</span>
         </div>
       </div>
-      <div class="action-buttons">
+    </div>
+      </div>
+    <div class="action-buttons">
         <button class="btn-follow">seguir</button>
         <button class="btn-message" id="btnMensagemPerfil">mensagem</button>
         <button class="btn-nudge"><i class="fa-solid fa-bell ringing-bell"></i><p>nudge</p></button>
       </div>
-    </div>
   </div>
+
 
   <!-- Corpo do perfil -->
   <div class="profile-body">
@@ -358,8 +362,4 @@
 
 </body>
 </html>
-
-
-
-
 
