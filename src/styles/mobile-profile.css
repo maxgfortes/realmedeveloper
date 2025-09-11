@@ -74,7 +74,7 @@
     width: 120px !important;
     height: 120px !important;
     border-radius: 15px;
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgb(43, 43, 43) !important;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
   }
 
@@ -153,6 +153,7 @@
     display: flex;
     gap: 8px;
     margin-top: 0;
+
   }
 
   .action-buttons button {
@@ -164,6 +165,7 @@
     font-weight: 600;
     backdrop-filter: blur(8px);
     transition: all 0.3s ease;
+    align-items: center;
   }
 
   .action-buttons button:hover {
@@ -175,7 +177,7 @@
   /* Botão Nudge especial */
   .btn-nudge {
     min-width: 44px;
-    padding: 10px 12px !important;
+    padding: 10px 24px !important;
   }
 
   .btn-nudge p {
