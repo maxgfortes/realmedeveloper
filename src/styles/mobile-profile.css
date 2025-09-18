@@ -9,9 +9,33 @@
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
+  
+
   /* Esconder elementos desktop */
   .sidebar {
     display: none !important;
+  }
+
+  .navbar {
+    display: none !important;
+  }
+
+  .full-profile-container {
+    overflow: auto;
+  }
+
+  .visao-tab {
+    overflow: hidden;
+  }
+
+  .backarea button{
+    background-color: #00000000 !important;
+    border: none;
+    padding: 20px;
+  }
+  .backarea button i{
+    color: #fff !important;
+    font-size: 20px;
   }
 
   /* Container principal mobile */
@@ -19,10 +43,7 @@
     width: 100vw;
     height: 100vh;
     margin: 0;
-    background: linear-gradient(135deg, 
-      rgba(20, 20, 20, 0.9) 0%, 
-      rgba(40, 40, 40, 0.8) 100%);
-    backdrop-filter: blur(20px);
+
     border: none;
     border-radius: 0;
     overflow: hidden;
@@ -50,10 +71,7 @@
     left: 0;
     right: 0;
     height: 200px;
-    background: linear-gradient(180deg, 
-      rgba(0, 0, 0, 0.8) 0%, 
-      rgba(0, 0, 0, 0.4) 50%,
-      transparent 100%);
+    background-color: #000;
     z-index: -1;
   }
 
@@ -498,4 +516,108 @@
   .last-update-area {
     display: none !important;
   }
+
+  .navbar-top {
+  display: flex;
+  justify-content: space-between; /* joga um grupo p/ esquerda e outro p/ direita */
+  align-items: center;            /* centraliza na vertical */
+}
+
+.top-left, .top-right {
+  color: white;
+  text-decoration: none;
+  display: flex;
+}
+
+
+
+.tabnav h2 {
+  color: white;
+  margin: 0;
+  padding: 15px;
+  text-align: center;
+  width: 100%;
+
+}
+  /* Container principal - SEM altura fixa e overflow */
+  .full-profile-container {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+  }
+
+  /* Body do perfil - SEM overflow bloqueado */
+  .profile-body {
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  /* TODAS as tabs - SEM scroll próprio */
+  .mural-tab,
+  .amigos-tab,
+  .visao-tab,
+  .gostos-tab,
+  .deps-tab,
+  .links-tab {
+    overflow-y: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* Menu - altura automática */
+  .profile-menu {
+    height: auto !important;
+    overflow-x: visible !important;
+  }
+
+  /* Body da página - permitir scroll */
+  body {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    height: auto !important;
+  }
+
+  /* HTML - scroll suave */
+  html {
+    overflow-y: auto !important;
+    scroll-behavior: smooth !important;
+  }
+
+  /* Método 1: Webkit (Chrome, Safari, Edge) */
+  body::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+  
+  html::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  /* Método 2: Padrão CSS (Firefox e outros) */
+  body {
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* Internet Explorer 10+ */
+  }
+  
+  html {
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* Internet Explorer 10+ */
+  }
+
+  /* Método 3: Para containers específicos também */
+  * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  
+  *::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+
 }

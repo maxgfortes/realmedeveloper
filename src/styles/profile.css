@@ -4,6 +4,10 @@
     display: none;
   }
 
+.navbar-top {
+  display: none;
+}
+
 
 /*new*/
 .full-profile-container {

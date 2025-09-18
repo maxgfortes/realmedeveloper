@@ -9,3 +9,9 @@
             z-index: 9999999999;
             transition: width 0.3s ease;
         }
+
+        @media (max-width: 768px) {
+            .progress-bar {
+               display: none;
+            }
+        }

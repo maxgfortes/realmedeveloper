@@ -10,6 +10,21 @@
     display: none;
 }
 
+.navbar-top {
+  display: flex;
+}
+
+
+.search-box {
+  border-radius: 30px;
+  padding: 0px 10px;
+}
+
+
+nav {
+  display: none;
+}
+
 
 .welcome-box {
   background: rgba(20, 20, 20, 0.582);

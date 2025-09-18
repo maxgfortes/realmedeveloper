@@ -47,7 +47,7 @@
  <div class="glass-overlay"></div>
 
   <!-- Navbar -->
-  <nav>
+  <nav class="navbar">
     <div class="logo_area">
       <div class="logo">RealMe</div>
     </div>
@@ -94,19 +94,36 @@
   <ul id="searchResults"></ul>
 
 
+  <nav class="navbar-top">
+    <div class="top-left">
+      <div class="backarea" onclick="window.history.back();">
+      <button><i class="fas fa-arrow-left"></i></button>
+      </div>
+      <div class="tabnav">
+      <h2 id="nomeTopo">maxgfortes</h2>
+      </div>
+    </div>
+    <div class="top-rigth">
+      <div class="backarea" onclick="window.history.back();">
+      <button><i class="fa-solid fa-gear"></i></button>
+    </div>
+    </div>
+  </nav>
+
+
   <nav class="navbar-bottom">
   <div class="navbar-bottom-content">
     <a href="feed.html">
-      <i class="fas fa-home"></i>
+      <i class="fa-solid fa-house"></i>
     </a>
     <a href="/amigos">
-      <i class="fas fa-users"></i>
+      <i class="fa-solid fa-user-group"></i>
     </a>
     <a href="/criar">
-      <i class="fas fa-plus"></i>
+      <i class="far fa-plus-square"></i>
     </a>
     <a href="/mensagens">
-      <i class="fas fa-comments"></i>
+      <i class="far fa-comments"></i>
     </a>
     <a href="PF.html">
       <img src="./src/icon/default.jpg" alt="Perfil" id="nav-pic" class="profile-mini" style="width: 24px; height: 24px; border-radius: 50%;">
@@ -173,7 +190,7 @@
     <!-- Sidebar -->
     <div class="profile-menu-area">
       <div class="profile-menu">
-      <button class="menu-item active"><i class="fas fa-paper-plane"></i> <p>mural</p></button> <!-- Ativo por padrão -->
+      <button class="menu-item active"><i class="fas fa-chalkboard"></i> <p>mural</p></button> <!-- Ativo por padrão -->
       <button class="menu-item"><i class="fas fa-comment-dots"></i><p>Visão Geral</p></button>
       <button class="menu-item"><i class="fas fa-heart"></i><p>Gostos</p></button>
       <button class="menu-item"><i class="fas fa-comments"></i><p>Depoimentos</p></button>
