@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mural - RealMe</title>
-     <link rel="icon" href="./src/assets/icon/icon3.png" type="image/png">
+  <title>RealMe</title>
+     <link rel="icon" href="./src/icon/icon.png" type="image/png" />
       <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#1F1F1F" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -403,12 +403,24 @@
     </div>
   </nav>
 
+  <nav class="navbar-top">
+    <div class="logo_area">
+      <div class="logo">RealMe</div>
+    </div>
+    <div class="search-area">
+      <div class="search-box">
+        <button><i class="fas fa-search"></i></button>
+        <input type="text" id="searchInput" placeholder="Buscar" autocomplete="off"  />
+      </div>
+    </div>
+  </nav>
+
   <!-- Sidebar -->
   <aside class="sidebar">
     <a href="feed.html"><i class="fas fa-home"></i> Início</a>
-    <a href="#"><i class="fas fa-user-friends"></i> Achar Amigos</a>
+    <a href="acharamigos.html"><i class="fas fa-user-friends"></i> Achar Amigos</a>
     <a href="direct.html"><i class="fas fa-comments"></i> Mensagens</a>
-    <a href="#"><i class="fas fa-bell"></i> Notificações</a>
+    <a href="nt.html"><i class="fas fa-bell"></i> Notificações</a>
     <a href="feed.html" onclick=""><i class="fas fa-plus-square"></i> Criar</a>
     <a href="#" id="linkPerfilSidebar"><i class="fas fa-user"></i> Perfil</a>
     <!-- Menu Mais com submenu flutuante -->
@@ -419,7 +431,7 @@
             </a>
             <div class="floating-menu" id="floatingMenu">
                 <a href="config.html"><i class="fas fa-cog"></i> Configurações</a>
-                <a href="#"><i class="fa-solid fa-user-plus"></i> Convites</a>
+                <a href="invites.html"><i class="fa-solid fa-user-plus"></i> Convites</a>
                 <a href="como-usar.html"><i class="fa-solid fa-book-open"></i> Como Usar</a>
                 <a href="sobre.html"><i class="fas fa-question-circle"></i> Sobre</a>
                 <a href="#" id="btnSair"><i class="fas fa-sign-out-alt"></i> Sair</a>
@@ -441,12 +453,17 @@
       <div class="welcome-start">
         <p class="welcome-start-pc">Compartilhe como está sendo o seu dia, conte algo curioso, poste uma lembrança especial ou simplesmente jogue conversa fora com seus amigos.</p>
         <p class="welcome-start-mobile"></p>
-        <div class="post-box">
-          <input type="text" placeholder="Escreva seu pensamento..." />
-          <button class="post-button">
-            <i class="fas fa-plus-square"></i> <p>Enviar Post!</p>
-          </button>
-        </div>
+          <div class="post-area">
+            <div class="post-box">
+              <input type="text" placeholder="Escreva seu pensamento..." />
+              <button class="post-button">
+                <i class="fas fa-plus-square"></i><p>Enviar Post!</p>
+              </button>
+            </div>
+            <button class="file-button">
+              <i class="fa-solid fa-image"></i>
+            </button>
+          </div>
       </div>
     </section>
 

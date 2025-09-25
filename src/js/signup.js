@@ -9,7 +9,8 @@ import {
   collection,
   query,
   where,
-  getDocs
+  getDocs,
+  Timestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { 
   getAuth, 
@@ -35,6 +36,89 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const analytics = getAnalytics(app);
+
+// ===================
+// FUNÇÕES DE GEOLOCALIZAÇÃO
+// ===================
+async function obterLocalizacao() {
+  return new Promise((resolve) => {
+    // Valor padrão caso não consiga obter localização
+    const localizacaoDefault = "";
+    
+    if (!navigator.geolocation) {
+      console.log("Geolocalização não suportada pelo navegador");
+      resolve(localizacaoDefault);
+      return;
+    }
+
+    const options = {
+      enableHighAccuracy: false,
+      timeout: 10000,
+      maximumAge: 300000 // 5 minutos de cache
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          console.log("Coordenadas obtidas:", latitude, longitude);
+          
+          // Usar API de geocodificação reversa (Nominatim - gratuita)
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=pt-BR`
+          );
+          
+          if (response.ok) {
+            const data = await response.json();
+            const cidade = data.address?.city || data.address?.town || data.address?.village || "";
+            const estado = data.address?.state || "";
+            
+            let localizacao = localizacaoDefault;
+            if (cidade && estado) {
+              // Formatação: "Cidade - UF"
+              const estadoAbrev = estado.length > 2 ? 
+                estado.split(' ').map(word => word[0]).join('').toUpperCase().substring(0, 2) : 
+                estado.toUpperCase();
+              localizacao = `${cidade} - ${estadoAbrev}`;
+            }
+            
+            console.log("Localização detectada:", localizacao);
+            resolve(localizacao);
+          } else {
+            console.log("Erro na API de geocodificação, usando padrão");
+            resolve(localizacaoDefault);
+          }
+        } catch (error) {
+          console.log("Erro ao obter localização:", error);
+          resolve(localizacaoDefault);
+        }
+      },
+      (error) => {
+        console.log("Erro de geolocalização:", error.message);
+        resolve(localizacaoDefault);
+      },
+      options
+    );
+  });
+}
+
+function mostrarStatusLocalizacao(status) {
+  const localizacaoInput = document.getElementById('localizacao');
+  if (localizacaoInput) {
+    switch (status) {
+      case 'detecting':
+        localizacaoInput.placeholder = "🌍 Detectando sua localização...";
+        break;
+      case 'success':
+        localizacaoInput.style.borderColor = '#51cf66';
+        break;
+      case 'error':
+        localizacaoInput.placeholder = "Digite sua cidade - Estado";
+        localizacaoInput.style.borderColor = '#ffa500';
+        break;
+    }
+  }
+}
 
 // ===================
 // FUNÇÕES UTILITÁRIAS PARA UI
@@ -132,7 +216,7 @@ async function verificarUsernameDisponivel(username) {
 async function verificarEmailDisponivel(email) {
   try {
     // Verifica se email já existe na coleção de usuários
-    const usersRef = collection(db, "secure_users");
+    const usersRef = collection(db, "users");
     const q = query(usersRef, where("email", "==", email.toLowerCase()));
     const querySnapshot = await getDocs(q);
     
@@ -168,9 +252,9 @@ async function atualizarUltimoUsuario(username) {
 // ===================
 async function criarRelacionamentosSociais(username, uid) {
   try {
-    // Criar documento de seguindo para o novo usuário
-    await setDoc(doc(db, "secure_users", uid, "seguindo", "users"), {
-      maxgfortes: "maxgfortes",
+    // Criar documento de following para o novo usuário
+    await setDoc(doc(db, "users", uid, "following", "users"), {
+      q9fB4DANnZWwpebIKjFIIFJRQl33: "q9fB4DANnZWwpebIKjFIIFJRQl33",
       realme: "realme"
     });
 
@@ -210,6 +294,13 @@ async function criarContaSegura(event) {
   const idade = parseInt(document.getElementById('idade').value.trim());
   const genero = document.getElementById('genero').value;
   const senha = document.getElementById('senha').value.trim();
+  
+  // Campos adicionais opcionais
+  const localizacao = document.getElementById('localizacao')?.value.trim() || "Florianópolis - SC";
+  const estadoCivil = document.getElementById('estadoCivil')?.value || "solteiro";
+  const pronome1 = document.getElementById('pronome1')?.value.trim() || "ele";
+  const pronome2 = document.getElementById('pronome2')?.value.trim() || "dele";
+  const telefone = document.getElementById('telefone')?.value.trim() || "";
 
   // Validações básicas
   if (!username || !nome || !sobrenome || !email || !idade || !genero || !senha) {
@@ -267,7 +358,7 @@ async function criarContaSegura(event) {
 
     // ETAPA 3: Atualizar perfil do usuário
     await updateProfile(user, {
-      displayName: username
+      displayName: nome
     });
 
     console.log("✅ Usuário criado no Firebase Auth:", user.uid);
@@ -279,48 +370,44 @@ async function criarContaSegura(event) {
       reservadoEm: serverTimestamp()
     });
 
-    // ETAPA 5: Criar documento principal do usuário (SEGURO)
+    // Calcular data de nascimento baseada na idade
+    const hoje = new Date();
+    const anoNascimento = hoje.getFullYear() - idade;
+    const dataNascimento = new Date(anoNascimento, 9, 5); // 5 de outubro como default
+    
+    // ETAPA 5: Criar documento principal do usuário (SEGURO) com os novos campos
     const userData = {
       // Dados básicos
       uid: user.uid,
       username: username,
       email: email,
-      nome: nome,
-      sobrenome: sobrenome,
+      name: nome,
+      surname: sobrenome,
+      displayname: nome,
       idade: idade,
-      genero: genero,
+      gender: genero,
       
-      // Dados do perfil
-      displayname: `${nome} ${sobrenome}`,
-      userphoto: "./src/icon/default.jpg",
-      backgroundphoto: "",
-      headerphoto: "",
-      
-      // Campos de perfil opcionais (vazios inicialmente)
-      visaoGeral: "",
-      tags: "",
-      estilo: "",
-      personalidade: "",
-      sonhos: "",
-      medos: "",
-      musicas: "",
-      filmesSeries: "",
-      livros: "",
-      personagens: "",
-      comidas: "",
-      hobbies: "",
-      jogos: "",
-      outrosGostos: "",
+      // Novos campos específicos
+      born: Timestamp.fromDate(dataNascimento),
+      localizacao: localizacao,
+      location: localizacao,
+      maritalStatus: estadoCivil,
+      status: estadoCivil,
+      pronoun1: pronome1,
+      pronoun2: pronome2,
+      tel: telefone ? parseInt(telefone.replace(/\D/g, '')) || 0 : 0,
+      telefone: telefone || "(00) 00000-0000",
       
       // Metadados
       criadoem: serverTimestamp(),
+      ultimaAtualizacao: serverTimestamp(),
       emailVerified: user.emailVerified,
       ultimoLogin: serverTimestamp(),
-      versao: "2.0" // Para diferenciar das contas legadas
+      versao: "2.1" // Para diferenciar das contas legadas
     };
 
     // Salvar na nova coleção segura
-    await setDoc(doc(db, "secure_users", user.uid), userData);
+    await setDoc(doc(db, "users", user.uid), userData);
     console.log("✅ Dados do usuário salvos com segurança");
 
     // ETAPA 6: Manter compatibilidade com sistema legado
@@ -347,7 +434,11 @@ async function criarContaSegura(event) {
       sobrenome: sobrenome,
       usuario: username,
       email: email,
-      senha: "***Por segurança, senha não é mostrada***"
+      senha: senha,
+      localizacao: localizacao,
+      estadoCivil: estadoCivil,
+      pronomes: `${pronome1}/${pronome2}`,
+      telefone: telefone
     };
     downloadAccountInfo(formData);
 
@@ -451,10 +542,26 @@ function configurarValidacoes() {
       }
     });
   }
+
+  // Formatação de telefone
+  const telefoneInput = document.getElementById('telefone');
+  if (telefoneInput) {
+    telefoneInput.addEventListener('input', function() {
+      let valor = this.value.replace(/\D/g, '');
+      if (valor.length >= 11) {
+        valor = valor.replace(/^(\d{2})(\d{5})(\d{4}).*/, '($1) $2-$3');
+      } else if (valor.length >= 7) {
+        valor = valor.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, '($1) $2-$3');
+      } else if (valor.length >= 3) {
+        valor = valor.replace(/^(\d{2})(\d{0,5})/, '($1) $2');
+      }
+      this.value = valor;
+    });
+  }
 }
 
 // ===================
-// FUNÇÃO DE DOWNLOAD (MANTIDA E MELHORADA)
+// FUNÇÃO DE DOWNLOAD (MELHORADA COM NOVOS CAMPOS)
 // ===================
 function downloadAccountInfo(formData) {
   const htmlContent = `<!DOCTYPE html>
@@ -492,11 +599,15 @@ function downloadAccountInfo(formData) {
             <p><b>Nome Completo:</b> ${formData.nome} ${formData.sobrenome}</p>
             <p><b>Usuário:</b> ${formData.usuario}</p>
             <p><b>E-mail:</b> ${formData.email}</p>
+            <p><b>Senha:</b> ${formData.senha}</p>
+            <p><b>Estado Civil:</b> ${formData.estadoCivil}</p>
+            <p><b>Pronomes:</b> ${formData.pronomes}</p>
+            ${formData.telefone ? `<p><b>Telefone:</b> ${formData.telefone}</p>` : ''}
             <p><b>Sistema:</b> Firebase Auth (Seguro)</p>
         </div>
         
         <div class="security-notice">
-            <p><b>🔐 Segurança:</b></p>
+            <p><b>🔒 Segurança:</b></p>
             <p>• Sua senha está protegida pelo Firebase Authentication</p>
             <p>• Use seu <b>email</b> para fazer login</p>
             <p>• Sua conta está totalmente segura</p>

@@ -15,7 +15,7 @@ import {
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-// Configuração do Firebase
+// ConfiguraÃ§Ã£o do Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyB2N41DiH0-Wjdos19dizlWSKOlkpPuOWs",
   authDomain: "ifriendmatch.firebaseapp.com",
@@ -36,7 +36,7 @@ const loadMoreBtn = document.getElementById('load-more-btn');
 const postInput = document.querySelector('.post-box input[type="text"]');
 const postButton = document.querySelector('.post-button');
 
-// Configurações
+// ConfiguraÃ§Ãµes
 const POSTS_LIMIT = 10;
 let lastVisible = null;
 let loading = false;
@@ -44,7 +44,7 @@ let allPosts = [];
 let currentPage = 0;
 let hasMorePosts = true;
 
-// Lista de domínios maliciosos conhecidos
+// Lista de domÃ­nios maliciosos conhecidos
 const DOMINIOS_MALICIOSOS = [
   'bit.ly', 'tinyurl.com', 'goo.gl', 'ow.ly', 't.co',
   'phishing-example.com', 'malware-site.net', 'scam-website.org'
@@ -127,7 +127,7 @@ function mostrarPopupConfirmacao(titulo, mensagem, callback) {
 }
 
 // ===================
-// ANIMAÇÃO DO AVIÃO DE PAPEL
+// ANIMAÃ‡ÃƒO DO AVIÃƒO DE PAPEL
 // ===================
 function criarAnimacaoAviaoPapel() {
   const aviao = document.createElement('div');
@@ -278,10 +278,10 @@ function tocarSomEnvio() {
     const audio = new Audio('./src/audio/send.mp3');
     audio.volume = 0.5;
     audio.play().catch(error => {
-      console.warn("Não foi possível reproduzir o som de envio:", error);
+      console.warn("NÃ£o foi possÃ­vel reproduzir o som de envio:", error);
     });
   } catch (error) {
-    console.warn("Erro ao criar/tocar áudio:", error);
+    console.warn("Erro ao criar/tocar Ã¡udio:", error);
   }
 }
 
@@ -292,7 +292,7 @@ function verificarLogin() {
   return new Promise((resolve) => {
     onAuthStateChanged(auth, (user) => {
       if (!user) {
-        criarPopup('Acesso Negado', 'Você precisa estar logado para acessar esta página.', 'warning');
+        criarPopup('Acesso Negado', 'VocÃª precisa estar logado para acessar esta pÃ¡gina.', 'warning');
         setTimeout(() => {
           window.location.href = 'index.html';
         }, 2000);
@@ -305,7 +305,7 @@ function verificarLogin() {
 }
 
 // ===================
-// GERAR ID ÚNICO
+// GERAR ID ÃšNICO
 // ===================
 function gerarIdUnico(prefixo = 'id') {
   const timestamp = Date.now();
@@ -314,7 +314,7 @@ function gerarIdUnico(prefixo = 'id') {
 }
 
 // ===================
-// BUSCAR DADOS DO USUÁRIO POR UID
+// BUSCAR DADOS DO USUÃRIO POR UID
 // ===================
 async function buscarDadosUsuarioPorUid(uid) {
   try {
@@ -339,7 +339,7 @@ async function buscarDadosUsuarioPorUid(uid) {
       displayname: userData.displayname || ''
     };
   } catch (error) {
-    console.error("Erro ao buscar dados do usuário:", error);
+    console.error("Erro ao buscar dados do usuÃ¡rio:", error);
     return null;
   }
 }
@@ -364,7 +364,7 @@ function configurarScrollInfinito() {
 }
 
 // ===================
-// CARREGAR POSTS DO FEED (posts/{postid})
+// CARREGAR POSTS DO FEED (posts/{postid}) - VERSÃO CORRIGIDA
 // ===================
 async function carregarTodosOsPosts() {
   const loadingInfo = mostrarLoading('Buscando posts...');
@@ -372,6 +372,7 @@ async function carregarTodosOsPosts() {
     const postsRef = collection(db, 'posts');
     const postsSnapshot = await getDocs(postsRef);
     const todosOsPosts = [];
+    
     for (const postDoc of postsSnapshot.docs) {
       const postData = postDoc.data();
       const userData = await buscarDadosUsuarioPorUid(postData.creatorid);
@@ -381,10 +382,31 @@ async function carregarTodosOsPosts() {
         ...postData
       });
     }
+    
+    // ORDENAÇÃO CORRIGIDA - Posts mais recentes primeiro
     todosOsPosts.sort((a, b) => {
       if (!a.create || !b.create) return 0;
-      return new Date(b.create) - new Date(a.create);
+      
+      // Tratamento para diferentes tipos de timestamp
+      let dataA, dataB;
+      
+      // Se for timestamp do Firestore (objeto com seconds)
+      if (typeof a.create === 'object' && a.create.seconds) {
+        dataA = new Date(a.create.seconds * 1000);
+      } else {
+        dataA = new Date(a.create);
+      }
+      
+      if (typeof b.create === 'object' && b.create.seconds) {
+        dataB = new Date(b.create.seconds * 1000);
+      } else {
+        dataB = new Date(b.create);
+      }
+      
+      // Ordena do mais recente (dataB) para o mais antigo (dataA)
+      return dataB.getTime() - dataA.getTime();
     });
+    
     clearInterval(loadingInfo.interval);
     esconderLoading();
     return todosOsPosts;
@@ -392,19 +414,20 @@ async function carregarTodosOsPosts() {
     console.error("Erro ao carregar posts:", error);
     clearInterval(loadingInfo.interval);
     esconderLoading();
-    criarPopup('Erro', 'Não foi possível carregar os posts. Tente novamente.', 'error');
+    criarPopup('Erro', 'NÃ£o foi possÃ­vel carregar os posts. Tente novamente.', 'error');
     return [];
   }
 }
 
 // ===================
-// CARREGAR COMENTÁRIOS
+// CARREGAR COMENTÃRIOS - VERSÃO CORRIGIDA
 // ===================
 async function carregarComentarios(postId) {
   try {
     const comentariosRef = collection(db, 'posts', postId, 'coments');
     const comentariosSnapshot = await getDocs(comentariosRef);
     const comentarios = [];
+    
     for (const comentarioDoc of comentariosSnapshot.docs) {
       const comentarioData = comentarioDoc.data();
       const userData = await buscarDadosUsuarioPorUid(comentarioData.senderid);
@@ -414,27 +437,45 @@ async function carregarComentarios(postId) {
         ...comentarioData
       });
     }
+    
+    // ORDENAÇÃO CORRIGIDA - Comentários do mais antigo para o mais recente
     comentarios.sort((a, b) => {
       if (!a.create || !b.create) return 0;
-      return (a.create?.seconds || 0) - (b.create?.seconds || 0);
+      
+      let dataA, dataB;
+      
+      if (typeof a.create === 'object' && a.create.seconds) {
+        dataA = a.create.seconds;
+      } else {
+        dataA = new Date(a.create).getTime() / 1000;
+      }
+      
+      if (typeof b.create === 'object' && b.create.seconds) {
+        dataB = b.create.seconds;
+      } else {
+        dataB = new Date(b.create).getTime() / 1000;
+      }
+      
+      return dataA - dataB; // Do mais antigo para o mais recente
     });
+    
     return comentarios;
   } catch (error) {
-    console.error("Erro ao carregar comentários:", error);
+    console.error("Erro ao carregar comentÃ¡rios:", error);
     return [];
   }
 }
 
 // ===================
-// RENDERIZAR COMENTÁRIOS
+// RENDERIZAR COMENTÃRIOS
 // ===================
 async function renderizarComentarios(uid, postId, container) {
-  const loadingInfo = mostrarLoading('Carregando comentários...');
+  const loadingInfo = mostrarLoading('Carregando comentÃ¡rios...');
   try {
-    const comentarios = await carregarComentarios(postId); // <-- só postId agora!
+    const comentarios = await carregarComentarios(postId);
     container.innerHTML = '';
     if (comentarios.length === 0) {
-      container.innerHTML = '<p class="no-comments">Nenhum comentário ainda.</p>';
+      container.innerHTML = '<p class="no-comments">Nenhum comentario ainda.</p>';
     } else {
       comentarios.forEach(comentario => {
         const nomeParaExibir = comentario.userData?.displayname || comentario.userData?.username || comentario.senderid;
@@ -461,26 +502,26 @@ async function renderizarComentarios(uid, postId, container) {
     clearInterval(loadingInfo.interval);
     esconderLoading();
   } catch (error) {
-    console.error("Erro ao renderizar comentários:", error);
+    console.error("Erro ao renderizar comentarios:", error);
     clearInterval(loadingInfo.interval);
     esconderLoading();
-    container.innerHTML = '<p class="error-comments">Erro ao carregar comentários.</p>';
+    container.innerHTML = '<p class="error-comments">Erro ao carregar comentarios.</p>';
   }
 }
 
 
 // ===================
-// ADICIONAR COMENTÁRIO
+// ADICIONAR COMENTÃRIO
 // ===================
 async function adicionarComentario(uid, postId, conteudo) {
   const usuarioLogado = auth.currentUser;
   if (!usuarioLogado) return;
   const linkCheck = detectarLinksMaliciosos(conteudo);
   if (linkCheck.malicioso) {
-    criarPopup('Link Bloqueado', `O link "${linkCheck.url}" foi identificado como potencialmente malicioso e não pode ser postado.`, 'warning');
+    criarPopup('Link Bloqueado', `O link "${linkCheck.url}" foi identificado como potencialmente malicioso e nÃ£o pode ser postado.`, 'warning');
     return false;
   }
-  const loadingInfo = mostrarLoading('Enviando comentário...');
+  const loadingInfo = mostrarLoading('Enviando comentario...');
   try {
     const comentarioId = gerarIdUnico('comentid');
     const comentarioData = {
@@ -499,10 +540,10 @@ async function adicionarComentario(uid, postId, conteudo) {
     esconderLoading();
     return true;
   } catch (error) {
-    console.error("Erro ao adicionar comentário:", error);
+    console.error("Erro ao adicionar comentÃ¡rio:", error);
     clearInterval(loadingInfo.interval);
     esconderLoading();
-    criarPopup('Erro', 'Erro ao enviar comentário', 'error');
+    criarPopup('Erro', 'Erro ao enviar comentÃ¡rio', 'error');
     return false;
   }
 }
@@ -511,7 +552,7 @@ async function adicionarComentario(uid, postId, conteudo) {
 // FORMATAR DATA RELATIVA
 // ===================
 function formatarDataRelativa(data) {
-  if (!data) return 'Data não disponível';
+  if (!data) return 'Data nÃ£o disponÃ­vel';
   try {
     let date;
     if (typeof data === 'object' && data.seconds) {
@@ -528,15 +569,15 @@ function formatarDataRelativa(data) {
     const meses = Math.floor(dias / 30);
     const anos = Math.floor(dias / 365);
     if (minutos < 1) return 'Agora mesmo';
-    else if (minutos < 60) return `Há ${minutos} minuto${minutos !== 1 ? 's' : ''}`;
-    else if (horas < 24) return `Há ${horas} hora${horas !== 1 ? 's' : ''}`;
-    else if (dias < 7) return `Há ${dias} dia${dias !== 1 ? 's' : ''}`;
-    else if (semanas < 4) return `Há ${semanas} semana${semanas !== 1 ? 's' : ''}`;
-    else if (meses < 12) return `Há ${meses} mês${meses !== 1 ? 'es' : ''}`;
-    else return `Há ${anos} ano${anos !== 1 ? 's' : ''}`;
+    else if (minutos < 60) return `HÃ¡ ${minutos} minuto${minutos !== 1 ? 's' : ''}`;
+    else if (horas < 24) return `HÃ¡ ${horas} hora${horas !== 1 ? 's' : ''}`;
+    else if (dias < 7) return `HÃ¡ ${dias} dia${dias !== 1 ? 's' : ''}`;
+    else if (semanas < 4) return `HÃ¡ ${semanas} semana${semanas !== 1 ? 's' : ''}`;
+    else if (meses < 12) return `HÃ¡ ${meses} mÃªs${meses !== 1 ? 'es' : ''}`;
+    else return `HÃ¡ ${anos} ano${anos !== 1 ? 's' : ''}`;
   } catch (error) {
     console.error("Erro ao formatar data:", error);
-    return 'Data inválida';
+    return 'Data invÃ¡lida';
   }
 }
 
@@ -560,7 +601,7 @@ async function loadPosts() {
     if (proximosPosts.length === 0) {
       hasMorePosts = false;
       if (loadMoreBtn) {
-        loadMoreBtn.textContent = "Não há mais posts";
+        loadMoreBtn.textContent = "NÃ£o hÃ¡ mais posts";
         loadMoreBtn.disabled = true;
       }
       loading = false;
@@ -572,7 +613,7 @@ async function loadPosts() {
   const nomeParaExibir = post.userData?.displayname || post.userData?.username || post.creatorid;
   const usernameParaExibir = post.userData?.username ? `@${post.userData.username}` : '';
   const fotoUsuario = post.userData?.userphoto || obterFotoPerfil(post.userData, null);
-  const conteudoFormatado = formatarHashtags(post.content || 'Conteúdo não disponível');
+  const conteudoFormatado = formatarHashtags(post.content || 'ConteÃºdo nÃ£o disponÃ­vel');
   let imagemHtml = '';
   if (post.img && await validarUrlImagem(post.img)) {
     imagemHtml = `
@@ -585,7 +626,7 @@ async function loadPosts() {
   postEl.innerHTML = `
     <div class="post-header">
       <div class="user-info">
-        <img src="${fotoUsuario}" alt="Avatar do usuário" class="avatar"
+        <img src="${fotoUsuario}" alt="Avatar do usuÃ¡rio" class="avatar"
              onerror="this.src='./src/icon/default.jpg'" />
         <div class="user-meta">
           <strong class="user-name-link" data-username="${post.creatorid}">${nomeParaExibir}</strong>
@@ -609,7 +650,7 @@ async function loadPosts() {
     <div class="post-date">${formatarDataRelativa(post.create)}</div>
     <div class="comments-section" style="display: none;">
       <div class="comment-form">
-        <input type="text" class="comment-input" placeholder="Escreva um comentário..."
+        <input type="text" class="comment-input" placeholder="Escreva um comentÃ¡rio..."
                data-username="${post.creatorid}" data-post-id="${post.postid}">
         <button class="comment-submit" data-username="${post.creatorid}" data-post-id="${post.postid}">
           <i class="fas fa-paper-plane"></i>
@@ -623,7 +664,7 @@ async function loadPosts() {
     if (postsExibidos + proximosPosts.length >= allPosts.length) {
       hasMorePosts = false;
       if (loadMoreBtn) {
-        loadMoreBtn.textContent = "Não há mais posts";
+        loadMoreBtn.textContent = "NÃ£o hÃ¡ mais posts";
         loadMoreBtn.disabled = true;
       }
     } else {
@@ -637,49 +678,56 @@ async function loadPosts() {
     if (loadMoreBtn) {
       loadMoreBtn.textContent = "Erro ao carregar";
     }
-    criarPopup('Erro', 'Não foi possível carregar mais posts.', 'error');
+    criarPopup('Erro', 'NÃ£o foi possÃ­vel carregar mais posts.', 'error');
   }
   loading = false;
 }
 
 
 // ===================
-// ENVIAR POST (salva em users/{userid}/posts/{postid} e posts/{postid})
+// ENVIAR POST - VERSÃO OTIMIZADA
 // ===================
 async function sendPost() {
   const usuarioLogado = auth.currentUser;
   if (!usuarioLogado) return;
+  
   const texto = postInput.value.trim();
   if (!texto) {
     criarPopup('Campo Vazio', 'Digite algo para postar!', 'warning');
     return;
   }
+  
   const linkCheck = detectarLinksMaliciosos(texto);
   if (linkCheck.malicioso) {
-    criarPopup('Link Bloqueado', `O link "${linkCheck.url}" foi identificado como potencialmente malicioso e não pode ser postado.`, 'warning');
+    criarPopup('Link Bloqueado', `O link "${linkCheck.url}" foi identificado como potencialmente malicioso e nÃ£o pode ser postado.`, 'warning');
     return;
   }
+  
   const imagemInput = document.querySelector('.image-url-input');
   let urlImagem = '';
   if (imagemInput) {
     urlImagem = imagemInput.value.trim();
     if (urlImagem && !(await validarUrlImagem(urlImagem))) {
-      criarPopup('Imagem Inválida', 'A URL da imagem não é válida ou não aponta para uma imagem.', 'warning');
+      criarPopup('Imagem InvÃ¡lida', 'A URL da imagem nÃ£o Ã© vÃ¡lida ou nÃ£o aponta para uma imagem.', 'warning');
       return;
     }
   }
+  
   tocarSomEnvio();
   criarAnimacaoAviaoPapel();
+  
   const loadingInfo = mostrarLoading('Enviando post...');
   try {
     const postId = gerarIdUnico('post');
     const userData = await buscarDadosUsuarioPorUid(usuarioLogado.uid);
+    
     if (!userData) {
       clearInterval(loadingInfo.interval);
       esconderLoading();
-      criarPopup('Erro', 'Erro ao buscar dados do usuário', 'error');
+      criarPopup('Erro', 'Erro ao buscar dados do usuÃ¡rio', 'error');
       return;
     }
+    
     const postData = {
       content: texto,
       img: urlImagem || '',
@@ -690,22 +738,32 @@ async function sendPost() {
       reports: 0,
       create: serverTimestamp()
     };
+    
     // Salvar em users/{userid}/posts/{postid}
     const userPostRef = doc(db, 'users', usuarioLogado.uid, 'posts', postId);
     await setDoc(userPostRef, postData);
+    
     // Salvar em posts/{postid}
     const globalPostRef = doc(db, 'posts', postId);
     await setDoc(globalPostRef, postData);
+    
+    // Limpa os campos
     postInput.value = '';
     if (imagemInput) imagemInput.value = '';
+    
+    // Reseta as variáveis de controle e recarrega o feed
     feed.innerHTML = '';
     allPosts = [];
     currentPage = 0;
     hasMorePosts = true;
+    loading = false; // IMPORTANTE: Reset da variável loading
+    
     await loadPosts();
+    
     clearInterval(loadingInfo.interval);
     esconderLoading();
     criarPopup('Sucesso!', 'Post enviado com sucesso!', 'success');
+    
   } catch (error) {
     console.error("Erro ao enviar post:", error);
     clearInterval(loadingInfo.interval);

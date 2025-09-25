@@ -14,22 +14,3 @@
     });
   });
 
-  window.addEventListener("DOMContentLoaded", () => {
-  const user = JSON.parse(localStorage.getItem("usuarioLogado"));
-
-  if (!user) {
-    window.location.href = "login.html";
-    return;
-  }
-
-  const nomeCompleto = document.getElementById("nomeCompleto");
-  if (nomeCompleto) {
-    nomeCompleto.textContent = `${user.nome} ${user.sobrenome}`;
-  }
-
-  const username = document.getElementById("username");
-  if (username) {
-    username.textContent = `@${user.username}`;
-  }
-});
-
