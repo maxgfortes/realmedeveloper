@@ -518,7 +518,7 @@
   }
 
   .navbar-top {
-  display: flex !important;
+  display: flex;
   justify-content: space-between; /* joga um grupo p/ esquerda e outro p/ direita */
   align-items: center;            /* centraliza na vertical */
 }
@@ -526,7 +526,7 @@
 .top-left, .top-right {
   color: white;
   text-decoration: none;
-  display: flex !important;
+  display: flex;
 }
 
 

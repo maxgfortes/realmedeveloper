@@ -356,6 +356,34 @@ select {
   margin-left: 2px;
 }
 
+.age-input {
+  background-color: red;
+  padding: 6px;
+  flex: 1;
+  border-radius: 8px;
+  margin: 8px 0px 12px 0px;
+  font-size: 16px;
+  background: #474747; /* Quase preto, mas não absoluto */
+  border: 1px solid #363636; /* Cinza quase preto pra separar do fundo */
+  box-shadow: inset 0 8px 8px -7px rgba(0, 0, 0, 0.644); /* Sombra interna clara no modo dark */
+  transition: all 0.3s ease;
+}
+
+.age-input:focus {
+  outline: none;
+  border-color: #4A90E2;
+  box-shadow: 0 0 10px rgba(74, 144, 226, 0.6);
+}
+
+.age {
+  padding: 16px;
+  display: flex;
+}
+
+.age-range {
+  padding: 10px;
+}
+
 
 
 

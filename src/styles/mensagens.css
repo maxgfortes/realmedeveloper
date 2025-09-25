@@ -33,7 +33,7 @@
   border-radius: 8px;
   max-width: 600px; /* ajuste conforme precisar */
   gap: 10px;
-  border: 1px solid #2a2a2a;
+  border: 1px solid #363636;
   background: #474747; /* Quase preto, mas não absoluto */
   display: flex;
   align-items: center;
@@ -91,6 +91,7 @@
   background-color: transparent;
   display: flex;           /* volta a ser flex aqui */
   flex-direction: row;     /* itens lado a lado dentro do interno-do-interno */
+  justify-content: space-between;
   padding: 10px;
   border-bottom: 1px solid #333;
   width: 800px;
@@ -106,6 +107,32 @@
 .user-selected span {
   color: #999;
 }
+
+.selected-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.selected-right button {
+  background-color: #00000000;
+  padding: 10px;
+  font-size: 18px;
+  border: none;
+  margin: 4px;
+  color: #999;
+  transition: color 0.2s ease;
+}
+.selected-right button:hover {
+  background-color: #00000000;
+  padding: 10px;
+  font-size: 18px;
+  border: none;
+  margin: 4px;
+  color: #cacaca;
+}
+
+
 
 .chat-area {
   display: flex;           /* volta a ser flex aqui */

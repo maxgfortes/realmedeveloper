@@ -12,6 +12,7 @@
   overflow: hidden;
   margin-left: 250px;
   margin-top: 80px;
+  overflow-y: auto;
 }
 
 /* Scroll estilizado */
@@ -101,4 +102,8 @@
   color: #999;
   margin-top: 6px;
   text-align: right;
+}
+
+.notification-item:hover .notification-time {
+  color: #fff;
 }

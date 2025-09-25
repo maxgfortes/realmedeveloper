@@ -1661,6 +1661,11 @@
   border-color: #4A90E2;
 }
 
+.about-title {
+  color: #ffffff;
+  font-weight: bold;
+}
+
 .depoimento-form textarea:invalid:not(:placeholder-shown) {
   border-color: #fff;
 }
