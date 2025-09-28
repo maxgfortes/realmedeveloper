@@ -71,21 +71,3 @@
                 alert('Escreva algo ou adicione uma mídia para publicar!');
             }
         });
-
-        // Menu flutuante "Mais"
-        const moreToggle = document.getElementById('moreToggle');
-        const floatingMenu = document.getElementById('floatingMenu');
-
-        if (moreToggle && floatingMenu) {
-            moreToggle.addEventListener('click', function(e) {
-                e.preventDefault();
-                floatingMenu.classList.toggle('show');
-            });
-
-            // Fechar menu flutuante clicando fora
-            document.addEventListener('click', function(e) {
-                if (!moreToggle.contains(e.target) && !floatingMenu.contains(e.target)) {
-                    floatingMenu.classList.remove('show');
-                }
-            });
-        }

@@ -889,7 +889,7 @@ async function atualizarGreeting() {
 function configurarLinks() {
   const usuarioLogado = auth.currentUser;
   if (!usuarioLogado) return;
-  const urlPerfil = `PF.html?uid=${encodeURIComponent(usuarioLogado.uid)}`;
+  const urlPerfil = `PF.html?userid=${encodeURIComponent(usuarioLogado.uid)}`;
   const linkSidebar = document.getElementById('linkPerfilSidebar');
   const linkMobile = document.getElementById('linkPerfilMobile');
   if (linkSidebar) linkSidebar.href = urlPerfil;
@@ -975,7 +975,7 @@ function configurarEventListeners() {
       }
       if (userNameLink) {
         const uid = userNameLink.dataset.username;
-        window.location.href = `PF.html?uid=${encodeURIComponent(uid)}`;
+        window.location.href = `PF.html?userid=${encodeURIComponent(uid)}`;
       }
       if (commentSubmit) {
         const uid = commentSubmit.dataset.username;
@@ -1331,7 +1331,7 @@ document.addEventListener('click', (e) => {
   if (e.target.classList.contains('comentario-nome')) {
     const uid = e.target.dataset.username;
     if (uid) {
-      window.location.href = `PF.html?uid=${encodeURIComponent(uid)}`;
+      window.location.href = `PF.html?userid=${encodeURIComponent(uid)}`;
     }
   }
 });

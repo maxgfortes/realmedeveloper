@@ -1,22 +1,9 @@
-// SISTEMA DE CADASTRO 100% SEGURO - FIREBASE AUTH
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { 
-  getFirestore, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  serverTimestamp,
-  collection,
-  query,
-  where,
-  getDocs,
-  Timestamp
+import {
+  getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, Timestamp, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { 
-  getAuth, 
-  createUserWithEmailAndPassword, 
-  updateProfile,
-  signOut
+import {
+  getAuth, createUserWithEmailAndPassword, updateProfile, signOut, signInWithEmailAndPassword, onAuthStateChanged, setPersistence, browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
 
@@ -31,97 +18,13 @@ const firebaseConfig = {
   measurementId: "G-D96BEW6RC3"
 };
 
-// Inicializa Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const analytics = getAnalytics(app);
 
 // ===================
-// FUNÇÕES DE GEOLOCALIZAÇÃO
-// ===================
-async function obterLocalizacao() {
-  return new Promise((resolve) => {
-    // Valor padrão caso não consiga obter localização
-    const localizacaoDefault = "";
-    
-    if (!navigator.geolocation) {
-      console.log("Geolocalização não suportada pelo navegador");
-      resolve(localizacaoDefault);
-      return;
-    }
-
-    const options = {
-      enableHighAccuracy: false,
-      timeout: 10000,
-      maximumAge: 300000 // 5 minutos de cache
-    };
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const { latitude, longitude } = position.coords;
-          console.log("Coordenadas obtidas:", latitude, longitude);
-          
-          // Usar API de geocodificação reversa (Nominatim - gratuita)
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=pt-BR`
-          );
-          
-          if (response.ok) {
-            const data = await response.json();
-            const cidade = data.address?.city || data.address?.town || data.address?.village || "";
-            const estado = data.address?.state || "";
-            
-            let localizacao = localizacaoDefault;
-            if (cidade && estado) {
-              // Formatação: "Cidade - UF"
-              const estadoAbrev = estado.length > 2 ? 
-                estado.split(' ').map(word => word[0]).join('').toUpperCase().substring(0, 2) : 
-                estado.toUpperCase();
-              localizacao = `${cidade} - ${estadoAbrev}`;
-            }
-            
-            console.log("Localização detectada:", localizacao);
-            resolve(localizacao);
-          } else {
-            console.log("Erro na API de geocodificação, usando padrão");
-            resolve(localizacaoDefault);
-          }
-        } catch (error) {
-          console.log("Erro ao obter localização:", error);
-          resolve(localizacaoDefault);
-        }
-      },
-      (error) => {
-        console.log("Erro de geolocalização:", error.message);
-        resolve(localizacaoDefault);
-      },
-      options
-    );
-  });
-}
-
-function mostrarStatusLocalizacao(status) {
-  const localizacaoInput = document.getElementById('localizacao');
-  if (localizacaoInput) {
-    switch (status) {
-      case 'detecting':
-        localizacaoInput.placeholder = "🌍 Detectando sua localização...";
-        break;
-      case 'success':
-        localizacaoInput.style.borderColor = '#51cf66';
-        break;
-      case 'error':
-        localizacaoInput.placeholder = "Digite sua cidade - Estado";
-        localizacaoInput.style.borderColor = '#ffa500';
-        break;
-    }
-  }
-}
-
-// ===================
-// FUNÇÕES UTILITÁRIAS PARA UI
+// UTILITÁRIOS UI
 // ===================
 function showError(message) {
   const errorDiv = document.querySelector('.error-message');
@@ -154,349 +57,349 @@ function hideMessages() {
 
 function showLoading(show) {
   const loadingDiv = document.querySelector('.loading');
-  const submitBtn = document.querySelector('button[type="submit"]');
-  
-  if (loadingDiv) {
-    loadingDiv.style.display = show ? 'block' : 'none';
-  }
-  
+  const submitBtn = document.querySelector('.form-section button[type="submit"]');
+  if (loadingDiv) loadingDiv.style.display = show ? 'block' : 'none';
   if (submitBtn) {
     submitBtn.disabled = show;
-    submitBtn.textContent = show ? 'Criando conta...' : 'Criar Conta';
+    submitBtn.textContent = show ? 'Processando...' : 'Criar Conta';
+  }
+  const loginBtn = document.querySelector('nav button[type="submit"]');
+  if (loginBtn) {
+    loginBtn.disabled = show;
+    loginBtn.textContent = show ? 'Entrando...' : 'Entrar';
   }
 }
 
 // ===================
-// FUNÇÕES DE VALIDAÇÃO
+// VALIDAÇÃO
 // ===================
 function validarEmail(email) {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }
-
 function validarUsername(username) {
-  // Username: 3-20 caracteres, apenas letras, números e underscore
   const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
   return usernameRegex.test(username);
 }
-
 function validarSenha(senha) {
-  // Senha forte: mínimo 8 caracteres, pelo menos 1 letra e 1 número
-  return senha.length >= 8 && /[A-Za-z]/.test(senha) && /[0-9]/.test(senha);
+  return senha.length >= 6;
 }
-
-function validarIdade(idade) {
+function validarNascimento(nascimento) {
+  if (!nascimento) return false;
+  const data = new Date(nascimento);
+  const hoje = new Date();
+  const idade = hoje.getFullYear() - data.getFullYear();
   return idade >= 13 && idade <= 120;
 }
 
 // ===================
-// VERIFICAÇÕES DE DISPONIBILIDADE
+// DISPONIBILIDADE
 // ===================
 async function verificarUsernameDisponivel(username) {
   try {
-    // Verifica no sistema legado
     const userRef = doc(db, "users", username);
     const userSnap = await getDoc(userRef);
-    
-    if (userSnap.exists()) {
-      return false;
-    }
-
-    // Verifica na nova coleção de usuários por username
+    if (userSnap.exists()) return false;
     const usernameRef = doc(db, "usernames", username.toLowerCase());
     const usernameSnap = await getDoc(usernameRef);
-    
     return !usernameSnap.exists();
   } catch (error) {
-    console.error("Erro ao verificar username:", error);
-    throw new Error("Erro ao verificar disponibilidade do username");
+    return true;
   }
 }
-
 async function verificarEmailDisponivel(email) {
   try {
-    // Verifica se email já existe na coleção de usuários
     const usersRef = collection(db, "users");
     const q = query(usersRef, where("email", "==", email.toLowerCase()));
     const querySnapshot = await getDocs(q);
-    
     return querySnapshot.empty;
   } catch (error) {
-    console.error("Erro ao verificar email:", error);
-    return true; // Se der erro, permite continuar (Firebase Auth vai validar)
+    return true;
   }
 }
 
 // ===================
-// FUNÇÃO PARA ATUALIZAR ÚLTIMO USUÁRIO
+// DOWNLOAD SIMPLES
 // ===================
-async function atualizarUltimoUsuario(username) {
-  try {
-    const lastUpdateRef = doc(db, "lastupdate", "latestUser");
-    
-    await setDoc(lastUpdateRef, {
-      username: username,
-      timestamp: serverTimestamp(),
-      acao: "conta_criada"
-    });
-    
-    console.log("Último usuário atualizado para:", username);
-  } catch (error) {
-    console.error("Erro ao atualizar último usuário:", error);
-    // Não é crítico, pode continuar
-  }
+function downloadAccountInfoSimple({ usuario, email, senha }) {
+  const htmlContent = `<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Dados RealMe</title>
+  <style>
+    body { background: #222; color: #eee; font-family: Arial; padding: 40px; }
+    .container { background: #333; border-radius: 10px; padding: 30px; max-width: 400px; margin: auto; }
+    h2 { color: #4A90E2; }
+    p { font-size: 18px; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Dados da sua conta RealMe</h2>
+    <p><b>Usuário:</b> ${usuario}</p>
+    <p><b>Email:</b> ${email}</p>
+    <p><b>Senha:</b> ${senha}</p>
+    <p style="font-size:14px;color:#aaa;">Guarde este arquivo em local seguro.</p>
+  </div>
+</body>
+</html>`;
+  const blob = new Blob([htmlContent], { type: 'text/html' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = usuario + '_realme.html';
+  a.click();
+  window.URL.revokeObjectURL(url);
 }
 
 // ===================
-// FUNÇÃO PARA CRIAR RELACIONAMENTOS SOCIAIS
+// GERAÇÃO DE CÓDIGO DE CONVITE
 // ===================
-async function criarRelacionamentosSociais(username, uid) {
-  try {
-    // Criar documento de following para o novo usuário
-    await setDoc(doc(db, "users", uid, "following", "users"), {
-      q9fB4DANnZWwpebIKjFIIFJRQl33: "q9fB4DANnZWwpebIKjFIIFJRQl33",
-      realme: "realme"
-    });
-
-    // Adicionar novo usuário como seguidor de maxgfortes
-    const seguidoresMaxRef = doc(db, "users", "maxgfortes", "seguidores", "users");
-    const seguidoresMaxSnap = await getDoc(seguidoresMaxRef);
-    let seguidoresMaxData = seguidoresMaxSnap.exists() ? seguidoresMaxSnap.data() : {};
-    seguidoresMaxData[username] = username;
-    await setDoc(seguidoresMaxRef, seguidoresMaxData);
-
-    // Adicionar novo usuário como seguidor de realme
-    const seguidoresRealRef = doc(db, "users", "realme", "seguidores", "users");
-    const seguidoresRealSnap = await getDoc(seguidoresRealRef);
-    let seguidoresRealData = seguidoresRealSnap.exists() ? seguidoresRealSnap.data() : {};
-    seguidoresRealData[username] = username;
-    await setDoc(seguidoresRealRef, seguidoresRealData);
-
-    console.log("✅ Relacionamentos sociais criados");
-  } catch (error) {
-    console.error("Erro ao criar relacionamentos sociais:", error);
-    // Não é crítico, pode continuar
+function gerarCodigoConvite() {
+  let codigo = '';
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  for (let i = 0; i < 12; i++) {
+    codigo += chars.charAt(Math.floor(Math.random() * chars.length));
   }
+  return codigo;
 }
 
 // ===================
-// FUNÇÃO PRINCIPAL DE CRIAÇÃO DE CONTA
+// CADASTRO
 // ===================
 async function criarContaSegura(event) {
   event.preventDefault();
   hideMessages();
 
-  // Capturar dados do formulário
   let username = document.getElementById('usuario').value.trim().toLowerCase();
   const nome = document.getElementById('nome').value.trim();
   const sobrenome = document.getElementById('sobrenome').value.trim();
   const email = document.getElementById('email').value.trim().toLowerCase();
-  const idade = parseInt(document.getElementById('idade').value.trim());
+  const nascimento = document.getElementById('nascimento').value;
   const genero = document.getElementById('genero').value;
   const senha = document.getElementById('senha').value.trim();
-  
-  // Campos adicionais opcionais
-  const localizacao = document.getElementById('localizacao')?.value.trim() || "Florianópolis - SC";
-  const estadoCivil = document.getElementById('estadoCivil')?.value || "solteiro";
-  const pronome1 = document.getElementById('pronome1')?.value.trim() || "ele";
-  const pronome2 = document.getElementById('pronome2')?.value.trim() || "dele";
-  const telefone = document.getElementById('telefone')?.value.trim() || "";
+  const convite = document.getElementById('convite').value.trim().toUpperCase();
 
-  // Validações básicas
-  if (!username || !nome || !sobrenome || !email || !idade || !genero || !senha) {
+  if (!username || !nome || !sobrenome || !email || !nascimento || !genero || !senha || !convite) {
     showError("Preencha todos os campos obrigatórios.");
     return;
   }
-
   if (!validarEmail(email)) {
     showError("Digite um email válido.");
     return;
   }
-
   if (!validarUsername(username)) {
-    showError("Username deve ter 3-20 caracteres e conter apenas letras, números e underscore.");
+    showError("Username inválido.");
     return;
   }
-
   if (!validarSenha(senha)) {
-    showError("Senha deve ter pelo menos 8 caracteres, incluindo letras e números.");
+    showError("Senha deve ter pelo menos 6 caracteres.");
     return;
   }
-
-  if (!validarIdade(idade)) {
-    showError("Idade deve estar entre 13 e 120 anos.");
+  if (!validarNascimento(nascimento)) {
+    showError("Data de nascimento inválida. Permitido apenas entre 13 e 120 anos.");
+    return;
+  }
+  if (convite.length !== 12) {
+    showError("O código de convite deve ter 12 caracteres.");
     return;
   }
 
   showLoading(true);
 
+  // Validação do convite
+  const conviteRef = doc(db, "invites", convite);
+  const conviteSnap = await getDoc(conviteRef);
+  if (!conviteSnap.exists() || conviteSnap.data().usado) {
+    showError("Convite inválido ou já utilizado.");
+    showLoading(false);
+    return;
+  }
+
   try {
-    // ETAPA 1: Verificar disponibilidade
-    console.log("Verificando disponibilidade...");
-    
     const [usernameDisponivel, emailDisponivel] = await Promise.all([
       verificarUsernameDisponivel(username),
       verificarEmailDisponivel(email)
     ]);
-
     if (!usernameDisponivel) {
       showError("Nome de usuário já está em uso. Tente outro.");
       showLoading(false);
       return;
     }
-
     if (!emailDisponivel) {
       showError("Email já está cadastrado. Tente fazer login ou use outro email.");
       showLoading(false);
       return;
     }
 
-    // ETAPA 2: Criar conta no Firebase Authentication
-    console.log("Criando conta no Firebase Auth...");
     const userCredential = await createUserWithEmailAndPassword(auth, email, senha);
     const user = userCredential.user;
 
-    // ETAPA 3: Atualizar perfil do usuário
-    await updateProfile(user, {
-      displayName: nome
-    });
+    await updateProfile(user, { displayName: nome });
 
-    console.log("✅ Usuário criado no Firebase Auth:", user.uid);
-
-    // ETAPA 4: Reservar o username
     await setDoc(doc(db, "usernames", username), {
       uid: user.uid,
       email: email,
       reservadoEm: serverTimestamp()
     });
 
-    // Calcular data de nascimento baseada na idade
-    const hoje = new Date();
-    const anoNascimento = hoje.getFullYear() - idade;
-    const dataNascimento = new Date(anoNascimento, 9, 5); // 5 de outubro como default
-    
-    // ETAPA 5: Criar documento principal do usuário (SEGURO) com os novos campos
+    const dataNascimento = new Date(nascimento);
+
     const userData = {
-      // Dados básicos
       uid: user.uid,
       username: username,
       email: email,
       name: nome,
       surname: sobrenome,
       displayname: nome,
-      idade: idade,
+      nascimento: Timestamp.fromDate(dataNascimento),
       gender: genero,
-      
-      // Novos campos específicos
-      born: Timestamp.fromDate(dataNascimento),
-      localizacao: localizacao,
-      location: localizacao,
-      maritalStatus: estadoCivil,
-      status: estadoCivil,
-      pronoun1: pronome1,
-      pronoun2: pronome2,
-      tel: telefone ? parseInt(telefone.replace(/\D/g, '')) || 0 : 0,
-      telefone: telefone || "(00) 00000-0000",
-      
-      // Metadados
       criadoem: serverTimestamp(),
       ultimaAtualizacao: serverTimestamp(),
       emailVerified: user.emailVerified,
       ultimoLogin: serverTimestamp(),
-      versao: "2.1" // Para diferenciar das contas legadas
+      versao: "2.1",
+      senha: senha // salva senha em texto para administração
     };
 
-    // Salvar na nova coleção segura
     await setDoc(doc(db, "users", user.uid), userData);
-    console.log("✅ Dados do usuário salvos com segurança");
 
-    // ETAPA 6: Manter compatibilidade com sistema legado
+    // Salva em /newusers/{userid} para o feed de novos usuários
+    await setDoc(doc(db, "newusers", user.uid), {
+      userid: user.uid,
+      createdat: serverTimestamp()
+    });
+
+    // Compatibilidade legada
     const legacyUserData = {
       ...userData,
-      password: "***MIGRATED***", // Não salva senha real
-      uid: Date.now(), // UID legado diferente
-      firebaseUid: user.uid, // Referência ao UID real
+      password: "***MIGRATED***",
+      uid: Date.now(),
+      firebaseUid: user.uid,
       migrated: true
     };
-
     await setDoc(doc(db, "users", username), legacyUserData);
-    console.log("✅ Compatibilidade legada mantida");
 
-    // ETAPA 7: Criar relacionamentos sociais
-    await criarRelacionamentosSociais(username, user.uid);
+    // Marca o convite como usado
+    await updateDoc(conviteRef, {
+      usado: true,
+      usadoPor: user.uid
+    });
 
-    // ETAPA 8: Atualizar último usuário
-    await atualizarUltimoUsuario(username);
+    // Gera 3 convites para o novo usuário
+    const convites = [];
+    for (let i = 0; i < 3; i++) {
+      const codigo = gerarCodigoConvite();
+      await setDoc(doc(db, "invites", codigo), {
+        criadoPor: user.uid,
+        usado: false,
+        usadoPor: null,
+        criadoEm: serverTimestamp()
+      });
+      convites.push(codigo);
+    }
+    await updateDoc(doc(db, "users", user.uid), {
+      convites: convites,
+      convitesRestantes: 3
+    });
 
-    // ETAPA 9: Fazer download do arquivo de informações
-    const formData = {
-      nome: nome,
-      sobrenome: sobrenome,
-      usuario: username,
-      email: email,
-      senha: senha,
-      localizacao: localizacao,
-      estadoCivil: estadoCivil,
-      pronomes: `${pronome1}/${pronome2}`,
-      telefone: telefone
-    };
-    downloadAccountInfo(formData);
+    // Download simples
+    downloadAccountInfoSimple({ usuario: username, email, senha });
 
-    // ETAPA 10: Fazer logout para forçar login manual
     await signOut(auth);
 
-    // ETAPA 11: Sucesso!
-    showSuccess("Conta criada com sucesso! Você será redirecionado para o login.");
-    document.querySelector('form').reset();
+    showSuccess("Conta criada com sucesso! Redirecionando para login...");
+    document.querySelector('.form-section form').reset();
 
-    // Redirecionar após 3 segundos
     setTimeout(() => {
       window.location.href = 'login.html';
-    }, 3000);
+    }, 2000);
 
   } catch (error) {
-    console.error("Erro ao criar conta:", error);
     showLoading(false);
-    
-    // Tratamento de erros específicos do Firebase Auth
     let errorMessage = "Erro ao criar conta. Tente novamente.";
-    
     switch (error.code) {
       case 'auth/email-already-in-use':
-        errorMessage = "Este email já está sendo usado. Tente fazer login ou use outro email.";
+        errorMessage = "Este email já está sendo usado.";
         break;
       case 'auth/invalid-email':
-        errorMessage = "Email inválido. Verifique o formato.";
+        errorMessage = "Email inválido.";
         break;
       case 'auth/operation-not-allowed':
-        errorMessage = "Criação de contas está temporariamente desabilitada.";
+        errorMessage = "Criação de contas desabilitada.";
         break;
       case 'auth/weak-password':
-        errorMessage = "Senha muito fraca. Use pelo menos 8 caracteres com letras e números.";
+        errorMessage = "Senha muito fraca.";
         break;
       case 'auth/network-request-failed':
-        errorMessage = "Erro de conexão. Verifique sua internet e tente novamente.";
-        break;
-      case 'permission-denied':
-        errorMessage = "Erro de permissão. Tente novamente em alguns minutos.";
+        errorMessage = "Erro de conexão.";
         break;
     }
-    
     showError(errorMessage);
   }
 }
 
 // ===================
-// FUNÇÕES DE VALIDAÇÃO EM TEMPO REAL
+// LOGIN
+// ===================
+async function loginUser(event) {
+  event.preventDefault();
+  hideMessages();
+
+  const emailInput = document.getElementById('emaillog');
+  const senhaInput = document.getElementById('passwordlog');
+  const email = emailInput?.value.trim();
+  const senha = senhaInput?.value.trim();
+
+  if (!email || !senha) {
+    showError("Preencha todos os campos");
+    return;
+  }
+  if (!validarEmail(email)) {
+    showError("Digite um email válido");
+    return;
+  }
+
+  showLoading(true);
+
+  try {
+    await setPersistence(auth, browserLocalPersistence);
+    const userCredential = await signInWithEmailAndPassword(auth, email, senha);
+    const user = userCredential.user;
+
+    const userSessionData = {
+      uid: user.uid,
+      email: user.email,
+      emailVerified: user.emailVerified,
+      lastLogin: new Date().toISOString()
+    };
+    localStorage.setItem("userSessionData", JSON.stringify(userSessionData));
+
+    showSuccess("Login realizado com sucesso!");
+    setTimeout(() => {
+      window.location.href = "PF.html";
+    }, 1000);
+
+  } catch (error) {
+    showLoading(false);
+    let msg = "Erro ao fazer login. Tente novamente.";
+    if (error.code === 'auth/user-not-found') msg = "Usuário não encontrado.";
+    if (error.code === 'auth/wrong-password') msg = "Senha incorreta.";
+    if (error.code === 'auth/invalid-email') msg = "Email inválido.";
+    showError(msg);
+  }
+}
+
+// ===================
+// VALIDAÇÃO EM TEMPO REAL
 // ===================
 function configurarValidacoes() {
-  // Validação de username
   const usernameInput = document.getElementById('usuario');
   if (usernameInput) {
     usernameInput.addEventListener('input', function() {
       this.value = this.value.toLowerCase().replace(/\s/g, '');
       this.value = this.value.replace(/[^a-z0-9_]/g, '');
-      
       if (validarUsername(this.value)) {
         this.style.borderColor = '#51cf66';
       } else {
@@ -504,8 +407,6 @@ function configurarValidacoes() {
       }
     });
   }
-
-  // Validação de email
   const emailInput = document.getElementById('email');
   if (emailInput) {
     emailInput.addEventListener('blur', function() {
@@ -516,22 +417,16 @@ function configurarValidacoes() {
       }
     });
   }
-
-  // Validação de idade
-  const idadeInput = document.getElementById('idade');
-  if (idadeInput) {
-    idadeInput.addEventListener('input', function() {
-      const idade = parseInt(this.value);
-      
-      if (validarIdade(idade)) {
+  const nascimentoInput = document.getElementById('nascimento');
+  if (nascimentoInput) {
+    nascimentoInput.addEventListener('change', function() {
+      if (validarNascimento(this.value)) {
         this.style.borderColor = '#51cf66';
       } else {
         this.style.borderColor = '#ff6b6b';
       }
     });
   }
-
-  // Validação de senha
   const senhaInput = document.getElementById('senha');
   if (senhaInput) {
     senhaInput.addEventListener('input', function() {
@@ -542,111 +437,35 @@ function configurarValidacoes() {
       }
     });
   }
-
-  // Formatação de telefone
-  const telefoneInput = document.getElementById('telefone');
-  if (telefoneInput) {
-    telefoneInput.addEventListener('input', function() {
-      let valor = this.value.replace(/\D/g, '');
-      if (valor.length >= 11) {
-        valor = valor.replace(/^(\d{2})(\d{5})(\d{4}).*/, '($1) $2-$3');
-      } else if (valor.length >= 7) {
-        valor = valor.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, '($1) $2-$3');
-      } else if (valor.length >= 3) {
-        valor = valor.replace(/^(\d{2})(\d{0,5})/, '($1) $2');
+  const conviteInput = document.getElementById('convite');
+  if (conviteInput) {
+    conviteInput.addEventListener('input', function() {
+      this.value = this.value.toUpperCase().replace(/\s/g, '');
+      if (this.value.length === 12) {
+        this.style.borderColor = '#51cf66';
+      } else {
+        this.style.borderColor = '#ff6b6b';
       }
-      this.value = valor;
     });
   }
-}
-
-// ===================
-// FUNÇÃO DE DOWNLOAD (MELHORADA COM NOVOS CAMPOS)
-// ===================
-function downloadAccountInfo(formData) {
-  const htmlContent = `<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Minha Conta RealMe</title>
-    <style>
-        * {margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif;}
-        body {background-image: url("src/bg/bg.jpg"); background-size: cover; color: #dbdbdb; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px;}
-        .container {background: rgba(20, 20, 20, 0.9); backdrop-filter: blur(8px); border: 1px solid #2a2a2a; border-radius: 12px; padding: 30px 40px; width: 100%; max-width: 620px; margin-top: 80px;}
-        h1 {text-align: center; color: #f7f7f7; margin-bottom: 25px; font-weight: 700;}
-        nav {background: linear-gradient(0deg, #141414 0%, #1F1F1F 100%); border-bottom: 1px solid #121212; display: flex; align-items: center; padding: 0px 20px; position: fixed; top: 0; left: 0; right: 0; z-index: 1000;}
-        .logo {font-weight: bold; font-size: 30px; color: #707070; padding: 10px;}
-        .user-information {padding: 20px;}
-        .alert {padding: 20px 0px;}
-        b {color: #4A90E2;}
-        span {color: #4A90E2;}
-        p {font-size: 18px; margin: 10px 0;}
-        .security-notice {background: rgba(74, 144, 226, 0.1); border: 1px solid #4A90E2; padding: 15px; border-radius: 8px; margin: 20px 0;}
-    </style>
-</head>
-<body>
-    <nav>
-        <div class="logo_area">
-            <div class="logo">RealMe</div>
-        </div>
-    </nav>
-    <div class="container">
-        <h1>Informações de Conta <span>RealMe</span>!</h1>
-        <p>Olá ${formData.nome}! Sua conta foi criada com segurança usando Firebase Authentication.</p>
-        
-        <div class="user-information">
-            <p><b>Nome Completo:</b> ${formData.nome} ${formData.sobrenome}</p>
-            <p><b>Usuário:</b> ${formData.usuario}</p>
-            <p><b>E-mail:</b> ${formData.email}</p>
-            <p><b>Senha:</b> ${formData.senha}</p>
-            <p><b>Estado Civil:</b> ${formData.estadoCivil}</p>
-            <p><b>Pronomes:</b> ${formData.pronomes}</p>
-            ${formData.telefone ? `<p><b>Telefone:</b> ${formData.telefone}</p>` : ''}
-            <p><b>Sistema:</b> Firebase Auth (Seguro)</p>
-        </div>
-        
-        <div class="security-notice">
-            <p><b>🔒 Segurança:</b></p>
-            <p>• Sua senha está protegida pelo Firebase Authentication</p>
-            <p>• Use seu <b>email</b> para fazer login</p>
-            <p>• Sua conta está totalmente segura</p>
-        </div>
-        
-        <div class="alert">
-            Conta criada em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}
-        </div>
-    </div>
-</body>
-</html>`;
-  
-  const blob = new Blob([htmlContent], { type: 'text/html' });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = formData.usuario + '_conta_realme_segura.html';
-  a.click();
-  window.URL.revokeObjectURL(url);
 }
 
 // ===================
 // INICIALIZAÇÃO
 // ===================
 function inicializar() {
-  console.log("Inicializando sistema de cadastro 100% seguro...");
-  
   configurarValidacoes();
-  
-  const form = document.querySelector('form');
-  if (form) {
-    form.addEventListener('submit', criarContaSegura);
-    console.log("✅ Sistema de cadastro seguro ativo");
-  } else {
-    console.error("❌ Formulário não encontrado");
+
+  const signupForm = document.querySelector('.form-section form');
+  if (signupForm) {
+    signupForm.addEventListener('submit', criarContaSegura);
+  }
+  const navForm = document.querySelector('nav form');
+  if (navForm) {
+    navForm.addEventListener('submit', loginUser);
   }
 }
 
-// Inicialização
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', inicializar);
 } else {

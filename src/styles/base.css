@@ -35,3 +35,23 @@ body {
   font-style: normal;
 }
 
+/* Scroll estilizado */
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+      background: linear-gradient(0deg, #000000 0%, #161616 100%);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(74, 144, 226, 0.6); /* azul suave */
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(74, 144, 226, 0.9);
+    background-clip: content-box;
+}

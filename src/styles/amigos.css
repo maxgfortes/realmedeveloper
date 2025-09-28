@@ -206,7 +206,13 @@ html, body {
 
 .filtros::-webkit-scrollbar-thumb:hover {
   background: rgba(74, 144, 226, 0.9);
-    background-clip: content-box;
+  background-clip: content-box;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 input.estilo {
@@ -822,3 +828,9 @@ select {
             background: rgba(74, 144, 226, 0.9);
             background-clip: content-box;
         }
+
+
+
+
+
+

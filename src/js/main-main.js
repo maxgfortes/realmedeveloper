@@ -1147,12 +1147,8 @@ async function atualizarMarqueeUltimoUsuario() {
 
 function verificarLogin() {
   const usuarioLogado = localStorage.getItem('usuarioLogado');
-  if (!usuarioLogado) {
-    console.log("Usuário não está logado, redirecionando para login");
-    window.location.href = 'index.html';
-    return false;
-  }
-  return true;
+  // Apenas retorna false, não faz redirecionamento automático
+  return !!usuarioLogado;
 }
 
 // ===================
@@ -1163,7 +1159,10 @@ let liveStatusManager = null;
 window.addEventListener("DOMContentLoaded", async () => {
   console.log("🚀 Carregando página de perfil...");
   
+  // Removido redirecionamento automático!
   if (!verificarLogin()) {
+    // Você pode mostrar um aviso ou apenas não carregar dados
+    console.log("Usuário não está logado.");
     return;
   }
   
@@ -1179,13 +1178,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   configurarLinks();
   
   console.log("✅ Página de perfil carregada com sucesso!");
-});
-
-// Cleanup ao sair da página
-window.addEventListener('beforeunload', () => {
-  if (liveStatusManager) {
-    liveStatusManager.destroy();
-  }
 });
 
 // Tornar funções globais para onclick
