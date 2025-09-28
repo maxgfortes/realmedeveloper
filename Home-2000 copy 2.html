@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migração Firebase - Chat System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            margin: 20px 0;
+        }
+        .progress {
+            margin: 20px 0;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #28a745;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Migração do Sistema de Chat</h1>
+        
+        <div class="warning">
+            <strong>⚠️ ATENÇÃO:</strong> Esta migração irá reorganizar completamente a estrutura dos seus chats no Firebase.
+            <br><br>
+            <strong>O que acontecerá:</strong>
+            <ul>
+                <li>Todos os chats serão movidos para uma estrutura centralizada</li>
+                <li>As mensagens serão preservadas</li>
+                <li>A estrutura antiga NÃO será deletada automaticamente</li>
+                <li>Execute este script apenas UMA vez</li>
+            </ul>
+        </div>
+
+        <div class="progress" id="progressContainer" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p id="progressText">Preparando migração...</p>
+        </div>
+
+        <div class="log" id="logArea" style="display: none;"></div>
+
+        <div style="text-align: center;">
+            <button id="startMigration">🚀 Iniciar Migração</button>
+            <button id="testMigration">🧪 Testar Migração (Dry Run)</button>
+            <button id="clearLog" style="background: #6c757d;">🗑️ Limpar Log</button>
+        </div>
+
+        <div id="resultArea"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import {
+            getFirestore,
+            collection,
+            addDoc,
+            getDocs,
+            serverTimestamp,
+            doc,
+            getDoc,
+            setDoc,
+            query,
+            orderBy
+        } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+        // Config Firebase (mesma configuração do seu projeto)
+        const firebaseConfig = {
+            apiKey: "AIzaSyB2N41DiH0-Wjdos19dizlWSKOlkpPuOWs",
+            authDomain: "ifriendmatch.firebaseapp.com",
+            projectId: "ifriendmatch",
+            storageBucket: "ifriendmatch.appspot.com",
+            messagingSenderId: "306331636603",
+            appId: "1:306331636603:web:c0ae0bd22501803995e3de",
+            measurementId: "G-D96BEW6RC3",
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Elementos DOM
+        const startBtn = document.getElementById('startMigration');
+        const testBtn = document.getElementById('testMigration');
+        const clearBtn = document.getElementById('clearLog');
+        const logArea = document.getElementById('logArea');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const resultArea = document.getElementById('resultArea');
+
+        // Função para gerar ID único e consistente do chat
+        function gerarChatId(user1, user2) {
+            return `chat-${[user1, user2].sort().join("-")}`;
+        }
+
+        // Função para adicionar log
+        function addLog(message, type = 'info') {
+            logArea.style.display = 'block';
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logArea.appendChild(logEntry);
+            logArea.scrollTop = logArea.scrollHeight;
+            console.log(message);
+        }
+
+        // Função para atualizar progresso
+        function updateProgress(current, total, text) {
+            const percent = total > 0 ? (current / total) * 100 : 0;
+            progressFill.style.width = `${percent}%`;
+            progressText.textContent = `${text} (${current}/${total})`;
+        }
+
+        // Script de migração principal
+        async function migrarChats(dryRun = false) {
+            startBtn.disabled = true;
+            testBtn.disabled = true;
+            progressContainer.style.display = 'block';
+            resultArea.innerHTML = '';
+
+            addLog(`🔄 Iniciando ${dryRun ? 'TESTE DE' : ''} migração...`);
+            
+            try {
+                // Buscar todos os usuários
+                addLog("📋 Buscando todos os usuários...");
+                const usersSnap = await getDocs(collection(db, "users"));
+                const totalUsers = usersSnap.size;
+                addLog(`👥 Encontrados ${totalUsers} usuários`);
+
+                let processedUsers = 0;
+                let totalChats = 0;
+                let migratedChats = 0;
+                const chatsMigrados = new Set();
+
+                // Para cada usuário
+                for (const userDoc of usersSnap.docs) {
+                    const username = userDoc.id;
+                    updateProgress(processedUsers, totalUsers, `Processando usuário: ${username}`);
+                    
+                    addLog(`👤 Processando usuário: ${username}`);
+
+                    try {
+                        // Buscar conversas do usuário
+                        const conversasSnap = await getDocs(collection(db, "users", username, "conversas"));
+                        
+                        for (const conversaDoc of conversasSnap.docs) {
+                            const chatId = conversaDoc.id;
+                            
+                            try {
+                                // Buscar usernames da conversa
+                                const usernamesDoc = await getDoc(
+                                    doc(db, "users", username, "conversas", chatId, "users", "usernames")
+                                );
+
+                                if (usernamesDoc.exists()) {
+                                    const { username1, username2 } = usernamesDoc.data();
+                                    const novoChatId = gerarChatId(username1, username2);
+                                    
+                                    // Evitar processar o mesmo chat múltiplas vezes
+                                    if (chatsMigrados.has(novoChatId)) {
+                                        continue;
+                                    }
+
+                                    totalChats++;
+                                    addLog(`💬 Processando chat: ${chatId} -> ${novoChatId}`);
+
+                                    if (!dryRun) {
+                                        // Criar/verificar se o novo chat já existe
+                                        const novoChatRef = doc(db, "chats", novoChatId);
+                                        const novoChatDoc = await getDoc(novoChatRef);
+
+                                        if (!novoChatDoc.exists()) {
+                                            await setDoc(novoChatRef, {
+                                                participants: [username1, username2].sort(),
+                                                createdAt: serverTimestamp(),
+                                                lastMessage: null,
+                                                lastMessageTime: null,
+                                            });
+                                            addLog(`✅ Chat criado: ${novoChatId}`);
+                                        }
+
+                                        // Migrar mensagens de ambos os tipos
+                                        const tiposMensagem = [`mensagem-${username1}`, `mensagem-${username2}`];
+                                        
+                                        for (const tipoMensagem of tiposMensagem) {
+                                            try {
+                                                const mensagensSnap = await getDocs(
+                                                    collection(db, "users", username, "conversas", chatId, tipoMensagem)
+                                                );
+
+                                                for (const msgDoc of mensagensSnap.docs) {
+                                                    const msgData = msgDoc.data();
+                                                    
+                                                    // Adicionar à nova estrutura
+                                                    await addDoc(collection(db, "chats", novoChatId, "messages"), {
+                                                        content: msgData.conteudo,
+                                                        sender: msgData.username,
+                                                        timestamp: msgData.enviadoEm || serverTimestamp(),
+                                                        msgId: msgData.msgId || msgDoc.id,
+                                                    });
+                                                }
+                                                
+                                                if (mensagensSnap.size > 0) {
+                                                    addLog(`📨 Migradas ${mensagensSnap.size} mensagens de ${tipoMensagem}`);
+                                                }
+                                            } catch (error) {
+                                                addLog(`❌ Erro ao migrar mensagens ${tipoMensagem}: ${error.message}`, 'error');
+                                            }
+                                        }
+                                    }
+
+                                    chatsMigrados.add(novoChatId);
+                                    migratedChats++;
+                                }
+                            } catch (error) {
+                                addLog(`❌ Erro ao processar conversa ${chatId}: ${error.message}`, 'error');
+                            }
+                        }
+                    } catch (error) {
+                        addLog(`❌ Erro ao acessar conversas de ${username}: ${error.message}`, 'error');
+                    }
+
+                    processedUsers++;
+                }
+
+                updateProgress(totalUsers, totalUsers, "Migração concluída!");
+
+                const resultHtml = `
+                    <div class="success">
+                        <h3>🎉 ${dryRun ? 'Teste de migração' : 'Migração'} concluída!</h3>
+                        <p><strong>Usuários processados:</strong> ${processedUsers}</p>
+                        <p><strong>Chats ${dryRun ? 'encontrados' : 'migrados'}:</strong> ${migratedChats}</p>
+                        ${!dryRun ? '<p><strong>⚠️ Lembre-se:</strong> As estruturas antigas ainda existem. Você pode removê-las manualmente após verificar que tudo está funcionando.</p>' : ''}
+                    </div>
+                `;
+                resultArea.innerHTML = resultHtml;
+
+                addLog(`✅ ${dryRun ? 'Teste' : 'Migração'} finalizada com sucesso!`, 'success');
+
+            } catch (error) {
+                const errorHtml = `
+                    <div class="error">
+                        <h3>❌ Erro durante a migração</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+                resultArea.innerHTML = errorHtml;
+                addLog(`❌ Erro geral: ${error.message}`, 'error');
+            }
+
+            startBtn.disabled = false;
+            testBtn.disabled = false;
+        }
+
+        // Event listeners
+        startBtn.addEventListener('click', () => migrarChats(false));
+        testBtn.addEventListener('click', () => migrarChats(true));
+        clearBtn.addEventListener('click', () => {
+            logArea.innerHTML = '';
+            logArea.style.display = 'none';
+            resultArea.innerHTML = '';
+            progressContainer.style.display = 'none';
+        });
+
+        addLog("✅ Sistema de migração carregado. Pronto para uso!");
+    </script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Migrar Usuário por Username</title>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyB2N41DiH0-Wjdos19dizlWSKOlkpPuOWs",
+      authDomain: "ifriendmatch.firebaseapp.com",
+      projectId: "ifriendmatch",
+      storageBucket: "ifriendmatch.appspot.com",
+      messagingSenderId: "306331636603",
+      appId: "1:306331636603:web:c0ae0bd22501803995e3de"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    async function buscarUsuarioAntigo(username) {
+      const userRef = doc(db, `users/${username}`);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) return null;
+      return userSnap.data();
+    }
+
+    async function buscarPostsAntigos(username) {
+      const postsRef = collection(db, `users/${username}/posts`);
+      const postsSnap = await getDocs(postsRef);
+      const posts = [];
+      postsSnap.forEach(docSnap => {
+        const post = docSnap.data();
+        post.id = docSnap.id;
+        posts.push(post);
+      });
+      return posts;
+    }
+
+    function gerarUserid(usuarioAntigo) {
+      // Usa o campo uid se existir, senão gera um hash simples do username
+      if (usuarioAntigo.uid) return usuarioAntigo.uid.toString();
+      // Gera um hash simples do username
+      return 'u' + btoa(usuarioAntigo.username).replace(/[^a-zA-Z0-9]/g, '').slice(0, 12);
+    }
+
+    async function migrarUsuario(username) {
+      document.getElementById('status').textContent = 'Buscando usuário antigo...';
+      const antigo = await buscarUsuarioAntigo(username);
+      if (!antigo) {
+        document.getElementById('status').textContent = 'Usuário não encontrado!';
+        return;
+      }
+      const userid = gerarUserid(antigo);
+
+      // Migrar user-infos
+      await setDoc(doc(db, `users/${userid}/user-infos/main`), {
+        username: antigo.username,
+        displayname: antigo.displayname,
+        name: antigo.nome,
+        surname: antigo.sobrenome,
+        create: antigo.criadoem,
+        email: antigo.email,
+        number: antigo.telefone,
+        born: antigo.idade ? `??/??/${2025-antigo.idade}` : '',
+        userid: userid,
+        location: antigo.localizacao,
+        status: antigo.estadoCivil,
+        gender: antigo.genero,
+        reports: 0,
+        userphoto: antigo.userphoto,
+        backgroundphoto: antigo.backgroundphoto,
+        headerphoto: antigo.headerphoto,
+        pronoun1: antigo.pronoun1,
+        pronoun2: antigo.pronoun2
+      });
+
+      // Migrar user-likes
+      await setDoc(doc(db, `users/${userid}/user-likes/main`), {
+        'movies-series': antigo.filmesSeries,
+        about: antigo.visaoGeral,
+        personality: antigo.personalidade,
+        caracters: antigo.personagens,
+        books: antigo.livros,
+        more: antigo.outrosGostos,
+        dreams: antigo.sonhos,
+        scares: antigo.medos,
+        musics: antigo.musicas,
+        foods: antigo.comidas,
+        hobbies: antigo.hobbies,
+        games: antigo.jogos,
+        tags: antigo.tags,
+        estilo: antigo.estilo
+      });
+
+      // Migrar posts
+      document.getElementById('status').textContent = 'Migrando posts...';
+      const posts = await buscarPostsAntigos(username);
+      for (const post of posts) {
+        await setDoc(doc(db, `users/${userid}/posts/${post.id}`), {
+          content: post.conteudo,
+          img: post.imagem,
+          likes: post.curtidas,
+          saves: post.saves || 0,
+          postid: post.id,
+          creatorid: userid,
+          reports: 0,
+          create: post.postadoem
+        });
+      }
+
+      document.getElementById('status').textContent = `Migração concluída! Novo userid: ${userid}`;
+    }
+
+    document.getElementById('migrarBtn').onclick = async () => {
+      const username = document.getElementById('username').value.trim();
+      if (!username) {
+        document.getElementById('status').textContent = 'Digite o username!';
+        return;
+      }
+      await migrarUsuario(username);
+    };
+  </script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    label { display: block; margin-top: 10px; }
+    input { width: 300px; }
+    #status { margin-top: 20px; font-weight: bold; color: green; }
+  </style>
+</head>
+<body>
+  <h2>Migrar Usuário Antigo para Nova Arquitetura</h2>
+  <label>Username antigo: <input id="username" placeholder="Ex: vampirinhaz7"></label>
+  <button id="migrarBtn">Migrar</button>
+  <div id="status"></div>
+  <p>Digite o username antigo e clique em migrar.<br>
+  O sistema busca os dados antigos, converte para o novo userid e grava na nova estrutura Firestore.</p>
+</body>
+</html>

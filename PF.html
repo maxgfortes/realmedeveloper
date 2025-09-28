@@ -22,6 +22,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="./src/styles/loading.css">
   <link rel="stylesheet" href="./src/styles/mobile-profile.css">
+  <link rel="stylesheet" href="./src/styles/post-modal.css">
 
 
 
@@ -70,10 +71,10 @@
   <!-- Sidebar -->
   <aside class="sidebar">
     <a href="feed.html"><i class="fas fa-home"></i> Início</a>
-    <a href="#"><i class="fas fa-user-friends"></i> Achar Amigos</a>
+    <a href="acharamigos.html"><i class="fas fa-user-friends"></i> Achar Amigos</a>
     <a href="direct.html"><i class="fas fa-comments"></i> Mensagens</a>
-    <a href="#"><i class="fas fa-bell"></i> Notificações</a>
-    <a href="feed.html" onclick=""><i class="fas fa-plus-square"></i> Criar</a>
+    <a href="nt.html"><i class="fas fa-bell"></i> Notificações</a>
+    <a href="#" class="postmodal"><i class="fas fa-plus-square"></i> Criar</a>
     <a href="#" id="linkPerfilSidebar"><i class="fas fa-user"></i> Perfil</a>
     <!-- Menu Mais com submenu flutuante -->
         <div class="more-menu" id="moreMenu">
@@ -83,7 +84,7 @@
             </a>
             <div class="floating-menu" id="floatingMenu">
                 <a href="config.html"><i class="fas fa-cog"></i> Configurações</a>
-                <a href="#"><i class="fa-solid fa-user-plus"></i> Convites</a>
+                <a href="invites.html"><i class="fa-solid fa-user-plus"></i> Convites</a>
                 <a href="como-usar.html"><i class="fa-solid fa-book-open"></i> Como Usar</a>
                 <a href="sobre.html"><i class="fas fa-question-circle"></i> Sobre</a>
                 <a href="#" id="btnSair"><i class="fas fa-sign-out-alt"></i> Sair</a>
@@ -148,10 +149,10 @@
         <h2 class="profile-name" id="displayname">usuario do RealMe</h2>
         <div class="tag-area">
           <span class="tag" data-id="1">Y2K</span>
-          <span class="tag" data-id="2">Goth</span>
+          <span class="tag" data-id="2">Sk8</span>
           <span class="tag" data-id="3">Dev</span>
-          <span class="tag" data-id="4">Emo</span>
-          <span class="tag" data-id="5">cute</span>
+          <!--<span class="tag" data-id="4">Emo</span> -->
+          <!--<span class="tag" data-id="5">cute</span> -->
           <span class="tag" data-id="6">Alt</span>
           <span class="tag" data-id="7">Dark</span>
           <span class="tag" data-id="8">loser</span>
@@ -202,7 +203,7 @@
     <div class="tab mural-tab active">
        <h3 class="tab-info" id="tituloMural">Mural desse usuario </h3>
       <div class="status-box">
-        <p><strong>Este Usuario está:</strong></p>
+        <p><strong id="statususername"></strong></p>
         <p class="status-text">Online</p>
       </div>
 
@@ -366,16 +367,33 @@
   </div>
 </div>
 
+<!-- Modal Post Container -->
+    <div id="postmodal" class="modal-post-container">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Criar Novo <span>Post</span>!</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-greeting">
+              <p>Como está sendo o seu dia? Faça um post sobre isso.</p>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="textarea-post" placeholder="Escreva um pensamento..." maxlength="100">
+                <button class="btn-sending">Enviar!</button>
+            </div>
+        </div>
+    </div>
 
+
+  <script src="./src/js/postmodal.js"></script>
   <script src="./src/js/profile.js" defer></script>
   <script src="./src/js/loading.js"></script>
   <script src="./src/js/search.js" defer></script>
-  <script src="/js/mobile-lock.js"></script>
   <script src="./src/js/new-popup.js" defer></script>
-  <script src="./src/js/modal-post.js"></script>
   <script src="./src/js/masonry-loader.js"></script>
   <script src="./src/js/more.js"></script>
   <script type="module" src="codigo.js"></script>
+  <script src="./src/js/post-modal.js"></script>
 
 </body>
 </html>

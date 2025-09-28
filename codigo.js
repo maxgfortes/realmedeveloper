@@ -1,7 +1,3 @@
-// ===================
-// SISTEMA DE PERFIL COM FIREBASE AUTH E FIRESTORE (SEM EFEITO DOMINÓ)
-// ===================
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
   getFirestore,
@@ -14,7 +10,6 @@ import {
   doc,
   getDoc,
   setDoc,
-  addDoc,
   limit,
   startAfter,
   deleteDoc,
@@ -58,9 +53,6 @@ onAuthStateChanged(auth, async (user) => {
   configurarNavegacaoTabs();
   await atualizarMarqueeUltimoUsuario();
 });
-
-
-
 
 // ===================
 // BUSCA DE USUÁRIOS
@@ -119,6 +111,16 @@ async function getUserData(userid) {
   const userRef = doc(db, "users", userid);
   const userSnap = await getDoc(userRef);
   return userSnap.exists() ? userSnap.data() : {};
+}
+
+// Função correta para buscar foto de perfil do post
+async function getUserPhoto(userid) {
+  const mediaRef = doc(db, "users", userid, "user-infos", "user-media");
+  const mediaSnap = await getDoc(mediaRef);
+  if (mediaSnap.exists()) {
+    return mediaSnap.data().userphoto || './src/icon/default.jpg';
+  }
+  return './src/icon/default.jpg';
 }
 
 // ===================
@@ -370,56 +372,7 @@ async function excluirDepoimento(depoId, targetUserId) {
 }
 
 // ===================
-// SISTEMA DE LINKS
-// ===================
-async function carregarLinks(userid) {
-  const linksContainer = document.querySelector('.links-tab .about-container');
-  if (!linksContainer) return;
-  const userRef = doc(db, 'users', userid, 'user-infos', 'user-media');
-  const userDoc = await getDoc(userRef);
-  linksContainer.innerHTML = '';
-  if (!userDoc.exists()) {
-    linksContainer.innerHTML = `
-      <div class="empty-links"><div class="empty-icon"><i class="fas fa-link"></i></div>
-      <h3>Usuário não encontrado</h3></div>
-    `;
-    return;
-  }
-  const links = userDoc.data().links || {};
-  if (!links || Object.keys(links).length === 0) {
-    linksContainer.innerHTML = `
-      <div class="empty-links"><div class="empty-icon"><i class="fas fa-link"></i></div>
-      <h3>Nenhum link ainda</h3><p>Este usuário ainda não adicionou nenhum link.</p></div>
-    `;
-    return;
-  }
-  Object.entries(links).forEach(([key, url]) => {
-    if (url && url.trim()) {
-      const linkElement = document.createElement('div');
-      linkElement.className = 'link-box';
-      let icon = 'fas fa-external-link-alt', label = key;
-      if (url.includes('instagram.com')) { icon = 'fab fa-instagram'; label = 'Instagram'; }
-      else if (url.includes('twitter.com') || url.includes('x.com')) { icon = 'fab fa-twitter'; label = 'Twitter/X'; }
-      else if (url.includes('tiktok.com')) { icon = 'fab fa-tiktok'; label = 'TikTok'; }
-      else if (url.includes('youtube.com')) { icon = 'fab fa-youtube'; label = 'YouTube'; }
-      else if (url.includes('github.com')) { icon = 'fab fa-github'; label = 'GitHub'; }
-      else if (url.includes('linkedin.com')) { icon = 'fab fa-linkedin'; label = 'LinkedIn'; }
-      else if (url.includes('discord')) { icon = 'fab fa-discord'; label = 'Discord'; }
-      else if (url.includes('spotify.com')) { icon = 'fab fa-spotify'; label = 'Spotify'; }
-      linkElement.innerHTML = `
-        <a href="${url}" target="_blank" rel="noopener noreferrer" class="user-link">
-          <i class="${icon}"></i>
-          <span>${label}</span>
-          <i class="fas fa-external-link-alt link-arrow"></i>
-        </a>
-      `;
-      linksContainer.appendChild(linkElement);
-    }
-  });
-}
-
-// ===================
-// SISTEMA DE POSTS
+// SISTEMA DE POSTS DO MURAL
 // ===================
 let isLoadingPosts = false;
 let lastPostDoc = null;
@@ -454,24 +407,87 @@ function formatarConteudoPost(conteudo) {
   return `<p>${conteudoFormatado}</p>`;
 }
 
-function criarElementoPost(postData, userPhoto, displayName, username, postId) {
+// Comentários do post
+async function carregarComentariosDoPost(userid, postId, container) {
+  container.innerHTML = '<div class="loading-comments">Carregando...</div>';
+  const comentariosRef = collection(db, 'users', userid, 'posts', postId, 'coments');
+  const comentariosSnap = await getDocs(comentariosRef);
+  container.innerHTML = '';
+  if (comentariosSnap.empty) {
+    container.innerHTML = '<div class="no-comments">Nenhum comentário ainda.</div>';
+    return;
+  }
+  for (const comentDoc of comentariosSnap.docs) {
+    const comentData = comentDoc.data();
+    const userData = await getUserData(comentData.senderid);
+    const nome = userData.displayname || userData.username || comentData.senderid;
+    const username = userData.username ? `@${userData.username}` : '';
+    const foto = userData.userphoto || './src/icon/default.jpg';
+    const data = formatarDataPost(comentData.create);
+    const comentEl = document.createElement('div');
+    comentEl.className = 'comentario-item';
+    comentEl.innerHTML = `
+      <div class="comentario-header">
+        <img src="${foto}" alt="Avatar" class="comentario-avatar" onerror="this.src='./src/icon/default.jpg'" />
+        <div class="comentario-meta">
+          <strong>${nome}</strong>
+          <small>${username}</small>
+          <small>${data}</small>
+        </div>
+      </div>
+      <div class="comentario-conteudo">${formatarConteudoPost(comentData.content)}</div>
+    `;
+    container.appendChild(comentEl);
+  }
+}
+
+// Comentar post
+async function comentarPost(userid, postId, conteudo, comentariosContainer) {
+  if (!conteudo) return;
+  const comentarioId = `coment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const comentarioData = {
+    content: conteudo,
+    create: new Date(),
+    senderid: currentUserId,
+    report: 0
+  };
+  await setDoc(doc(db, 'users', userid, 'posts', postId, 'coments', comentarioId), comentarioData);
+  await carregarComentariosDoPost(userid, postId, comentariosContainer);
+}
+
+// Curtir post
+async function curtirPost(postId, userid, btnElement) {
+  btnElement.classList.add('loading');
+  const postRef = doc(db, 'users', userid, 'posts', postId);
+  await updateDoc(postRef, { likes: increment(1) });
+  const countElement = btnElement.querySelector('.action-count');
+  let currentCount = parseInt(countElement.textContent) || 0;
+  currentCount++;
+  countElement.textContent = currentCount;
+  btnElement.classList.add('liked', 'has-likes');
+  btnElement.style.transform = 'scale(1.2)';
+  setTimeout(() => { btnElement.style.transform = 'scale(1)' }, 200);
+  btnElement.classList.remove('loading');
+}
+
+// Card do post
+function criarElementoPost(postData, userPhoto, displayName, username, postId, userid) {
   const postCard = document.createElement('div');
   postCard.className = 'post-card';
   postCard.setAttribute('data-post-id', postId);
-  const dataPost = formatarDataPost(postData.criadoem);
-  const conteudoFormatado = formatarConteudoPost(postData.content || postData.conteudo);
+  const dataPost = formatarDataPost(postData.create);
+  const conteudoFormatado = formatarConteudoPost(postData.content);
   let imagemHTML = '';
-  if (postData.img || postData.imagem) {
-    const imgUrl = postData.img || postData.imagem;
+  if (postData.img) {
     imagemHTML = `
       <div class="post-image-container">
-        <img src="${imgUrl}" alt="Imagem do post" class="post-image"
+        <img src="${postData.img}" alt="Imagem do post" class="post-image"
           onerror="this.parentElement.style.display='none'"
-          onclick="abrirModalImagem('${imgUrl}')">
+          onclick="abrirModalImagem('${postData.img}')">
       </div>
     `;
   }
-  const curtidas = postData.likes || postData.curtidas || 0;
+  const curtidas = postData.likes || 0;
   postCard.innerHTML = `
     <div class="post-header">
       <div class="profile-info">
@@ -483,32 +499,53 @@ function criarElementoPost(postData, userPhoto, displayName, username, postId) {
           <span class="post-time">${dataPost}</span>
         </div>
       </div>
-      <button class="post-options" onclick="mostrarOpcoesPost('${postId}')">
-        <i class="fas fa-ellipsis-h"></i>
-      </button>
     </div>
     <div class="post-content">${conteudoFormatado}${imagemHTML}</div>
     <div class="post-actions">
       <button class="action-btn like-btn ${curtidas > 0 ? 'has-likes' : ''}"
-        onclick="curtirPost('${postId}', '${username}', this)">
+        onclick="curtirPost('${postId}', '${userid}', this)">
         <i class="fas fa-heart"></i>
         <span class="action-count">${curtidas > 0 ? curtidas : ''}</span>
       </button>
-      <button class="action-btn comment-btn" onclick="abrirComentarios('${postId}')">
+      <button class="action-btn comment-btn">
         <i class="fas fa-comment"></i>
-        <span class="action-count"></span>
-      </button>
-      <button class="action-btn share-btn" onclick="compartilharPost('${postId}')">
-        <i class="fas fa-share"></i>
-      </button>
-      <button class="action-btn bookmark-btn" onclick="salvarPost('${postId}')">
-        <i class="fas fa-bookmark"></i>
       </button>
     </div>
+    <div class="comentarios-container" style="display:none;"></div>
+    <div class="comentar-area" style="display:none;">
+      <input type="text" class="input-comentario" placeholder="Escreva um comentário..." maxlength="200">
+      <button class="btn-enviar-comentario"><i class="fas fa-paper-plane"></i></button>
+    </div>
   `;
+  // Eventos de comentar
+  const commentBtn = postCard.querySelector('.comment-btn');
+  const comentariosContainer = postCard.querySelector('.comentarios-container');
+  const comentarArea = postCard.querySelector('.comentar-area');
+  commentBtn.onclick = () => {
+    comentariosContainer.style.display = comentariosContainer.style.display === 'none' ? 'block' : 'none';
+    comentarArea.style.display = comentarArea.style.display === 'none' ? 'flex' : 'none';
+    if (comentariosContainer.style.display === 'block') {
+      carregarComentariosDoPost(userid, postId, comentariosContainer);
+    }
+  };
+  const btnEnviarComentario = postCard.querySelector('.btn-enviar-comentario');
+  const inputComentario = postCard.querySelector('.input-comentario');
+  btnEnviarComentario.onclick = () => {
+    const texto = inputComentario.value.trim();
+    if (texto) {
+      comentarPost(userid, postId, texto, comentariosContainer);
+      inputComentario.value = '';
+    }
+  };
+  inputComentario.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      btnEnviarComentario.click();
+    }
+  });
   return postCard;
 }
 
+// ATUALIZADO: buscar foto do local correto
 async function carregarPostsDoMural(userid) {
   const muralContainer = document.getElementById('muralPosts');
   if (!muralContainer || isLoadingPosts) return;
@@ -521,11 +558,11 @@ async function carregarPostsDoMural(userid) {
     </div>
   `;
   const userData = await getUserData(userid);
-  const userPhoto = userData.userphoto || './src/icon/default.jpg';
+  const userPhoto = await getUserPhoto(userid); // <-- busca correta
   const displayName = userData.displayname || userData.username || userid;
   const username = userData.username || userid;
   const postsRef = collection(db, 'users', userid, 'posts');
-  const postsQuery = query(postsRef, orderBy('criadoem', 'desc'), limit(10));
+  const postsQuery = query(postsRef, orderBy('create', 'desc'), limit(10));
   const snapshot = await getDocs(postsQuery);
   muralContainer.innerHTML = '';
   if (snapshot.empty) {
@@ -542,7 +579,7 @@ async function carregarPostsDoMural(userid) {
   }
   snapshot.forEach(postDoc => {
     const postData = postDoc.data();
-    const postElement = criarElementoPost(postData, userPhoto, displayName, username, postDoc.id);
+    const postElement = criarElementoPost(postData, userPhoto, displayName, username, postDoc.id, userid);
     muralContainer.appendChild(postElement);
   });
   if (snapshot.docs.length > 0) lastPostDoc = snapshot.docs[snapshot.docs.length - 1];
@@ -569,11 +606,11 @@ async function carregarMaisPosts() {
     loadMoreBtn.disabled = true;
   }
   const userData = await getUserData(currentProfileId);
-  const userPhoto = userData.userphoto || './src/icon/default.jpg';
+  const userPhoto = await getUserPhoto(currentProfileId); // <-- busca correta
   const displayName = userData.displayname || userData.username || currentProfileId;
   const username = userData.username || currentProfileId;
   const postsRef = collection(db, 'users', currentProfileId, 'posts');
-  const postsQuery = query(postsRef, orderBy('criadoem', 'desc'), startAfter(lastPostDoc), limit(5));
+  const postsQuery = query(postsRef, orderBy('create', 'desc'), startAfter(lastPostDoc), limit(5));
   const snapshot = await getDocs(postsQuery);
   if (!snapshot.empty) {
     const muralContainer = document.getElementById('muralPosts');
@@ -581,7 +618,7 @@ async function carregarMaisPosts() {
     if (loadMoreContainer) loadMoreContainer.remove();
     snapshot.forEach(postDoc => {
       const postData = postDoc.data();
-      const postElement = criarElementoPost(postData, userPhoto, displayName, username, postDoc.id);
+      const postElement = criarElementoPost(postData, userPhoto, displayName, username, postDoc.id, currentProfileId);
       muralContainer.appendChild(postElement);
     });
     lastPostDoc = snapshot.docs[snapshot.docs.length - 1];
@@ -645,19 +682,8 @@ function configurarNavegacaoTabs() {
 // ===================
 // FUNÇÕES DE INTERAÇÃO COM POSTS
 // ===================
-async function curtirPost(postId, userid, btnElement) {
-  btnElement.classList.add('loading');
-  const countElement = btnElement.querySelector('.action-count');
-  let currentCount = parseInt(countElement.textContent) || 0;
-  currentCount++;
-  countElement.textContent = currentCount;
-  btnElement.classList.add('liked', 'has-likes');
-  btnElement.style.transform = 'scale(1.2)';
-  setTimeout(() => { btnElement.style.transform = 'scale(1)'; }, 200);
-  btnElement.classList.remove('loading');
-}
-
-function abrirModalImagem(imagemUrl) {
+window.curtirPost = curtirPost;
+window.abrirModalImagem = function(imagemUrl) {
   const modal = document.createElement('div');
   modal.className = 'image-modal';
   modal.innerHTML = `
@@ -672,31 +698,110 @@ function abrirModalImagem(imagemUrl) {
   `;
   document.body.appendChild(modal);
   document.body.style.overflow = 'hidden';
-}
-
-function fecharModal() {
+};
+window.fecharModal = function() {
   const modal = document.querySelector('.image-modal');
   if (modal) {
     modal.remove();
     document.body.style.overflow = 'auto';
   }
+};
+window.carregarMaisPosts = carregarMaisPosts;
+window.enviarDepoimento = enviarDepoimento;
+window.excluirDepoimento = excluirDepoimento;
+window.carregarDepoimentos = carregarDepoimentos;
+window.carregarLinks = carregarLinks;
+
+// ===================
+// SISTEMA DE LINKS
+// ===================
+async function carregarLinks(userid) {
+  const linksContainer = document.querySelector('.links-tab .about-container');
+  if (!linksContainer) return;
+  const userRef = doc(db, 'users', userid, 'user-infos', 'user-media');
+  const userDoc = await getDoc(userRef);
+  linksContainer.innerHTML = '';
+  if (!userDoc.exists()) {
+    linksContainer.innerHTML = `
+      <div class="empty-links"><div class="empty-icon"><i class="fas fa-link"></i></div>
+      <h3>Usuário não encontrado</h3></div>
+    `;
+    return;
+  }
+  const links = userDoc.data().links || {};
+  if (!links || Object.keys(links).length === 0) {
+    linksContainer.innerHTML = `
+      <div class="empty-links"><div class="empty-icon"><i class="fas fa-link"></i></div>
+      <h3>Nenhum link ainda</h3><p>Este usuário ainda não adicionou nenhum link.</p></div>
+    `;
+    return;
+  }
+  Object.entries(links).forEach(([key, url]) => {
+    if (url && url.trim()) {
+      const linkElement = document.createElement('div');
+      linkElement.className = 'link-box';
+      let icon = 'fas fa-external-link-alt', label = key;
+      if (url.includes('instagram.com')) { icon = 'fab fa-instagram'; label = 'Instagram'; }
+      else if (url.includes('twitter.com') || url.includes('x.com')) { icon = 'fab fa-twitter'; label = 'Twitter/X'; }
+      else if (url.includes('tiktok.com')) { icon = 'fab fa-tiktok'; label = 'TikTok'; }
+      else if (url.includes('youtube.com')) { icon = 'fab fa-youtube'; label = 'YouTube'; }
+      else if (url.includes('github.com')) { icon = 'fab fa-github'; label = 'GitHub'; }
+      else if (url.includes('linkedin.com')) { icon = 'fab fa-linkedin'; label = 'LinkedIn'; }
+      else if (url.includes('discord')) { icon = 'fab fa-discord'; label = 'Discord'; }
+      else if (url.includes('spotify.com')) { icon = 'fab fa-spotify'; label = 'Spotify'; }
+      linkElement.innerHTML = `
+        <a href="${url}" target="_blank" rel="noopener noreferrer" class="user-link">
+          <i class="${icon}"></i>
+          <span>${label}</span>
+          <i class="fas fa-external-link-alt link-arrow"></i>
+        </a>
+      `;
+      linksContainer.appendChild(linkElement);
+    }
+  });
 }
 
-function mostrarOpcoesPost(postId) {}
-function abrirComentarios(postId) {}
-function compartilharPost(postId) {
-  if (navigator.share) {
-    navigator.share({
-      title: 'Post do RealMe',
-      url: window.location.href
-    }).catch(() => {});
-  } else {
-    navigator.clipboard.writeText(window.location.href)
-      .then(() => alert('Link copiado!'))
-      .catch(() => {});
+// ===================
+// SISTEMA DE MÚSICA DO PERFIL
+// ===================
+async function tocarMusicaDoUsuario(userid) {
+  const mediaRef = doc(db, "users", userid, "user-infos", "user-media");
+  const mediaSnap = await getDoc(mediaRef);
+  if (mediaSnap.exists()) {
+    const musicUrl = mediaSnap.data().music;
+    if (musicUrl) {
+      let audio = document.getElementById('profileMusicAudio');
+      if (!audio) {
+        audio = document.createElement('audio');
+        audio.id = 'profileMusicAudio';
+        audio.src = musicUrl;
+        audio.autoplay = true;
+        audio.loop = true;
+        audio.volume = 0.5;
+        audio.style.display = 'none';
+        document.body.appendChild(audio);
+      } else {
+        audio.src = musicUrl;
+        audio.play();
+      }
+    }
   }
 }
-function salvarPost(postId) {}
+
+// ===================
+// BLUR DO FUNDO SOME SE TEM IMAGEM DE FUNDO
+// ===================
+async function removerBlurSeTemFundo(userid) {
+  const mediaRef = doc(db, "users", userid, "user-infos", "user-media");
+  const mediaSnap = await getDoc(mediaRef);
+  if (mediaSnap.exists()) {
+    const bgUrl = mediaSnap.data().background;
+    if (bgUrl) {
+      const glassOverlay = document.querySelector('.glass-overlay');
+      if (glassOverlay) glassOverlay.style.display = 'none';
+    }
+  }
+}
 
 // ===================
 // OUTRAS FUNÇÕES
@@ -720,12 +825,12 @@ async function carregarPerfilCompleto() {
   const aboutData = aboutSnap.exists() ? aboutSnap.data() : {};
   atualizarInformacoesBasicas(userData, userid);
   atualizarVisaoGeral(aboutData);
-  atualizarGostos(aboutData);
   atualizarImagensPerfil(userData, userid);
   await atualizarEstatisticasPerfil(userid);
   await configurarBotaoSeguir(userid);
-  await tocarMusicaDoUsuario(userid);
   await carregarPostsDoMural(userid);
+  await removerBlurSeTemFundo(userid);
+  await tocarMusicaDoUsuario(userid);
 
   // Configura botão de mensagem
   const btnMsg = document.getElementById('btnMensagemPerfil') || document.querySelector('.btn-msg');
@@ -735,79 +840,45 @@ async function carregarPerfilCompleto() {
   } else if (btnMsg) {
     btnMsg.style.display = 'none';
   }
+}
 
-  // Função para gerar ID único do chat
+// ===================
+// SISTEMA DE CHAT
+// ===================
 function gerarChatId(user1, user2) {
   return `chat-${[user1, user2].sort().join("-")}`;
 }
 
-// Função principal para iniciar/criar chat
 async function iniciarChatComUsuario(targetUserId) {
-  try {
-    // Validação básica
-    if (!currentUserId || !targetUserId) {
-      console.error("IDs de usuário não fornecidos");
-      return;
-    }
-
-    // Não permitir chat consigo mesmo
-    if (currentUserId === targetUserId) {
-      console.error("Não é possível criar chat consigo mesmo");
-      return;
-    }
-
-    // Gerar ID do chat
-    const chatId = gerarChatId(currentUserId, targetUserId);
-    const chatRef = doc(db, "chats", chatId);
-    
-    // Verificar se chat já existe
-    const chatDoc = await getDoc(chatRef);
-    
-    if (!chatDoc.exists()) {
-      // Criar novo chat com a estrutura exata que você mostrou
-      await setDoc(chatRef, {
-        participants: [currentUserId, targetUserId].sort(),
-        createdAt: new Date(), // Será convertido para timestamp automaticamente
-        lastMessage: "", // String vazia inicial
-        lastMessageTime: null // Null inicial, será preenchido com a primeira mensagem
-      });
-      
-      console.log(`Chat criado: ${chatId}`);
-    } else {
-      console.log(`Chat já existe: ${chatId}`);
-    }
-    
-    // Redirecionar para a página do chat
-    window.location.href = `direct.html?chatid=${chatId}`;
-    
-  } catch (error) {
-    console.error("Erro ao criar/acessar chat:", error);
+  if (!currentUserId || !targetUserId || currentUserId === targetUserId) return;
+  const chatId = gerarChatId(currentUserId, targetUserId);
+  const chatRef = doc(db, "chats", chatId);
+  const chatDoc = await getDoc(chatRef);
+  if (!chatDoc.exists()) {
+    await setDoc(chatRef, {
+      participants: [currentUserId, targetUserId].sort(),
+      createdAt: new Date(),
+      lastMessage: "",
+      lastMessageTime: null
+    });
   }
+  window.location.href = `direct.html?chatid=${chatId}`;
 }
 
-// Função auxiliar para buscar chat existente (caso precise)
-async function buscarChat(chatId) {
-  try {
-    const chatRef = doc(db, "chats", chatId);
-    const chatDoc = await getDoc(chatRef);
-    
-    if (chatDoc.exists()) {
-      return { id: chatDoc.id, ...chatDoc.data() };
-    }
-    return null;
-  } catch (error) {
-    console.error("Erro ao buscar chat:", error);
-    return null;
-  }
-}
-}
+// ===================
+// ATUALIZAÇÃO DE INFORMAÇÕES BÁSICAS
+// ===================
 function atualizarInformacoesBasicas(userData, userid) {
-  // Usa displayname salvo no documento do usuário
   const nomeCompleto = userData.displayname || "Nome não disponível";
   const nomeElement = document.getElementById("displayname");
   if (nomeElement) nomeElement.textContent = nomeCompleto;
 
-  // Usa username salvo no documento do usuário
+  const statususername = document.getElementById('statususername');
+  if (statususername) statususername.textContent = `${nomeCompleto} esta:`;
+
+  const nomeUsuario = document.getElementById('nomeUsuario');
+  if (nomeUsuario) nomeUsuario.textContent = `${nomeCompleto}`;
+
   const usernameElement = document.getElementById("username");
   if (usernameElement) usernameElement.textContent = userData.username ? `@${userData.username}` : `@${userid}`;
 
@@ -828,75 +899,49 @@ function atualizarInformacoesBasicas(userData, userid) {
 
   const amigosTitle = document.querySelector('.amigos-tab h3');
   if (amigosTitle) amigosTitle.textContent = `Amigos de ${nomeCompleto}`;
-
-  if (userData.pronoun1 || userData.pronoun2) {
-    const pronomes = `${userData.pronoun1 || ''}/${userData.pronoun2 || ''}`.replace(/^\/|\/$/g, '');
-    const handleElement = document.querySelector('.handle');
-    if (handleElement && pronomes) {
-      handleElement.innerHTML = `@${userData.username || userid} • ${pronomes}`;
-    }
-  }
 }
 
-
-
-
+// ===================
+// ATUALIZAÇÃO DE VISÃO GERAL
+// ===================
 function atualizarVisaoGeral(dados) {
   const visaoTab = document.querySelector('.visao-tab .about-container');
   if (!visaoTab) return;
   const aboutBoxes = visaoTab.querySelectorAll('.about-box');
-  if (aboutBoxes[0]) aboutBoxes[0].innerHTML = `<p><i>Visão geral:</i></p><p>${dados.overview || "Informação não disponível"}</p>`;
-  if (aboutBoxes[1]) aboutBoxes[1].innerHTML = `<p><i>Tags:</i></p><p>${dados.tags || "Informação não disponível"}</p>`;
-  if (aboutBoxes[2]) aboutBoxes[2].innerHTML = `<p><i>Meu Estilo:</i></p><p>${dados.styles || "Informação não disponível"}</p>`;
-  if (aboutBoxes[3]) aboutBoxes[3].innerHTML = `<p><i>Minha personalidade:</i></p><p>${dados.personality || "Informação não disponível"}</p>`;
-  if (aboutBoxes[4]) aboutBoxes[4].innerHTML = `<p><i>Meus Sonhos e desejos:</i></p><p>${dados.dreams || "Informação não disponível"}</p>`;
-  if (aboutBoxes[5]) aboutBoxes[5].innerHTML = `<p><i>Meus Medos:</i></p><p>${dados.fears || "Informação não disponível"}</p>`;
+  if (aboutBoxes[0]) aboutBoxes[0].innerHTML = `<p class="about-title">Visão geral:</p><p>${dados.overview || "Informação não disponível"}</p>`;
+  if (aboutBoxes[1]) aboutBoxes[1].innerHTML = `<p class="about-title">Tags:</p><p>${dados.tags || "Informação não disponível"}</p>`;
+  if (aboutBoxes[2]) aboutBoxes[2].innerHTML = `<p class="about-title">Meu Estilo:</p><p>${dados.styles || "Informação não disponível"}</p>`;
+  if (aboutBoxes[3]) aboutBoxes[3].innerHTML = `<p class="about-title">Minha personalidade:</p><p>${dados.personality || "Informação não disponível"}</p>`;
+  if (aboutBoxes[4]) aboutBoxes[4].innerHTML = `<p class="about-title">Meus Sonhos e desejos:</p><p>${dados.dreams || "Informação não disponível"}</p>`;
+  if (aboutBoxes[5]) aboutBoxes[5].innerHTML = `<p class="about-title">Meus Medos:</p><p>${dados.fears || "Informação não disponível"}</p>`;
 }
 
-function atualizarGostos(dados) {
-  const gostosTab = document.querySelector('.gostos-tab .about-container');
-  if (!gostosTab) return;
-  const aboutBoxes = gostosTab.querySelectorAll('.about-box');
-  if (aboutBoxes[0]) aboutBoxes[0].innerHTML = `<p><i>Músicas:</i></p><p>${dados.music || "Informação não disponível"}</p>`;
-  if (aboutBoxes[1]) aboutBoxes[1].innerHTML = `<p><i>Filmes e Séries:</i></p><p>${dados["movies-series"] || "Informação não disponível"}</p>`;
-  if (aboutBoxes[2]) aboutBoxes[2].innerHTML = `<p><i>Livros:</i></p><p>${dados.books || "Informação não disponível"}</p>`;
-  if (aboutBoxes[3]) aboutBoxes[3].innerHTML = `<p><i>Personagens:</i></p><p>${dados.characters || "Informação não disponível"}</p>`;
-  if (aboutBoxes[4]) aboutBoxes[4].innerHTML = `<p><i>Comidas e Bebidas:</i></p><p>${dados.foods || "Informação não disponível"}</p>`;
-  if (aboutBoxes[5]) aboutBoxes[5].innerHTML = `<p><i>Hobbies:</i></p><p>${dados.hobbies || "Informação não disponível"}</p>`;
-  if (aboutBoxes[6]) aboutBoxes[6].innerHTML = `<p><i>Jogos favoritos:</i></p><p>${dados.games || "Informação não disponível"}</p>`;
-  if (aboutBoxes[7]) aboutBoxes[7].innerHTML = `<p><i>Outros gostos:</i></p><p>${dados.others || "Informação não disponível"}</p>`;
-}
-
+// ===================
+// ATUALIZAÇÃO DE IMAGENS DO PERFIL
+// ===================
 async function atualizarImagensPerfil(userData, userid) {
-  // Busca dados de user-media
   const mediaRef = doc(db, "users", userid, "user-infos", "user-media");
   const mediaSnap = await getDoc(mediaRef);
   const mediaData = mediaSnap.exists() ? mediaSnap.data() : {};
 
-  // Foto de perfil
   const profilePic = document.querySelector('.profile-pic');
   if (profilePic) {
     profilePic.src = mediaData.userphoto || './src/icon/default.jpg';
     profilePic.onerror = () => { profilePic.src = './src/icon/default.jpg'; };
   }
 
-  // Fotos em outros lugares
   const userPics = document.querySelectorAll('.user-pic');
   userPics.forEach(pic => {
     pic.src = mediaData.userphoto || './src/icon/default.jpg';
     pic.onerror = () => { pic.src = './src/icon/default.jpg'; };
   });
 
-   // Fotos navbar
   const navPic = document.querySelectorAll('.profile-mini');
   navPic.forEach(pic => {
     pic.src = mediaData.userphoto || './src/icon/default.jpg';
     pic.onerror = () => { pic.src = './src/icon/default.jpg'; };
   });
 
-  
-
-  // Background
   const bgUrl = mediaData.background;
   if (bgUrl) {
     document.body.style.backgroundImage = `url('${bgUrl}')`;
@@ -904,7 +949,6 @@ async function atualizarImagensPerfil(userData, userid) {
     document.body.style.backgroundPosition = 'center';
   }
 
-  // Header
   const headerPhoto = mediaData.headerphoto;
   const headerEl = document.querySelector('.profile-header');
   if (headerEl && headerPhoto) {
@@ -914,6 +958,9 @@ async function atualizarImagensPerfil(userData, userid) {
   }
 }
 
+// ===================
+// LINKS E LOGOUT
+// ===================
 function configurarLinks() {
   if (currentUserId && currentUserData) {
     const urlPerfil = `PF.html?userid=${encodeURIComponent(currentUserId)}`;
@@ -932,8 +979,9 @@ function configurarLinks() {
   }
 }
 
-
-
+// ===================
+// MARQUEE DO ÚLTIMO USUÁRIO
+// ===================
 async function atualizarMarqueeUltimoUsuario() {
   const lastUpdateRef = doc(db, "lastupdate", "latestUser");
   const docSnap = await getDoc(lastUpdateRef);
@@ -947,62 +995,3 @@ async function atualizarMarqueeUltimoUsuario() {
     marquee.textContent = "Bem-vindo ao RealMe!";
   }
 }
-
-// ===================
-// TORNAR FUNÇÕES GLOBAIS PARA ONCLICK
-// ===================
-window.curtirPost = curtirPost;
-window.abrirModalImagem = abrirModalImagem;
-window.fecharModal = fecharModal;
-window.mostrarOpcoesPost = mostrarOpcoesPost;
-window.abrirComentarios = abrirComentarios;
-window.compartilharPost = compartilharPost;
-window.salvarPost = salvarPost;
-window.carregarMaisPosts = carregarMaisPosts;
-window.enviarDepoimento = enviarDepoimento;
-window.excluirDepoimento = excluirDepoimento;
-window.carregarDepoimentos = carregarDepoimentos;
-window.carregarLinks = carregarLinks;
-
-
-// ===================
-// FIRESTORE SECURITY RULES SUGESTÃO
-// ===================
-/*
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
-      match /followers/{followerId} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == followerId;
-      }
-      match /following/{followingId} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == userId;
-      }
-      match /posts/{postId} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == userId;
-      }
-      match /depoimentos/{depoId} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null && (request.auth.uid == userId || request.auth.uid == resource.data.creatorid);
-        allow delete: if request.auth != null && (request.auth.uid == userId || request.auth.uid == resource.data.creatorid);
-      }
-      match /user-infos/{docId} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == userId;
-      }
-    }
-    match /lastupdate/{docId} {
-      allow read: if true;
-      allow write: if false;
-    }
-  }
-}
-*/
-
-

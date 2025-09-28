@@ -53,9 +53,9 @@
   <!-- Sidebar -->
   <aside class="sidebar">
     <a href="feed.html"><i class="fas fa-home"></i> Início</a>
-    <a href="#"><i class="fas fa-user-friends"></i> Achar Amigos</a>
+    <a href="acharamigos.html"><i class="fas fa-user-friends"></i> Achar Amigos</a>
     <a href="direct.html"><i class="fas fa-comments"></i> Mensagens</a>
-    <a href="#"><i class="fas fa-bell"></i> Notificações</a>
+    <a href="nt.html"><i class="fas fa-bell"></i> Notificações</a>
     <a href="feed.html" onclick=""><i class="fas fa-plus-square"></i> Criar</a>
     <a href="#" id="linkPerfilSidebar"><i class="fas fa-user"></i> Perfil</a>
     <!-- Menu Mais com submenu flutuante -->
@@ -66,7 +66,7 @@
             </a>
             <div class="floating-menu" id="floatingMenu">
                 <a href="config.html"><i class="fas fa-cog"></i> Configurações</a>
-                <a href="#"><i class="fa-solid fa-user-plus"></i> Convites</a>
+                <a href="invites.html"><i class="fa-solid fa-user-plus"></i> Convites</a>
                 <a href="como-usar.html"><i class="fa-solid fa-book-open"></i> Como Usar</a>
                 <a href="sobre.html"><i class="fas fa-question-circle"></i> Sobre</a>
                 <a href="#" id="btnSair"><i class="fas fa-sign-out-alt"></i> Sair</a>
@@ -90,8 +90,14 @@
   </div>
   <div class="chat-container">
     <div class="user-selected">
-      <img src="./src/icon/default.jpg" alt="Foto do usuário">
-      <p><span></span></p>
+      <div class="selected-left">
+        <img src="./src/icon/default.jpg" alt="Foto do usuário">
+        <p><span></span></p>
+      </div>
+      <div class="selected-right">
+        <button class="more-options" title="Mais opções"><i class="fa-solid fa-ellipsis"></i></button>
+        <button class="delete-button" title="Deletar Conversa"><i class="fas fa-trash-alt"></i></button>
+      </div>
     </div>
     <div class="chat-area">
       <!-- As mensagens serão carregadas dinamicamente aqui -->
@@ -310,45 +316,60 @@ function renderizarMensagens(mensagens) {
   chatArea.scrollTop = chatArea.scrollHeight;
 }
 
-// Carregar conversas
+// Carregar conversas ordenadas por último envio
 async function carregarConversas() {
   if (!loggedUser) return;
   recentsUsersDiv.innerHTML = "";
-  const friendsUnicos = new Set();
-
   const chatsRef = collection(db, "chats");
+  // Busca todos os chats onde o usuário participa
   const chatsSnap = await getDocs(chatsRef);
 
+  // Monta array com dados e ordena por lastMessageTime (mais recente primeiro)
+  const chatsArray = [];
   for (const chatDoc of chatsSnap.docs) {
     const chatData = chatDoc.data();
     if (chatData.participants && chatData.participants.includes(loggedUser)) {
       const friendId = chatData.participants.find(p => p !== loggedUser);
-      if (friendId && !friendsUnicos.has(friendId)) {
-        friendsUnicos.add(friendId);
-
-        let friendPhotoUrl = "./src/icon/default.jpg";
-        let friendDisplayName = friendId;
-        try {
-          // Busca o documento de user-infos/user-media
-          const friendMediaDoc = await getDoc(doc(db, "users", friendId, "user-infos", "user-media"));
-          if (friendMediaDoc.exists()) {
-            const data = friendMediaDoc.data();
-            if (data.userphoto) friendPhotoUrl = data.userphoto;
-          }
-          // Busca displayname normalmente
-          const friendDoc = await getDoc(doc(db, "users", friendId));
-          if (friendDoc.exists()) {
-            const data = friendDoc.data();
-            friendDisplayName = data.displayname || data.username || friendId;
-          }
-        } catch (error) {}
-
-        const btn = document.createElement("button");
-        btn.innerHTML = `<img src="${friendPhotoUrl}" alt="Foto do usuário"><span>${friendDisplayName}</span>`;
-        btn.addEventListener("click", () => selecionarUsuario(friendId));
-        recentsUsersDiv.appendChild(btn);
+      if (friendId) {
+        chatsArray.push({
+          friendId,
+          lastMessageTime: chatData.lastMessageTime ? chatData.lastMessageTime.toMillis ? chatData.lastMessageTime.toMillis() : chatData.lastMessageTime.seconds * 1000 : 0,
+          chatData
+        });
       }
     }
+  }
+  // Ordena por lastMessageTime decrescente
+  chatsArray.sort((a, b) => b.lastMessageTime - a.lastMessageTime);
+
+  // Renderiza os botões
+  const friendsUnicos = new Set();
+  for (const chatObj of chatsArray) {
+    const friendId = chatObj.friendId;
+    if (friendsUnicos.has(friendId)) continue;
+    friendsUnicos.add(friendId);
+
+    let friendPhotoUrl = "./src/icon/default.jpg";
+    let friendDisplayName = friendId;
+    try {
+      // Busca o documento de user-infos/user-media
+      const friendMediaDoc = await getDoc(doc(db, "users", friendId, "user-infos", "user-media"));
+      if (friendMediaDoc.exists()) {
+        const data = friendMediaDoc.data();
+        if (data.userphoto) friendPhotoUrl = data.userphoto;
+      }
+      // Busca displayname normalmente
+      const friendDoc = await getDoc(doc(db, "users", friendId));
+      if (friendDoc.exists()) {
+        const data = friendDoc.data();
+        friendDisplayName = data.displayname || data.username || friendId;
+      }
+    } catch (error) {}
+
+    const btn = document.createElement("button");
+    btn.innerHTML = `<img src="${friendPhotoUrl}" alt="Foto do usuário"><span>${friendDisplayName}</span>`;
+    btn.addEventListener("click", () => selecionarUsuario(friendId));
+    recentsUsersDiv.appendChild(btn);
   }
 }
 // Logout
@@ -374,6 +395,14 @@ sendBtn?.addEventListener("click", () => enviarMensagem(msgInput.value.trim()));
 msgInput?.addEventListener("keypress", (e) => {
   if (e.key === "Enter") enviarMensagem(msgInput.value.trim());
 });
+
+// Clique na área selected-left leva ao perfil do usuário da conversa
+document.querySelector(".selected-left")?.addEventListener("click", () => {
+  if (selectedUser) {
+    window.location.href = `PF.html?userid=${selectedUser}`;
+  }
+});
+
 </script>
 
 <script src="./src/js/loading.js"></script>

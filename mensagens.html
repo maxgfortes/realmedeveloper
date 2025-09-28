@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Teste de DM - Estrutura Personalizada</title>
+</head>
+<body>
+  <h2>Chat DM Teste</h2>
+  <div id="chatArea" style="height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;"></div>
+  <input id="msgInput" type="text" placeholder="Escreva uma mensagem..." style="width: 80%;">
+  <button id="sendBtn">Enviar</button>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      query,
+      orderBy,
+      getDocs,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    // Configuração do Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyB2N41DiH0-Wjdos19dizlWSKOlkpPuOWs",
+      authDomain: "ifriendmatch.firebaseapp.com",
+      projectId: "ifriendmatch",
+      storageBucket: "ifriendmatch.appspot.com",
+      messagingSenderId: "306331636603",
+      appId: "1:306331636603:web:c0ae0bd22501803995e3de",
+      measurementId: "G-D96BEW6RC3"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Usuários de teste
+    const loggedUser = "maxgfortes";
+    const outroUser = "afliccoess";
+    const chatId = `chat-${outroUser}-${loggedUser}`; // sempre no formato que você usa
+
+    const chatArea = document.getElementById("chatArea");
+    const msgInput = document.getElementById("msgInput");
+    const sendBtn = document.getElementById("sendBtn");
+
+    // Enviar mensagem
+    async function enviarMensagem(conteudo) {
+      if (!conteudo) return;
+
+      const tipo = `mensagem-${loggedUser}`;
+      const mensagensRef = collection(db, "users", loggedUser, "conversas", chatId, tipo);
+      
+      const msgId = `msg-${Date.now()}-${Math.random().toString(36).substr(2,8)}`;
+
+      await addDoc(mensagensRef, {
+        conteudo: conteudo,
+        username: loggedUser,
+        enviadoEm: serverTimestamp(),
+        msgId: msgId
+      });
+
+      msgInput.value = "";
+      listarMensagens();
+    }
+
+    // Listar mensagens de todos os usuários do chat
+    async function listarMensagens() {
+      chatArea.innerHTML = "";
+
+      const tipos = [`mensagem-${loggedUser}`, `mensagem-${outroUser}`];
+
+      let todasMensagens = [];
+
+      for (const tipo of tipos) {
+        const mensagensRef = collection(db, "users", loggedUser, "conversas", chatId, tipo);
+        const q = query(mensagensRef, orderBy("enviadoEm", "asc"));
+        const snapshot = await getDocs(q);
+
+        snapshot.docs.forEach(doc => {
+          todasMensagens.push(doc.data());
+        });
+      }
+
+      // Ordena todas mensagens pelo timestamp
+      todasMensagens.sort((a,b) => a.enviadoEm?.toMillis() - b.enviadoEm?.toMillis());
+
+      todasMensagens.forEach(m => {
+        const p = document.createElement("p");
+        p.textContent = `${m.username}: ${m.conteudo}`;
+        chatArea.appendChild(p);
+      });
+
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    // Eventos
+    sendBtn.addEventListener("click", () => enviarMensagem(msgInput.value.trim()));
+    msgInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") enviarMensagem(msgInput.value.trim());
+    });
+
+    // Atualiza chat a cada 2s
+    setInterval(listarMensagens, 2000);
+
+    // Carrega mensagens inicialmente
+    listarMensagens();
+  </script>
+</body>
+</html>

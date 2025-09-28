@@ -599,6 +599,93 @@
   <div class="loading-text">Carregando...</div>
 </div>
 
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  query,
+  orderBy,
+  limit
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB2N41DiH0-Wjdos19dizlWSKOlkpPuOWs",
+  authDomain: "ifriendmatch.firebaseapp.com",
+  projectId: "ifriendmatch",
+  storageBucket: "ifriendmatch.appspot.com",
+  messagingSenderId: "306331636603",
+  appId: "1:306331636603:web:c0ae0bd22501803995e3de",
+  measurementId: "G-D96BEW6RC3"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+async function carregarNovosUsuarios() {
+  const container = document.querySelector('.new-people');
+  if (!container) return;
+  // Remove antigos
+  container.querySelectorAll('.newuser').forEach(e => e.remove());
+
+  // Busca últimos 6 usuários
+  const q = query(collection(db, "newusers"), orderBy("createdat", "desc"), limit(6));
+  const snap = await getDocs(q);
+
+  for (const docu of snap.docs) {
+    const { userid } = docu.data();
+    // Busca dados do usuário
+    const userRef = doc(db, "users", userid);
+    const userSnap = await getDoc(userRef);
+    let displayname = "Novo Usuário";
+    let username = "";
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      displayname = userData.displayname || userData.username || "Novo Usuário";
+      username = userData.username || "";
+    }
+    // Busca foto de perfil
+    let userphoto = "./src/icon/default.jpg";
+    try {
+      const photoRef = doc(db, "users", userid, "user-infos", "user-media");
+      const photoSnap = await getDoc(photoRef);
+      if (photoSnap.exists()) {
+        userphoto = photoSnap.data().userphoto || userphoto;
+      }
+    } catch {}
+
+    // Cria elemento
+    const div = document.createElement('div');
+    div.className = "newuser";
+    div.innerHTML = `
+      <img src="${userphoto}" alt="Avatar" onerror="this.src='./src/icon/default.jpg'">
+      <div class="new-user-info" style="cursor:pointer;" data-uid="${userid}">
+        <span class="new-user-username" style="font-weight:bold;">${displayname}</span>
+        <span class="new-user-username" style="font-size:13px;color:#aaa;">@${username}</span>
+      </div>
+    `;
+    container.insertBefore(div, container.querySelector('.reloadarea'));
+  }
+}
+
+// Evento do botão recarregar
+document.addEventListener('DOMContentLoaded', () => {
+  carregarNovosUsuarios();
+  document.querySelector('.reload-new-users').addEventListener('click', carregarNovosUsuarios);
+
+  // Evento para abrir perfil ao clicar no botão
+  document.querySelector('.new-people').addEventListener('click', (e) => {
+  const infoDiv = e.target.closest('.new-user-info');
+  if (infoDiv && infoDiv.dataset.uid) {
+    window.location.href = `PF.html?userid=${encodeURIComponent(infoDiv.dataset.uid)}`;
+  }
+});
+});
+</script>
+
 <script type="module" src="./src/js/main-main.js"></script>
 <script type="module" src="./src/js/feed.js"></script>
 <script>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Status de Login</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f2f5;
+            margin: 0;
+            text-align: center;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 100%;
+        }
+        h1 {
+            color: #333;
+        }
+        #status-message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 1.1em;
+        }
+        .status-logged-in {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-logged-out {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        pre {
+            background-color: #f4f4f4;
+            border: 1px solid #ddd;
+            padding: 15px;
+            text-align: left;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin-top: 20px;
+        }
+        .logout-btn {
+            padding: 10px 20px;
+            font-size: 1em;
+            color: #fff;
+            background-color: #dc3545;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .logout-btn:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Status de Autenticação</h1>
+        <p>Verificando o status do usuário...</p>
+        <div id="status-message"></div>
+        <pre id="user-info" style="display: none;"></pre>
+        <button id="logoutBtn" class="logout-btn" style="display: none;">Sair da Conta</button>
+    </div>
+
+    <script type="module">
+        // Importe apenas as funções necessárias do Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+        // Configuração do Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyB2N41DiH0-Wjdos19dizlWSKOlkpPuOWs",
+            authDomain: "ifriendmatch.firebaseapp.com",
+            projectId: "ifriendmatch",
+            storageBucket: "ifriendmatch.appspot.com",
+            messagingSenderId: "306331636603",
+            appId: "1:306331636603:web:c0ae0bd22501895e3de",
+            measurementId: "G-D96BEW6RC3"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        const statusMessageDiv = document.getElementById('status-message');
+        const userInfoPre = document.getElementById('user-info');
+        const logoutBtn = document.getElementById('logoutBtn');
+
+        // Função para buscar dados adicionais do usuário no Firestore
+        async function getUserDataFromFirestore(uid) {
+            try {
+                const userRef = doc(db, "users", uid);
+                const userSnap = await getDoc(userRef);
+                return userSnap.exists() ? userSnap.data() : null;
+            } catch (error) {
+                console.error("Erro ao buscar dados do Firestore:", error);
+                return null;
+            }
+        }
+
+        // Observa o estado de autenticação em tempo real
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                // Usuário está logado
+                console.log("Usuário logado:", user);
+                statusMessageDiv.textContent = "Você está logado!";
+                statusMessageDiv.className = "status-logged-in";
+
+                // Buscar dados do Firestore
+                const firestoreData = await getUserDataFromFirestore(user.uid);
+
+                // Exibir dados do usuário, incluindo os do Firestore
+                const userData = {
+                    uid: user.uid,
+                    email: user.email,
+                    emailVerificado: user.emailVerified,
+                    dadosFirestore: firestoreData || "Nenhum dado encontrado no Firestore."
+                };
+
+                userInfoPre.textContent = JSON.stringify(userData, null, 2);
+                userInfoPre.style.display = 'block';
+                logoutBtn.style.display = 'block';
+
+            } else {
+                // Usuário não está logado
+                console.log("Nenhum usuário logado.");
+                statusMessageDiv.textContent = "Você não está logado.";
+                statusMessageDiv.className = "status-logged-out";
+                
+                userInfoPre.style.display = 'none';
+                logoutBtn.style.display = 'none';
+            }
+        });
+
+        // Evento do botão de logout
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+                // Redireciona para a página de login
+                window.location.href = "login.html"; 
+            } catch (error) {
+                console.error("Erro ao fazer logout:", error);
+                alert("Erro ao sair da conta. Tente novamente.");
+            }
+        });
+
+    </script>
+</body>
+</html>

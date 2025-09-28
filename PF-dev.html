@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfil do Usuário</title>
+    <!-- Font Awesome para ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+        .profile-pic {
+            width: 150px;
+            height: 150px;
+            object-fit: cover;
+            border: 4px solid #fff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary {
+            @apply bg-indigo-600 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:bg-indigo-700 transition duration-300 ease-in-out transform hover:scale-105;
+        }
+        .btn-secondary {
+            @apply bg-gray-200 text-gray-800 font-bold py-2 px-6 rounded-full hover:bg-gray-300 transition duration-300 ease-in-out;
+        }
+        .btn-follow {
+            @apply btn-primary;
+        }
+        .btn-follow.following {
+            @apply bg-green-500 hover:bg-green-600;
+        }
+        .tab-button.active {
+            @apply border-indigo-600 text-indigo-600 font-semibold;
+        }
+        .depoimento-card {
+            @apply bg-white p-6 rounded-xl shadow-md mb-4 border border-gray-200;
+        }
+        .autor-pic {
+            @apply w-12 h-12 object-cover rounded-full border-2 border-indigo-500;
+        }
+        .modal-overlay {
+            @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 transition-opacity duration-300;
+        }
+        .modal-content {
+            @apply bg-white p-8 rounded-lg shadow-xl max-w-sm w-full;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <!-- Main Content Container -->
+    <div class="max-w-4xl mx-auto w-full bg-white rounded-xl shadow-lg p-6 md:p-10">
+
+        <!-- Loading Indicator -->
+        <div id="loading-spinner" class="flex flex-col items-center justify-center h-64">
+            <div class="spinner"></div>
+            <p class="mt-4 text-gray-600">Carregando perfil...</p>
+        </div>
+
+        <!-- Error Message -->
+        <div id="error-message" class="hidden flex-col items-center justify-center h-64 text-center text-red-500">
+            <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+            <p id="error-text" class="text-lg font-medium">Ocorreu um erro ao carregar o perfil.</p>
+        </div>
+
+        <!-- Profile Content -->
+        <div id="profile-content" class="hidden">
+            <!-- Profile Header -->
+            <div class="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-10 mb-8">
+                <img id="profile-pic" class="profile-pic rounded-full" src="./src/icon/default.jpg" alt="Foto do Perfil">
+                <div class="text-center md:text-left">
+                    <h1 id="user-displayname" class="text-3xl font-bold text-gray-900"></h1>
+                    <p id="user-username" class="text-gray-500 text-sm mt-1"></p>
+                    <p id="user-location" class="text-gray-600 mt-2"></p>
+                    <div id="follow-button-container" class="mt-4">
+                        <button id="follow-button" class="btn-primary">Seguir</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile Stats -->
+            <div id="profile-stats" class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center md:text-left text-sm text-gray-600 mb-8">
+                <span><strong id="stats-posts" class="text-gray-900">0</strong> posts</span>
+                <span><strong id="stats-seguidores" class="text-gray-900">0</strong> seguidores</span>
+                <span><strong id="stats-seguindo" class="text-gray-900">0</strong> seguindo</span>
+                <span><strong id="stats-friends" class="text-gray-900">0</strong> amigos</span>
+            </div>
+
+            <!-- Tabs Section -->
+            <div class="border-b border-gray-200 mb-6">
+                <nav class="flex space-x-4" role="tablist">
+                    <button class="tab-button active py-2 px-4 border-b-2 border-transparent" data-tab="about">Sobre</button>
+                    <button class="tab-button py-2 px-4 border-b-2 border-transparent" data-tab="likes">Gostos</button>
+                    <button class="tab-button py-2 px-4 border-b-2 border-transparent" data-tab="depoimentos">Depoimentos</button>
+                    <button class="tab-button py-2 px-4 border-b-2 border-transparent" data-tab="links">Links</button>
+                </nav>
+            </div>
+
+            <!-- Tab Content -->
+            <div id="tab-content">
+                <!-- About Tab -->
+                <div id="about-tab" class="tab-pane active">
+                    <div class="space-y-4">
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-gray-700">Visão Geral</h3>
+                            <p id="about-overview" class="text-gray-600 text-sm mt-1"></p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-gray-700">Personalidade</h3>
+                            <p id="about-personality" class="text-gray-600 text-sm mt-1"></p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-gray-700">Estilos</h3>
+                            <p id="about-styles" class="text-gray-600 text-sm mt-1"></p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-gray-700">Sonhos</h3>
+                            <p id="about-dreams" class="text-gray-600 text-sm mt-1"></p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-gray-700">Medos</h3>
+                            <p id="about-fears" class="text-gray-600 text-sm mt-1"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Likes Tab -->
+                <div id="likes-tab" class="tab-pane hidden">
+                    <div class="space-y-4">
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-gray-700">Músicas</h3>
+                            <p id="likes-music" class="text-gray-600 text-sm mt-1"></p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-gray-700">Filmes/Séries</h3>
+                            <p id="likes-movies" class="text-gray-600 text-sm mt-1"></p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-gray-700">Jogos</h3>
+                            <p id="likes-games" class="text-gray-600 text-sm mt-1"></p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-gray-700">Livros</h3>
+                            <p id="likes-books" class="text-gray-600 text-sm mt-1"></p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-gray-700">Comidas</h3>
+                            <p id="likes-foods" class="text-gray-600 text-sm mt-1"></p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h3 class="font-semibold text-gray-700">Hobbies</h3>
+                            <p id="likes-hobbies" class="text-gray-600 text-sm mt-1"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Depoimentos Tab -->
+                <div id="depoimentos-tab" class="tab-pane hidden">
+                    <div id="depoimentos-container" class="space-y-4">
+                        <!-- Depoimento form and cards will be dynamically inserted here -->
+                    </div>
+                </div>
+
+                <!-- Links Tab -->
+                <div id="links-tab" class="tab-pane hidden">
+                    <div id="links-container" class="space-y-4">
+                        <!-- Links will be dynamically inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Modal -->
+    <div id="custom-modal-overlay" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h4 id="modal-title" class="text-xl font-bold mb-4"></h4>
+            <p id="modal-message" class="mb-6"></p>
+            <div class="flex justify-end space-x-4">
+                <button id="modal-cancel" class="btn-secondary hidden">Cancelar</button>
+                <button id="modal-ok" class="btn-primary">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getAuth, signInWithCustomToken, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import {
+            getFirestore,
+            doc,
+            getDoc,
+            setDoc,
+            collection,
+            query,
+            where,
+            getDocs,
+            orderBy,
+            startAt,
+            endAt,
+            deleteDoc
+        } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+        // Global variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyB2N41DiH0-Wjdos19dizlWSKOlkpPuOWs",
+            authDomain: "ifriendmatch.firebaseapp.com",
+            projectId: "ifriendmatch",
+            storageBucket: "ifriendmatch.appspot.com",
+            messagingSenderId: "306331636603",
+            appId: "1:306331636603:web:c0ae0bd22501803995e3de",
+            measurementId: "G-D96BEW6RC3"
+        };
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        let currentUserId = null;
+        let currentUserData = null;
+        let targetUserId = null;
+        let isFollowing = false;
+        
+        // UI Elements
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const errorMessage = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+        const profileContent = document.getElementById('profile-content');
+        
+        // Custom Modal UI elements
+        const modalOverlay = document.getElementById('custom-modal-overlay');
+        const modalTitle = document.getElementById('modal-title');
+        const modalMessage = document.getElementById('modal-message');
+        const modalOKBtn = document.getElementById('modal-ok');
+        const modalCancelBtn = document.getElementById('modal-cancel');
+        
+        /**
+         * Shows a custom modal message.
+         * @param {string} title - The title of the modal.
+         * @param {string} message - The message to display.
+         * @param {boolean} [isConfirm=false] - Whether to show a confirm button.
+         * @returns {Promise<boolean>} A promise that resolves to true if OK is clicked, false otherwise.
+         */
+        function showCustomModal(title, message, isConfirm = false) {
+            return new Promise(resolve => {
+                modalTitle.textContent = title;
+                modalMessage.textContent = message;
+                modalCancelBtn.classList.toggle('hidden', !isConfirm);
+                modalOverlay.classList.remove('hidden');
+        
+                const onOK = () => {
+                    modalOverlay.classList.add('hidden');
+                    resolve(true);
+                    modalOKBtn.removeEventListener('click', onOK);
+                    modalCancelBtn.removeEventListener('click', onCancel);
+                };
+        
+                const onCancel = () => {
+                    modalOverlay.classList.add('hidden');
+                    resolve(false);
+                    modalOKBtn.removeEventListener('click', onOK);
+                    modalCancelBtn.removeEventListener('click', onCancel);
+                };
+        
+                modalOKBtn.addEventListener('click', onOK);
+                modalCancelBtn.addEventListener('click', onCancel);
+            });
+        }
+        
+        // --- AUTHENTICATION AND INITIAL LOAD ---
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUserId = user.uid;
+                await fetchAndRenderProfile();
+            } else {
+                try {
+                    // Sign in with custom token provided by the environment
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
+                        showCustomModal("Aviso", "Você está logado anonimamente e não pode editar o perfil. Faça login para acesso total.");
+                    }
+                } catch (error) {
+                    console.error("Erro ao autenticar:", error);
+                    showError("Ocorreu um erro na autenticação. Tente novamente mais tarde.");
+                }
+            }
+        });
+        
+        // --- UTILITY FUNCTIONS ---
+        function showLoading() {
+            loadingSpinner.classList.remove('hidden');
+            profileContent.classList.add('hidden');
+            errorMessage.classList.add('hidden');
+        }
+        
+        function showProfile() {
+            loadingSpinner.classList.add('hidden');
+            errorMessage.classList.add('hidden');
+            profileContent.classList.remove('hidden');
+        }
+        
+        function showError(message) {
+            loadingSpinner.classList.add('hidden');
+            profileContent.classList.add('hidden');
+            errorMessage.classList.remove('hidden');
+            errorText.textContent = message;
+        }
+        
+        function formatarDataPost(timestamp) {
+            if (!timestamp || !timestamp.seconds) return 'Data desconhecida';
+            const date = new Date(timestamp.seconds * 1000);
+            return date.toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric' });
+        }
+        
+        // --- DATA FETCHING & RENDERING ---
+        
+        async function fetchAndRenderProfile() {
+            showLoading();
+            const params = new URLSearchParams(window.location.search);
+            const targetUsername = params.get("username") || params.get("user");
+        
+            let targetUserDoc;
+        
+            if (targetUsername) {
+                // Fetch the user ID by username
+                const usersRef = collection(db, 'users');
+                const q = query(
+                    usersRef,
+                    where('username', '==', targetUsername),
+                    limit(1)
+                );
+                const snapshot = await getDocs(q);
+        
+                if (snapshot.empty) {
+                    showError("Usuário não encontrado.");
+                    return;
+                }
+        
+                targetUserDoc = snapshot.docs[0];
+                targetUserId = targetUserDoc.id;
+            } else if (currentUserId) {
+                // If no username is provided, use the logged-in user's ID
+                targetUserId = currentUserId;
+                targetUserDoc = await getDoc(doc(db, 'users', targetUserId));
+            } else {
+                showError("Nenhum usuário especificado e não logado.");
+                return;
+            }
+        
+            if (!targetUserDoc.exists()) {
+                showError("Dados do perfil não encontrados.");
+                return;
+            }
+        
+            const userData = targetUserDoc.data();
+        
+            // Fetch subcollection data
+            const likesDoc = await getDoc(doc(db, `users/${targetUserId}/user-infos/likes`));
+            const aboutDoc = await getDoc(doc(db, `users/${targetUserId}/users-infos/about`));
+        
+            // Render profile header
+            const profilePicUrl = userData.userphoto || './src/icon/default.jpg';
+            document.getElementById('profile-pic').src = profilePicUrl;
+            document.getElementById('user-displayname').textContent = userData.displayname || userData.username || 'Usuário Desconhecido';
+            document.getElementById('user-username').textContent = `@${userData.username}`;
+            document.getElementById('user-location').textContent = userData.location || 'Localização não informada';
+        
+            // Render about section
+            const aboutData = aboutDoc.data() || {};
+            document.getElementById('about-overview').textContent = aboutData.overview || 'Nenhuma informação de visão geral.';
+            document.getElementById('about-personality').textContent = aboutData.personality || 'Nenhuma informação de personalidade.';
+            document.getElementById('about-styles').textContent = aboutData.styles || 'Nenhuma informação de estilo.';
+            document.getElementById('about-dreams').textContent = aboutData.dreams || 'Nenhum sonho listado.';
+            document.getElementById('about-fears').textContent = aboutData.fears || 'Nenhum medo listado.';
+        
+            // Render likes section
+            const likesData = likesDoc.data() || {};
+            document.getElementById('likes-music').textContent = likesData.music || 'Nenhuma música listada.';
+            document.getElementById('likes-movies').textContent = likesData['movies-series'] || 'Nenhum filme/série listado.';
+            document.getElementById('likes-games').textContent = likesData.games || 'Nenhum jogo listado.';
+            document.getElementById('likes-books').textContent = likesData.books || 'Nenhum livro listado.';
+            document.getElementById('likes-foods').textContent = likesData.foods || 'Nenhuma comida listada.';
+            document.getElementById('likes-hobbies').textContent = likesData.hobbies || 'Nenhum hobby listado.';
+        
+            // Configure follow/edit button
+            await configurarBotaoSeguir(targetUserId, userData.username);
+        
+            // Load tabs
+            await atualizarEstatisticasPerfil(targetUserId);
+            await carregarDepoimentos(targetUserId);
+            await carregarLinks(targetUserId);
+        
+            showProfile();
+        }
+        
+        // --- TAB MANAGEMENT ---
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', (event) => {
+                // Deactivate all tabs
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.add('hidden'));
+        
+                // Activate the clicked tab
+                event.currentTarget.classList.add('active');
+                const targetTab = event.currentTarget.dataset.tab;
+                document.getElementById(`${targetTab}-tab`).classList.remove('hidden');
+            });
+        });
+        
+        // --- FOLLOW/UNFOLLOW SYSTEM ---
+        
+        /**
+         * Configures the follow button based on the logged-in user and the target profile.
+         * @param {string} targetUserId The ID of the user whose profile is being viewed.
+         * @param {string} targetUsername The username of the user whose profile is being viewed.
+         */
+        async function configurarBotaoSeguir(targetUserId, targetUsername) {
+            const followBtn = document.getElementById('follow-button');
+            if (!followBtn || !currentUserId) {
+                // If not logged in, hide button
+                if (followBtn) followBtn.classList.add('hidden');
+                return;
+            }
+        
+            const isOwnProfile = currentUserId === targetUserId;
+            const followBtnContainer = document.getElementById('follow-button-container');
+            
+            if (isOwnProfile) {
+                followBtn.classList.add('hidden');
+                // Create edit profile button
+                const editBtn = document.createElement('button');
+                editBtn.textContent = 'Editar perfil';
+                editBtn.className = 'btn-secondary';
+                editBtn.onclick = () => showCustomModal("Aviso", "A funcionalidade de edição de perfil não está implementada neste demo.");
+                followBtnContainer.appendChild(editBtn);
+                return;
+            }
+        
+            followBtn.classList.remove('hidden');
+            
+            isFollowing = await verificarSeEstaSeguindo(currentUserId, targetUserId);
+            followBtn.textContent = isFollowing ? 'Seguindo' : 'Seguir';
+            followBtn.classList.toggle('following', isFollowing);
+        
+            followBtn.onclick = async () => {
+                if (!auth.currentUser) {
+                    await showCustomModal("Aviso", "Você precisa estar logado para seguir um usuário.");
+                    return;
+                }
+        
+                followBtn.disabled = true;
+                followBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        
+                try {
+                    if (isFollowing) {
+                        await deixarDeSeguir(currentUserId, targetUserId);
+                        isFollowing = false;
+                        followBtn.textContent = 'Seguir';
+                        followBtn.classList.remove('following');
+                    } else {
+                        await seguirUsuario(currentUserId, targetUserId);
+                        isFollowing = true;
+                        followBtn.textContent = 'Seguindo';
+                        followBtn.classList.add('following');
+                    }
+                    await atualizarEstatisticasPerfil(targetUserId);
+                } catch (error) {
+                    console.error('Erro ao processar seguimento:', error);
+                    await showCustomModal("Erro", "Ocorreu um erro ao processar sua solicitação.");
+                    followBtn.textContent = 'Erro';
+                } finally {
+                    followBtn.disabled = false;
+                }
+            };
+        }
+        
+        /**
+         * Checks if the current user is following the target user.
+         * @param {string} currentUserId The ID of the current user.
+         * @param {string} targetUserId The ID of the target user.
+         * @returns {Promise<boolean>}
+         */
+        async function verificarSeEstaSeguindo(currentUserId, targetUserId) {
+            try {
+                const followingDocRef = doc(db, `users/${currentUserId}/seguindo/users`);
+                const followingDoc = await getDoc(followingDocRef);
+                if (followingDoc.exists()) {
+                    const followingData = followingDoc.data();
+                    return followingData.hasOwnProperty(targetUserId);
+                }
+                return false;
+            } catch (error) {
+                console.error('Erro ao verificar seguimento:', error);
+                return false;
+            }
+        }
+        
+        /**
+         * Makes the current user follow the target user.
+         * @param {string} currentUserId The ID of the current user.
+         * @param {string} targetUserId The ID of the target user.
+         */
+        async function seguirUsuario(currentUserId, targetUserId) {
+            // Add to target user's followers
+            const seguidoresRef = doc(db, `users/${targetUserId}/seguidores/users`);
+            await setDoc(seguidoresRef, { [currentUserId]: true }, { merge: true });
+            
+            // Add to current user's following list
+            const seguindoRef = doc(db, `users/${currentUserId}/seguindo/users`);
+            await setDoc(seguindoRef, { [targetUserId]: true }, { merge: true });
+        }
+        
+        /**
+         * Makes the current user unfollow the target user.
+         * @param {string} currentUserId The ID of the current user.
+         * @param {string} targetUserId The ID of the target user.
+         */
+        async function deixarDeSeguir(currentUserId, targetUserId) {
+            // Remove from target user's followers
+            const seguidoresRef = doc(db, `users/${targetUserId}/seguidores/users`);
+            const seguidoresDoc = await getDoc(seguidoresRef);
+            if (seguidoresDoc.exists()) {
+                let seguidoresData = seguidoresDoc.data();
+                delete seguidoresData[currentUserId];
+                await setDoc(seguidoresRef, seguidoresData);
+            }
+        
+            // Remove from current user's following list
+            const seguindoRef = doc(db, `users/${currentUserId}/seguindo/users`);
+            const seguindoDoc = await getDoc(seguindoRef);
+            if (seguindoDoc.exists()) {
+                let seguindoData = seguindoDoc.data();
+                delete seguindoData[targetUserId];
+                await setDoc(seguindoRef, seguindoData);
+            }
+        }
+        
+        /**
+         * Updates the profile stats (posts, followers, following).
+         * @param {string} targetUserId The ID of the user whose profile is being viewed.
+         */
+        async function atualizarEstatisticasPerfil(targetUserId) {
+            try {
+                // Count posts
+                const postsRef = collection(db, `users/${targetUserId}/posts`);
+                const postsSnapshot = await getDocs(postsRef);
+                document.getElementById('stats-posts').textContent = postsSnapshot.size;
+        
+                // Count followers
+                const seguidoresDoc = await getDoc(doc(db, `users/${targetUserId}/seguidores/users`));
+                const numSeguidores = seguidoresDoc.exists() ? Object.keys(seguidoresDoc.data()).length : 0;
+                document.getElementById('stats-seguidores').textContent = numSeguidores;
+        
+                // Count following
+                const seguindoDoc = await getDoc(doc(db, `users/${targetUserId}/seguindo/users`));
+                const numSeguindo = seguindoDoc.exists() ? Object.keys(seguindoDoc.data()).length : 0;
+                document.getElementById('stats-seguindo').textContent = numSeguindo;
+        
+            } catch (error) {
+                console.error('Erro ao atualizar estatísticas:', error);
+            }
+        }
+        
+        // --- TESTIMONIALS SYSTEM (DEPOIMENTOS) ---
+        
+        /**
+         * Loads and displays testimonials for a given user.
+         * @param {string} targetUserId The ID of the user whose profile is being viewed.
+         */
+        async function carregarDepoimentos(targetUserId) {
+            const depoimentosContainer = document.getElementById('depoimentos-container');
+            if (!depoimentosContainer) return;
+        
+            depoimentosContainer.innerHTML = `
+                <div class="flex flex-col items-center justify-center p-8">
+                    <div class="spinner"></div>
+                    <p class="mt-4 text-gray-600">Carregando depoimentos...</p>
+                </div>
+            `;
+        
+            try {
+                const depoimentosRef = collection(db, `users/${targetUserId}/depoimentos`);
+                const depoimentosQuery = query(depoimentosRef, orderBy('criadoem', 'desc'));
+                const snapshot = await getDocs(depoimentosQuery);
+                
+                depoimentosContainer.innerHTML = ''; // Clear loading spinner
+        
+                const isOwnProfile = currentUserId === targetUserId;
+        
+                // Add testimonial form if not own profile
+                if (!isOwnProfile) {
+                    const depoimentoForm = document.createElement('div');
+                    depoimentoForm.className = 'bg-white p-6 rounded-xl shadow-md mb-4';
+                    depoimentoForm.innerHTML = `
+                        <h4 class="font-semibold text-gray-700 mb-2">Deixar um depoimento</h4>
+                        <textarea id="depoimentoTexto" class="w-full h-24 p-2 border rounded-md resize-none" placeholder="Escreva seu depoimento aqui..." maxlength="500"></textarea>
+                        <div class="flex justify-between items-center mt-2">
+                            <span class="char-count text-sm text-gray-500">0/500</span>
+                            <button id="btn-enviar-depoimento" class="btn-primary">
+                                <i class="fas fa-paper-plane"></i> Enviar
+                            </button>
+                        </div>
+                    `;
+                    depoimentosContainer.appendChild(depoimentoForm);
+        
+                    const textarea = depoimentoForm.querySelector('#depoimentoTexto');
+                    const charCount = depoimentoForm.querySelector('.char-count');
+                    const sendBtn = depoimentoForm.querySelector('#btn-enviar-depoimento');
+        
+                    textarea.addEventListener('input', () => {
+                        charCount.textContent = `${textarea.value.length}/500`;
+                    });
+        
+                    sendBtn.addEventListener('click', async () => {
+                        if (auth.currentUser) {
+                            await enviarDepoimento(targetUserId, textarea.value.trim());
+                        } else {
+                            await showCustomModal("Aviso", "Você precisa estar logado para enviar depoimentos.");
+                        }
+                    });
+                }
+        
+                if (snapshot.empty) {
+                    depoimentosContainer.innerHTML += `
+                        <div class="flex flex-col items-center justify-center text-center py-10 text-gray-400">
+                            <i class="fas fa-comments text-4xl mb-4"></i>
+                            <h3 class="text-xl font-medium">Nenhum depoimento ainda</h3>
+                            <p>${isOwnProfile ? 'Você ainda não recebeu depoimentos.' : 'Este usuário ainda não recebeu depoimentos.'}</p>
+                        </div>
+                    `;
+                    return;
+                }
+        
+                for (const depoDoc of snapshot.docs) {
+                    const depoData = depoDoc.data();
+                    const autorDoc = await getDoc(doc(db, 'users', depoData.autorId));
+                    const autorData = autorDoc.exists() ? autorDoc.data() : { displayname: 'Usuário Anônimo' };
+                    const depoElement = criarElementoDepoimento(depoData, autorData, depoDoc.id, targetUserId);
+                    depoimentosContainer.appendChild(depoElement);
+                }
+        
+            } catch (error) {
+                console.error('Erro ao carregar depoimentos:', error);
+                depoimentosContainer.innerHTML = `<div class="text-center text-red-500">Erro ao carregar depoimentos.</div>`;
+            }
+        }
+        
+        /**
+         * Creates a testimonial DOM element.
+         * @param {object} depoData Testimonial data.
+         * @param {object} autorData Author's user data.
+         * @param {string} depoId Testimonial document ID.
+         * @param {string} targetUserId The ID of the user who received the testimonial.
+         * @returns {HTMLElement} The created DOM element.
+         */
+        function criarElementoDepoimento(depoData, autorData, depoId, targetUserId) {
+            const depoElement = document.createElement('div');
+            depoElement.className = 'depoimento-card';
+            depoElement.setAttribute('data-depo-id', depoId);
+        
+            const autorPicUrl = autorData.userphoto || autorData.foto || './src/icon/default.jpg';
+            const autorName = autorData.displayname || autorData.username || 'Usuário Anônimo';
+            const formattedDate = formatarDataPost(depoData.criadoem);
+            const content = depoData.conteudo || 'Depoimento sem conteúdo';
+        
+            const isOwner = currentUserId === targetUserId;
+            const isAuthor = currentUserId === depoData.autorId;
+            const canDelete = isOwner || isAuthor;
+        
+            depoElement.innerHTML = `
+                <div class="flex items-center space-x-4">
+                    <img src="${autorPicUrl}" alt="Foto do autor" class="autor-pic">
+                    <div class="flex-1">
+                        <span class="font-semibold text-gray-800">${autorName}</span>
+                        <span class="block text-sm text-gray-500">${formattedDate}</span>
+                    </div>
+                    ${canDelete ? `<button class="text-red-500 hover:text-red-700 transition" onclick="excluirDepoimento('${depoId}', '${targetUserId}')">
+                        <i class="fas fa-trash"></i>
+                    </button>` : ''}
+                </div>
+                <p class="mt-4 text-gray-700 text-sm">${content}</p>
+            `;
+            return depoElement;
+        }
+        
+        /**
+         * Submits a new testimonial.
+         * @param {string} targetUserId The ID of the user receiving the testimonial.
+         * @param {string} content The testimonial text.
+         */
+        async function enviarDepoimento(targetUserId, content) {
+            if (!content) {
+                await showCustomModal("Aviso", "Por favor, escreva um depoimento antes de enviar.");
+                return;
+            }
+        
+            const btnEnviar = document.getElementById('btn-enviar-depoimento');
+            btnEnviar.disabled = true;
+            btnEnviar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+        
+            try {
+                const depoimentoData = {
+                    conteudo: content,
+                    autorId: currentUserId,
+                    criadoem: new Date(),
+                };
+        
+                const depoimentosRef = collection(db, `users/${targetUserId}/depoimentos`);
+                await addDoc(depoimentosRef, depoimentoData);
+        
+                await showCustomModal("Sucesso!", "Depoimento enviado com sucesso!");
+                document.getElementById('depoimentoTexto').value = '';
+                document.querySelector('#depoimentos-container .char-count').textContent = '0/500';
+                
+                await carregarDepoimentos(targetUserId);
+            } catch (error) {
+                console.error('Erro ao enviar depoimento:', error);
+                await showCustomModal("Erro", "Erro ao enviar depoimento. Tente novamente.");
+            } finally {
+                btnEnviar.disabled = false;
+                btnEnviar.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar';
+            }
+        }
+        
+        /**
+         * Deletes a testimonial.
+         * @param {string} depoId The ID of the testimonial to delete.
+         * @param {string} targetUserId The ID of the user who owns the profile.
+         */
+        async function excluirDepoimento(depoId, targetUserId) {
+            const confirmed = await showCustomModal("Confirmação", "Tem certeza que deseja excluir este depoimento?", true);
+            if (!confirmed) return;
+        
+            try {
+                const depoRef = doc(db, `users/${targetUserId}/depoimentos`, depoId);
+                await deleteDoc(depoRef);
+        
+                await showCustomModal("Sucesso!", "Depoimento excluído com sucesso!");
+                await carregarDepoimentos(targetUserId);
+            } catch (error) {
+                console.error('Erro ao excluir depoimento:', error);
+                await showCustomModal("Erro", "Erro ao excluir depoimento. Tente novamente.");
+            }
+        }
+        
+        // --- LINKS SYSTEM ---
+        
+        /**
+         * Loads and displays links for a given user.
+         * @param {string} targetUserId The ID of the user whose profile is being viewed.
+         */
+        async function carregarLinks(targetUserId) {
+            const linksContainer = document.getElementById('links-container');
+            if (!linksContainer) return;
+        
+            linksContainer.innerHTML = `<p class="text-center text-gray-500">Carregando links...</p>`;
+            
+            try {
+                const userDoc = await getDoc(doc(db, `users/${targetUserId}`));
+                linksContainer.innerHTML = '';
+        
+                if (!userDoc.exists() || !userDoc.data().links || Object.keys(userDoc.data().links).length === 0) {
+                    linksContainer.innerHTML = `
+                        <div class="flex flex-col items-center justify-center text-center py-10 text-gray-400">
+                            <i class="fas fa-link text-4xl mb-4"></i>
+                            <h3 class="text-xl font-medium">Nenhum link ainda</h3>
+                            <p>Este usuário ainda não adicionou nenhum link.</p>
+                        </div>
+                    `;
+                    return;
+                }
+        
+                const links = userDoc.data().links;
+        
+                Object.entries(links).forEach(([key, url]) => {
+                    const linkElement = document.createElement('div');
+                    linkElement.className = 'bg-white p-4 rounded-lg shadow-sm border border-gray-200';
+                    let icon = 'fas fa-external-link-alt';
+                    let label = key;
+        
+                    if (url.includes('instagram.com')) { icon = 'fab fa-instagram'; label = 'Instagram'; }
+                    else if (url.includes('twitter.com') || url.includes('x.com')) { icon = 'fab fa-twitter'; label = 'Twitter/X'; }
+                    else if (url.includes('tiktok.com')) { icon = 'fab fa-tiktok'; label = 'TikTok'; }
+                    else if (url.includes('youtube.com')) { icon = 'fab fa-youtube'; label = 'YouTube'; }
+                    else if (url.includes('github.com')) { icon = 'fab fa-github'; label = 'GitHub'; }
+                    else if (url.includes('linkedin.com')) { icon = 'fab fa-linkedin'; label = 'LinkedIn'; }
+                    else if (url.includes('discord')) { icon = 'fab fa-discord'; label = 'Discord'; }
+                    else if (url.includes('spotify.com')) { icon = 'fab fa-spotify'; label = 'Spotify'; }
+        
+                    linkElement.innerHTML = `
+                        <a href="${url}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-3 text-indigo-600 hover:underline">
+                            <i class="${icon} text-lg"></i>
+                            <span class="font-medium">${label}</span>
+                            <i class="fas fa-external-link-alt text-xs text-gray-400 ml-auto"></i>
+                        </a>
+                    `;
+                    linksContainer.appendChild(linkElement);
+                });
+            } catch (error) {
+                console.error('Erro ao carregar links:', error);
+                linksContainer.innerHTML = `<div class="text-center text-red-500">Erro ao carregar links.</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

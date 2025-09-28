@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iFriendMatch</title>
+  <link rel="icon" href="./src/icon/icon.png" type="image/png">
+  <link rel="stylesheet" href="./src/styles/navbars.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <!-- Cor da barra de navegação no iPhone Safari e Android Chrome -->
+  <meta name="theme-color" content="#1F1F1F"> <!-- Cor desejada -->
+
+  <!-- Para iPhone quando o site é adicionado à tela inicial -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- Opções: default | black | black-translucent -->
+   <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="./src/icon/icon.png">
+
+  <!-- Título do preview -->
+  <meta property="og:title" content="RealMe">
+
+  <!-- Descrição -->
+  <meta property="og:description" content="Entre no RealMe ainda hoje e seja você mesmo!">
+
+  <!-- URL principal -->
+  <meta property="og:url" content="https://maxgfortes.github.io/realme/PF.html">
+
+  <!-- Imagem de destaque -->
+  <meta property="og:image" content="https://maxgfortes.github.io/realme/src/icon/share_icon.png">
+
+  <!-- Tipo de conteúdo -->
+  <meta property="og:type" content="website">
+
+  <!-- Para Twitter -->
+  <meta name="twitter:card" content="https://i.postimg.cc/7PfNb8TT/share-icon.png">
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+        background-image: url("src/bg/bg.jpg");
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-attachment: fixed;
+      color: #dbdbdb;
+      display: flex;
+        overflow-y: scroll; /* ativa o scroll */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+    }
+      .glass-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.85);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        pointer-events: none;
+        z-index: -1;
+      }
+/* Tablets */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 180px;
+  }
+  
+  .profile-container {
+    margin-left: 180px;
+    padding: 20px;
+  }
+  
+  .logo {
+    font-size: 24px;
+  }
+  
+  .search-box input {
+    width: 200px;
+  }
+}
+
+
+/* Mobile pequeno */
+@media (max-width: 480px) {
+  .logo {
+    font-size: 18px;
+  }
+  
+  .search-box input {
+    width: 120px;
+  }
+}
+
+.welcome-container {
+  margin-left: 250px;
+  margin-top: 80px;
+  padding: 40px;
+  color: #dbdbdb;
+}
+
+.welcome-box {
+  background: rgba(20, 20, 20, 0.582);
+  backdrop-filter: blur(8px);
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 40px;
+  max-width: 800px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.7);
+}
+
+.welcome-box h1 {
+  font-size: 36px;
+  margin-bottom: 20px;
+}
+
+.welcome-box h1 span {
+  color: #4A90E2;
+}
+
+.welcome-box p {
+  font-size: 18px;
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+.start-button {
+  display: inline-block;
+  background-color: #4A90E2;
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  text-decoration: none;
+  border-top: 1px solid #63a9fa;
+  transition: background-color 0.3s;
+  margin-right: 10px;
+}
+
+.start-button i {
+  margin-right: 8px;
+}
+
+.start-button:last-child {
+  margin-right: 0;
+}
+
+.start-button:hover {
+  background-color: #357ABD;
+}
+
+@media (max-width: 1024px) {
+  .welcome-container {
+    margin-left: 190px;
+    margin-right: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .welcome-container {
+    margin: 100px 20px 20px 20px;
+  }
+}
+
+  </style>
+</head>
+<body>
+
+<!-- Navbar topo -->
+<!-- Navbar topo -->
+<nav>
+    <div class="logo_area">
+        <div class="logo">RealMe</div>
+    </div>
+    <div class="search-area">
+      <div class="search-box">
+            <button><i class="fas fa-search"></i></button>
+        <input type="text" placeholder="Buscar">
+      </div>
+    </div>
+    <div class="last-update-area">
+      <div class="last-update">
+        <p>Novidades!</p>
+      </div>
+    </div>
+  <div class="marquee-container">
+    <div class="marquee">
+      Em Breve o RealMe terá a opção de cores de perfil customizados!
+    </div>
+  </div>
+
+
+<!-- Ícones Font Awesome -->
+<script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+</nav>
+
+<!-- Sidebar Desktop -->
+<div class="sidebar">
+  <a href="login.html"><i class="fas fa-home"></i> Início</a>
+  <a href="login.html"><i class="fas fa-user-friends"></i> Achar Amigos</a>
+  <a href="login.html"><i class="fas fa-comments"></i> Mensagens</a>
+  <a href="login.html"><i class="fas fa-bell"></i> Notificações</a>
+  <a href="login.html"><i class="fas fa-plus-square"></i> Criar</a>
+  <a href="login.html"><i class="fas fa-user"></i> Perfil</a>
+  <a href="login.html"><i class="fas fa-bars"></i> Mais</a>
+</div>
+
+<!-- Navbar Bottom Mobile -->
+<div class="navbar-bottom">
+  <div class="navbar-bottom-content">
+    <a href="login.html"><i class="fas fa-home"></i></a>
+    <a href="login.html"><i class="fas fa-search"></i></a>
+    <a href="login.html"><i class="fas fa-user-friends"></i></a>
+    <a href="login.html"><i class="fas fa-comments"></i></a>
+    <a href="login.html"><i class="fas fa-plus-square"></i></a>
+    <a href="login.html"><i class="fas fa-user"></i></a>
+    <a href="login.html"><i class="fas fa-bars"></i></a>
+  </div>
+</div>
+  <div class="glass-overlay"></div>
+
+  <main class="welcome-container">
+  <div class="welcome-box">
+    <h1>Bem-vindo ao <span>RealMe</span>!</h1>
+    <p>Conecte-se, descubra e faça novas amizades. Aqui, encontrar pessoas com interesses em comum é fácil, divertido e seguro.</p>
+    <p>Explore os perfis, envie mensagens e comece sua jornada social agora mesmo.</p>
+    <a href="signup.html" class="start-button"><i class="fas fa-user-friends"></i> Criar conta e achar amigos</a>
+    <a href="login.html" class="start-button"><i class="fa fa-sign-in" aria-hidden="true"></i>  Entrar na minha conta</a>
+  </div>
+</main>
+
+
+
+  <script>
+    // Função JavaScript para alternar visibilidade do conteúdo
+    function toggleContent(sectionId) {
+      var content = document.getElementById(sectionId); // Seleciona o conteúdo da seção
+      // Verifica se o conteúdo está visível ou não
+      if (content.style.display === 'none' || content.style.display === '') {
+        content.style.display = 'block';  // Mostra o conteúdo
+      } else {
+        content.style.display = 'none';  // Esconde o conteúdo
+      }
+    }
+
+
+
+    const musica = document.getElementById("musica");
+    const botao = document.getElementById("music-button");
+
+    botao.addEventListener("click", () => {
+      if (musica.paused) {
+        musica.play();
+        botao.textContent = "❚❚";
+      } else {
+        musica.pause();
+        botao.textContent = "►";
+      }
+    });
+  function toggleSettings() {
+    const menu = document.getElementById('settingsMenu');
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+  }
+
+  function applySettings() {
+    const newName = document.getElementById('usernameInput').value;
+    const newColor = document.getElementById('bannerColorInput').value;
+    const newBgUrl = document.getElementById('bgUrlInput').value;
+
+    if (newName) {
+      document.querySelector('.username').textContent = newName;
+    }
+    if (newColor) {
+      document.querySelector('.profile-header').style.backgroundColor = newColor;
+    }
+    if (newBgUrl) {
+      document.body.style.backgroundImage = `url('${newBgUrl}')`;
+    }
+
+    toggleSettings(); // fecha o menu
+  }
+
+const modal = document.getElementById('postModal');
+const modalImg = modal.querySelector('.modal-image img');
+const galleryItems = document.querySelectorAll('.gallery .item img');
+const closeBtn = modal.querySelector('.close');
+const buttons = modal.querySelectorAll('.modal-buttons i');
+const commentBtn = modal.querySelector('.fa-comment');
+const commentsSection = modal.querySelector('.comments-section');
+
+const posts = Array.from(galleryItems).map(img => img.src);
+let currentIndex = 0;
+
+// Abre modal ao clicar na imagem
+galleryItems.forEach((img, index) => {
+  img.parentElement.addEventListener('click', () => {
+    openModal(index);
+  });
+});
+
+function openModal(index) {
+  currentIndex = index;
+  modal.style.display = 'flex';
+  modalImg.src = posts[currentIndex];
+  commentsSection.classList.add('hidden');
+  clearActive();
+}
+
+// Fecha modal
+closeBtn.addEventListener('click', () => {
+  modal.style.display = 'none';
+  commentsSection.classList.add('hidden');
+  clearActive();
+});
+
+// Botões: curtir, comentar, enviar, denunciar
+buttons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.classList.contains('fa-comment')) {
+      commentsSection.classList.toggle('hidden');
+    } else {
+      btn.classList.toggle('active');
+    }
+  });
+});
+
+function clearActive() {
+  buttons.forEach(btn => btn.classList.remove('active'));
+}
+
+// Scroll para trocar post (desconsidera scroll se estiver em comentários)
+modal.addEventListener('wheel', e => {
+  if (e.target.closest('.comments-section')) return; // deixa rolar só os comentários
+
+  if (e.deltaY > 0) nextPost();
+  else prevPost();
+});
+
+// Swipe para mobile
+let startX = 0;
+modal.addEventListener('touchstart', e => {
+  startX = e.touches[0].clientX;
+});
+modal.addEventListener('touchend', e => {
+  const endX = e.changedTouches[0].clientX;
+  if (startX - endX > 50) nextPost();
+  else if (endX - startX > 50) prevPost();
+});
+
+function nextPost() {
+  currentIndex = (currentIndex + 1) % posts.length;
+  modalImg.src = posts[currentIndex];
+  commentsSection.classList.add('hidden');
+  clearActive();
+}
+
+function prevPost() {
+  currentIndex = (currentIndex - 1 + posts.length) % posts.length;
+  modalImg.src = posts[currentIndex];
+  commentsSection.classList.add('hidden');
+  clearActive();
+}
+
+// Função do Nudge
+function sendNudge() {
+  const profile = document.querySelector('.profile-header'); // Elemento que vai tremer
+  const sound = document.getElementById('nudgeSound');       // Elemento de áudio
+
+  // Tocar o som
+  if (sound) {
+    sound.currentTime = 0; // Reinicia o som se estiver no meio
+    sound.play();
+  }
+
+  // Adiciona a classe que faz tremer
+  profile.classList.add('shake');
+
+
+  // Remove o tremor depois de 1 segundo
+  setTimeout(() => {
+    profile.classList.remove('shake');
+  }, 1000);
+}
+
+const area = document.querySelector('.button-container');
+
+area.addEventListener('wheel', function(e) {
+  const delta = e.deltaY;
+  const scrollTop = area.scrollTop;
+  const scrollHeight = area.scrollHeight;
+  const offsetHeight = area.offsetHeight;
+
+  if (
+    (delta > 0 && scrollTop + offsetHeight >= scrollHeight) ||  // rolando pra baixo e chegou no fim
+    (delta < 0 && scrollTop <= 0)  // rolando pra cima e está no topo
+  ) {
+    e.preventDefault(); // impede o scroll "vazar" para a página
+  }
+});
+
+
+  </script>
+
+</body>
+</html>
