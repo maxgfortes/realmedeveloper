@@ -825,12 +825,15 @@ async function carregarPerfilCompleto() {
   const aboutData = aboutSnap.exists() ? aboutSnap.data() : {};
   atualizarInformacoesBasicas(userData, userid);
   atualizarVisaoGeral(aboutData);
+  atualizarGostosDoUsuario(userid);
+  atualizarSobre(userData);
   atualizarImagensPerfil(userData, userid);
   await atualizarEstatisticasPerfil(userid);
   await configurarBotaoSeguir(userid);
   await carregarPostsDoMural(userid);
   await removerBlurSeTemFundo(userid);
   await tocarMusicaDoUsuario(userid);
+
 
   // Configura botão de mensagem
   const btnMsg = document.getElementById('btnMensagemPerfil') || document.querySelector('.btn-msg');
@@ -842,6 +845,138 @@ async function carregarPerfilCompleto() {
   }
 }
 
+// ===================
+// SISTEMA DE NUDGE ENTRE USUÁRIOS
+// ===================
+import { addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// Função para buscar dados do usuário pelo uid
+async function buscarDadosUsuario(userid) {
+  let displayname = "Usuário";
+  let userphoto = "./src/icon/default.jpg";
+  let username = "";
+  try {
+    const userDoc = await getDoc(doc(db, "users", userid));
+    if (userDoc.exists()) {
+      const data = userDoc.data();
+      displayname = data.displayname || displayname;
+      userphoto = data.userphoto || data.photoURL || userphoto;
+      username = data.username || "";
+    }
+    // Busca foto do subdocumento se existir
+    const mediaDoc = await getDoc(doc(db, "users", userid, "user-infos", "user-media"));
+    if (mediaDoc.exists()) {
+      const mediaData = mediaDoc.data();
+      userphoto = mediaData.userphoto || userphoto;
+    }
+  } catch (err) {}
+  return { displayname, userphoto, username };
+}
+
+// Função para remover popup com animação
+function removerComAnimacao(popup) {
+  popup.classList.add("saindo");
+  setTimeout(() => popup.remove(), 500);
+}
+
+// Popup de confirmação de envio
+async function mostrarPopupConfirmacaoNudge(destinatarioId) {
+  const { displayname } = await buscarDadosUsuario(destinatarioId);
+  const popup = document.createElement("div");
+  popup.className = "nudge-popup nudge-confirm";
+  popup.innerHTML = `
+    <p>Você enviou um Nudge para <strong>${displayname}</strong>!</p>
+    <button>Fechar</button>
+  `;
+  document.body.appendChild(popup);
+
+  // Botão fecha com animação
+  popup.querySelector("button").onclick = function() {
+    removerComAnimacao(popup);
+  };
+  setTimeout(() => removerComAnimacao(popup), 4000);
+}
+
+// Envia nudge ao clicar no botão
+function setupNudgeButton() {
+  const nudgeBtn = document.querySelector('.btn-nudge');
+  if (!nudgeBtn) return;
+
+  nudgeBtn.addEventListener('click', async () => {
+    // Toca o som imediatamente ao clicar
+    try { new Audio("./src/audio/nudge.mp3").play(); } catch {}
+
+    document.body.classList.add("shake-leve");
+    setTimeout(() => document.body.classList.remove("shake-leve"), 500);
+
+    if (!currentUser || !currentUserId) return;
+    const destinatarioId = determinarUsuarioParaCarregar();
+    if (!destinatarioId || destinatarioId === currentUserId) return;
+
+    try {
+      await addDoc(collection(db, "nudges"), {
+        to: destinatarioId,
+        from: currentUserId,
+        data: serverTimestamp()
+      });
+      // Mostra popup de envio feito
+      await mostrarPopupConfirmacaoNudge(destinatarioId);
+    } catch (err) {
+      console.error("Erro ao salvar nudge:", err);
+    }
+  });
+}
+
+// Monitora nudges recebidos
+function monitorarNudgesRecebidos() {
+  onAuthStateChanged(auth, user => {
+    if (!user) return;
+    const nudgesRef = collection(db, "nudges");
+    const q = query(nudgesRef, where("to", "==", user.uid));
+    onSnapshot(q, snapshot => {
+      snapshot.docChanges().forEach(async change => {
+        if (change.type === "added") {
+          const nudge = change.doc.data();
+          // Busca dados do remetente pelo uid
+          const { displayname, userphoto, username } = await buscarDadosUsuario(nudge.from);
+
+          try { new Audio("./src/sounds/nudge-forte.mp3").play(); } catch {}
+          document.body.classList.add("shake-forte");
+          setTimeout(() => document.body.classList.remove("shake-forte"), 800);
+
+          mostrarPopupNudge(displayname, userphoto, username, nudge.from);
+        }
+      });
+    });
+  });
+}
+
+// Popup do nudge recebido
+function mostrarPopupNudge(nome, foto, username, remetenteId) {
+  const popup = document.createElement("div");
+  popup.className = "nudge-popup";
+  popup.innerHTML = `
+    <img src="${foto}" alt="Foto" class="nudge-photo">
+    <p><strong>${nome}</strong> (@${username}) te enviou um nudge!</p>
+    <button onclick="window.location.href='direct.html?chatid=chat-${remetenteId}'">Enviar mensagem</button>
+    <button>Fechar</button>
+  `;
+  document.body.appendChild(popup);
+
+  // Botão fecha com animação
+  const btns = popup.querySelectorAll("button");
+  btns[1].onclick = function() {
+    removerComAnimacao(popup);
+  };
+  setTimeout(() => removerComAnimacao(popup), 10000);
+}
+
+
+// Inicialização do sistema de nudge
+document.addEventListener("DOMContentLoaded", () => {
+  setupNudgeButton();
+  monitorarNudgesRecebidos();
+});
 // ===================
 // SISTEMA DE CHAT
 // ===================
@@ -901,9 +1036,7 @@ function atualizarInformacoesBasicas(userData, userid) {
   if (amigosTitle) amigosTitle.textContent = `Amigos de ${nomeCompleto}`;
 }
 
-// ===================
 // ATUALIZAÇÃO DE VISÃO GERAL
-// ===================
 function atualizarVisaoGeral(dados) {
   const visaoTab = document.querySelector('.visao-tab .about-container');
   if (!visaoTab) return;
@@ -914,6 +1047,36 @@ function atualizarVisaoGeral(dados) {
   if (aboutBoxes[3]) aboutBoxes[3].innerHTML = `<p class="about-title">Minha personalidade:</p><p>${dados.personality || "Informação não disponível"}</p>`;
   if (aboutBoxes[4]) aboutBoxes[4].innerHTML = `<p class="about-title">Meus Sonhos e desejos:</p><p>${dados.dreams || "Informação não disponível"}</p>`;
   if (aboutBoxes[5]) aboutBoxes[5].innerHTML = `<p class="about-title">Meus Medos:</p><p>${dados.fears || "Informação não disponível"}</p>`;
+}
+
+// ATUALIZAÇÃO DE GOSTOS
+function atualizarGostosDoUsuario(userid) {
+  const gostosTab = document.querySelector('.gostos-tab .about-container');
+  if (!gostosTab) return;
+  const likesRef = doc(db, "users", userid, "user-infos", "likes");
+  getDoc(likesRef).then(likesSnap => {
+    const gostos = likesSnap.exists() ? likesSnap.data() : {};
+    const aboutBoxes = gostosTab.querySelectorAll('.about-box');
+    if (aboutBoxes[0]) aboutBoxes[0].innerHTML = `<p class="about-title">Músicas:</p><p>${gostos.music || "Informação não disponível"}</p>`;
+    if (aboutBoxes[1]) aboutBoxes[1].innerHTML = `<p class="about-title">Filmes e Séries:</p><p>${gostos.movies || "Informação não disponível"}</p>`;
+    if (aboutBoxes[2]) aboutBoxes[2].innerHTML = `<p class="about-title">Livros:</p><p>${gostos.books || "Informação não disponível"}</p>`;
+    if (aboutBoxes[3]) aboutBoxes[3].innerHTML = `<p class="about-title">Personagens:</p><p>${gostos.characters || "Informação não disponível"}</p>`;
+    if (aboutBoxes[4]) aboutBoxes[4].innerHTML = `<p class="about-title">Comidas e Bebidas:</p><p>${gostos.foods || "Informação não disponível"}</p>`;
+    if (aboutBoxes[5]) aboutBoxes[5].innerHTML = `<p class="about-title">Hobbies:</p><p>${gostos.hobbies || "Informação não disponível"}</p>`;
+    if (aboutBoxes[6]) aboutBoxes[6].innerHTML = `<p class="about-title">Jogos favoritos:</p><p>${gostos.games || "Informação não disponível"}</p>`;
+    if (aboutBoxes[7]) aboutBoxes[7].innerHTML = `<p class="about-title">Outros gostos:</p><p>${gostos.others || "Informação não disponível"}</p>`;
+  });
+}
+
+
+// ATUALIZAÇÃO DA TAB SOBRE (gênero, localização, estado civil)
+function atualizarSobre(userData) {
+  const generoEl = document.getElementById('generoUsuario');
+  const localizacaoEl = document.getElementById('localizacaoUsuario');
+  const estadoCivilEl = document.getElementById('estadoCivilUsuario');
+  if (generoEl) generoEl.textContent = userData.gender || "Não informado";
+  if (localizacaoEl) localizacaoEl.textContent = userData.location || "Não informada";
+  if (estadoCivilEl) estadoCivilEl.textContent = userData.maritalStatus || "Não informado";
 }
 
 // ===================
@@ -976,22 +1139,5 @@ function configurarLinks() {
       signOut(auth);
       window.location.href = 'index.html';
     });
-  }
-}
-
-// ===================
-// MARQUEE DO ÚLTIMO USUÁRIO
-// ===================
-async function atualizarMarqueeUltimoUsuario() {
-  const lastUpdateRef = doc(db, "lastupdate", "latestUser");
-  const docSnap = await getDoc(lastUpdateRef);
-  const marquee = document.querySelector(".marquee");
-  if (!marquee) return;
-  if (docSnap.exists()) {
-    const data = docSnap.data();
-    const nomeUsuario = data.username || "Usuário";
-    marquee.textContent = `${nomeUsuario} acabou de entrar no RealMe!`;
-  } else {
-    marquee.textContent = "Bem-vindo ao RealMe!";
   }
 }

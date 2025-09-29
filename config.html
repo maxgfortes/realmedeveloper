@@ -146,7 +146,7 @@
             </div>
             <div class="form-group">
               <label>Estado Civil:</label>
-              <select name="estadoCivil">
+              <select name="maritalStatus">
                 <option value="">Selecione...</option>
                 <option value="solteiro">Solteiro(a)</option>
                 <option value="namorando">Namorando</option>
@@ -158,7 +158,7 @@
             </div>
             <div class="form-group">
               <label>Localização:</label>
-              <input type="text" name="localizacao" maxlength="100">
+              <input type="text" name="location" maxlength="100">
               <div class="char-counter">0/100</div>
             </div>
           </div>
@@ -176,12 +176,12 @@
               <input type="text" name="userphoto" maxlength="500" placeholder="URL da foto de perfil">
             </div>
             <div class="form-group">
-              <label>Imagem de Banner (background):</label>
-              <input type="text" name="backgroundphoto" maxlength="500" placeholder="URL da imagem de fundo">
+              <label>Imagem de Banner:</label>
+              <input type="text" name="headerphoto" maxlength="500" placeholder="URL da imagem de fundo">
             </div>
             <div class="form-group">
-              <label>Foto do fundo (somente em PCs):</label>
-              <input type="text" name="headerphoto" maxlength="500" placeholder="URL da foto do cabeçalho">
+              <label>Background:</label>
+              <input type="text" name="backgroundphoto" maxlength="500" placeholder="URL da foto do cabeçalho">
             </div>
           </div>
         </div>
@@ -205,110 +205,104 @@
         
   
 
-        <div class="form-section">
-          <div class="section-header">
-            <i class="fas fa-tags"></i>
-            <h3>Descrição</h3>
-          </div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Tags:</label>
-              <input type="text" name="tags" maxlength="8">
-            </div>
-            <div class="form-group">
-              <label>Visão Geral:</label>
-              <textarea name="visaoGeral" maxlength="600"></textarea>
-              <div class="char-counter">0/600</div>
-            </div>
-            <div class="form-group">
-              <label>Estilo:</label>
-              <textarea name="estilo" maxlength="500"></textarea>
-              <div class="char-counter">0/500</div>
-            </div>
-          </div>
-        </div>
+        <!-- Descrição -->
+<div class="form-section">
+  <div class="section-header">
+    <i class="fas fa-tags"></i>
+    <h3>Descrição</h3>
+  </div>
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Tags:</label>
+      <input type="text" name="tags" maxlength="8">
+    </div>
+    <div class="form-group">
+      <label>Visão Geral:</label>
+      <textarea name="overview" maxlength="600"></textarea>
+      <div class="char-counter">0/600</div>
+    </div>
+    <div class="form-group">
+      <label>Estilo:</label>
+      <textarea name="styles" maxlength="500"></textarea>
+      <div class="char-counter">0/500</div>
+    </div>
+  </div>
+</div>
 
-        <div class="form-section">
-          <div class="section-header">
-            <i class="fas fa-brain"></i>
-            <h3>Personalidade</h3>
-          </div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Sonhos e desejos:</label>
-              <textarea name="sonhos" maxlength="500"></textarea>
-              <div class="char-counter">0/500</div>
-            </div>
-            <div class="form-group">
-              <label>Medos:</label>
-              <textarea name="medos" maxlength="500"></textarea>
-              <div class="char-counter">0/500</div>
-            </div>
-            <div class="form-group">
-              <label>Personalidade:</label>
-              <textarea name="personalidade" maxlength="500"></textarea>
-              <div class="char-counter">0/500</div>
-            </div>
-          </div>
-        </div>
-      </div>
+<!-- Personalidade -->
+<div class="form-section">
+  <div class="section-header">
+    <i class="fas fa-brain"></i>
+    <h3>Personalidade</h3>
+  </div>
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Sonhos e desejos:</label>
+      <textarea name="dreams" maxlength="500"></textarea>
+      <div class="char-counter">0/500</div>
+    </div>
+    <div class="form-group">
+      <label>Medos:</label>
+      <textarea name="fears" maxlength="500"></textarea>
+      <div class="char-counter">0/500</div>
+    </div>
+    <div class="form-group">
+      <label>Personalidade:</label>
+      <textarea name="personality" maxlength="500"></textarea>
+      <div class="char-counter">0/500</div>
+    </div>
+  </div>
+</div>
 
-      <!-- Tab: Preferências -->
-      <div class="tab-content" id="preferencias">
-        <div class="form-section">
-          <div class="section-header">
-            <i class="fas fa-heart"></i>
-            <h3>Gostos</h3>
-          </div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Meus Gostos:</label>
-              <textarea name="gostos" maxlength="500"></textarea>
-              <div class="char-counter">0/500</div>
-            </div>
-            <div class="form-group">
-              <label>Músicas:</label>
-              <textarea name="musicas" maxlength="500"></textarea>
-              <div class="char-counter">0/500</div>
-            </div>
-            <div class="form-group">
-              <label>Filmes e Séries:</label>
-              <textarea name="filmesSeries" maxlength="500"></textarea>
-              <div class="char-counter">0/500</div>
-            </div>
-            <div class="form-group">
-              <label>Livros:</label>
-              <textarea name="livros" maxlength="500"></textarea>
-              <div class="char-counter">0/500</div>
-            </div>
-            <div class="form-group">
-              <label>Personagens:</label>
-              <textarea name="personagens" maxlength="500"></textarea>
-              <div class="char-counter">0/500</div>
-            </div>
-            <div class="form-group">
-              <label>Comidas e Bebidas:</label>
-              <textarea name="comidas" maxlength="500"></textarea>
-              <div class="char-counter">0/500</div>
-            </div>
-            <div class="form-group">
-              <label>Hobbies:</label>
-              <textarea name="hobbies" maxlength="500"></textarea>
-              <div class="char-counter">0/500</div>
-            </div>
-            <div class="form-group">
-              <label>Jogos favoritos:</label>
-              <textarea name="jogos" maxlength="500"></textarea>
-              <div class="char-counter">0/500</div>
-            </div>
-            <div class="form-group">
-              <label>Outros gostos:</label>
-              <textarea name="outrosGostos" maxlength="500"></textarea>
-              <div class="char-counter">0/500</div>
-            </div>
-          </div>
-        </div>
-      </div>
+<!-- Preferências (Gostos) -->
+<div class="form-section">
+  <div class="section-header">
+    <i class="fas fa-heart"></i>
+    <h3>Gostos</h3>
+  </div>
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Livros:</label>
+      <textarea name="books" maxlength="500"></textarea>
+      <div class="char-counter">0/500</div>
+    </div>
+    <div class="form-group">
+      <label>Personagens:</label>
+      <textarea name="characters" maxlength="500"></textarea>
+      <div class="char-counter">0/500</div>
+    </div>
+    <div class="form-group">
+      <label>Comidas e Bebidas:</label>
+      <textarea name="foods" maxlength="500"></textarea>
+      <div class="char-counter">0/500</div>
+    </div>
+    <div class="form-group">
+      <label>Jogos favoritos:</label>
+      <textarea name="games" maxlength="500"></textarea>
+      <div class="char-counter">0/500</div>
+    </div>
+    <div class="form-group">
+      <label>Hobbies:</label>
+      <textarea name="hobbies" maxlength="500"></textarea>
+      <div class="char-counter">0/500</div>
+    </div>
+    <div class="form-group">
+      <label>Filmes e Séries:</label>
+      <textarea name="movies" maxlength="500"></textarea>
+      <div class="char-counter">0/500</div>
+    </div>
+    <div class="form-group">
+      <label>Músicas:</label>
+      <textarea name="music" maxlength="500"></textarea>
+      <div class="char-counter">0/500</div>
+    </div>
+    <div class="form-group">
+      <label>Outros gostos:</label>
+      <textarea name="others" maxlength="500"></textarea>
+      <div class="char-counter">0/500</div>
+    </div>
+  </div>
+</div>
 
       <!-- Tab: Conta -->
       <div class="tab-content" id="conta">
@@ -360,7 +354,7 @@
     <p>&copy; 2025 RealMe - Criado por Maxgfortes</p>
   </footer>
 </section>
-<script type="module" src="./src/js/main-main.js"></script>
 <script type="module" src="./src/js/user-config.js"></script>
+<script type="module" src="./src/js/navbar.js"></script>
 </body>
 </html>

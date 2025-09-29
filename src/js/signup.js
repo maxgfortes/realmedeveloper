@@ -271,15 +271,8 @@ async function criarContaSegura(event) {
       createdat: serverTimestamp()
     });
 
-    // Compatibilidade legada
-    const legacyUserData = {
-      ...userData,
-      password: "***MIGRATED***",
-      uid: Date.now(),
-      firebaseUid: user.uid,
-      migrated: true
-    };
-    await setDoc(doc(db, "users", username), legacyUserData);
+    // Removido: compatibilidade legada /users/{username}
+    // (não salva mais em doc(db, "users", username))
 
     // Marca o convite como usado
     await updateDoc(conviteRef, {
@@ -307,13 +300,11 @@ async function criarContaSegura(event) {
     // Download simples
     downloadAccountInfoSimple({ usuario: username, email, senha });
 
-    await signOut(auth);
-
-    showSuccess("Conta criada com sucesso! Redirecionando para login...");
+    showSuccess("Conta criada com sucesso! Redirecionando para sua conta...");
     document.querySelector('.form-section form').reset();
 
     setTimeout(() => {
-      window.location.href = 'login.html';
+      window.location.href = 'PF.html';
     }, 2000);
 
   } catch (error) {
@@ -376,7 +367,6 @@ async function loginUser(event) {
     };
     localStorage.setItem("userSessionData", JSON.stringify(userSessionData));
 
-    showSuccess("Login realizado com sucesso!");
     setTimeout(() => {
       window.location.href = "PF.html";
     }, 1000);

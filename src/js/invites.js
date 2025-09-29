@@ -72,9 +72,11 @@ async function mostrarConvites(userid) {
     bloco.className = 'invite-tab';
     bloco.innerHTML = `
       <div class="invitebody">
+        <div class="invite-code">
         <h3>${codigo}</h3>
         <div class="invite-code-row">
           ${!usado ? `<button class="invite-copy-btn" onclick="copiarConvite('${codigo}')"><i class="fas fa-copy"></i></button>` : ''}
+        </div>
         </div>
         <div class="usedby">
           <p>Convite usado por: ${

@@ -16,7 +16,7 @@
 }
 
 .invite-tab {
-  padding: 36px 18px;
+  padding: 35px 18px;
   margin: 16px;
   border-radius: 16px;
   font-size: 18px;
@@ -28,6 +28,18 @@
   backdrop-filter: blur(8px);
   border: 1px solid #2a2a2a;
   width: 600px;
+}
+
+.invite-code {
+  display: flex;
+}
+
+.invite-code button {
+  margin-left: 10px;
+  background: none;
+  border: none;
+  color: #4A90E2;
+  cursor: pointer;
 }
 
 .main-container {

@@ -59,7 +59,7 @@ if (searchInput && resultsList && searchButton) {
     if (!term) return;
 
     const usersRef = collection(db, 'users');
-    const q = query(usersRef, orderBy('username'), startAt(term), endAt(term + '\uf8ff'));
+    const q = query(usersRef, orderBy('uid'), startAt(term), endAt(term + '\uf8ff'));
 
     try {
       const snapshot = await getDocs(q);
@@ -73,9 +73,9 @@ if (searchInput && resultsList && searchButton) {
       snapshot.forEach(docSnap => {
         const user = docSnap.data();
         const li = document.createElement('li');
-        li.textContent = user.username;
+        li.textContent = user.uid;
         li.addEventListener('click', () => {
-          window.location.href = `PF.html?username=${user.username}`;
+          window.location.href = `PF.html?uid=${user.uid}`;
         });
         resultsList.appendChild(li);
       });

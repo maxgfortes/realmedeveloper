@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="./src/styles/media-queries.css" />
   <link rel="stylesheet" href="./src/styles/navbars.css" />
     <link rel="stylesheet" href="./src/styles/mensagens.css" />
+    <link rel="stylesheet" href="./src/styles/search.css" />
     <link rel="stylesheet" href="./src/styles/tags.css" />
     <link rel="stylesheet" href="./src/styles/mobile.css" />
     <link rel="stylesheet" href="./src/styles/new-popup.css" />
@@ -49,6 +50,7 @@
       <div class="marquee"></div>
     </div>
   </nav>
+  <ul id="searchResults"></ul>
 
   <!-- Sidebar -->
   <aside class="sidebar">
@@ -74,9 +76,6 @@
         </div>
   </aside>
 
-
-
-  <ul id="searchResults"></ul>
 
 
 <div class="full-dm-container">
@@ -116,13 +115,10 @@
 
 
 
-  <script src="./src/js/profile.js" defer></script>
   <script src="./src/js/search.js" defer></script>
-  <script src="./src/js/all-mensagens.js" type="module"></script>
   <script src="./src/js/new-popup.js" defer></script>
   <script src="./src/js/modal-post.js"></script>
   <script type="module" src="./src/js/new-pf.js"></script>
-  <script src="./src/js/more.js"></script>
   <script src="./src/js/typing.js"></script>
 
 <script type="module">
@@ -406,5 +402,7 @@ document.querySelector(".selected-left")?.addEventListener("click", () => {
 </script>
 
 <script src="./src/js/loading.js"></script>
+<script src="./src/js/search.js"></script>
+<script type="module" src="./src/js/navbar.js" defer></script>
 </body>
 </html>

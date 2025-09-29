@@ -1,4 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
     getFirestore,
@@ -11,7 +11,8 @@ import {
     startAt,
     endAt,
     getDocs,
-    Timestamp
+    Timestamp,
+    serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // Configuração do Firebase
@@ -25,7 +26,7 @@ const firebaseConfig = {
     measurementId: "G-D96BEW6RC3"
 };
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
@@ -81,12 +82,6 @@ function preencherDadosIniciais(userData) {
     if (usernameElement) {
         usernameElement.textContent = `@${userData.username || '...'}`;
     }
-
-    const urlPerfil = `PF.html?user=${encodeURIComponent(userData.username)}`;
-    const linkSidebar = document.getElementById('linkPerfilSidebar');
-    const linkMobile = document.getElementById('linkPerfilMobile');
-    if (linkSidebar) linkSidebar.href = urlPerfil;
-    if (linkMobile) linkMobile.href = urlPerfil;
 }
 
 function preencherFormulario(userData) {
@@ -104,10 +99,12 @@ function preencherFormulario(userData) {
     fillField('input[name="username"]', 'username');
     fillField('input[name="displayname"]', 'displayname');
     fillField('input[name="email"]', 'email');
-    fillField('input[name="gender"]', 'gender');
-    fillField('input[name="localizacao"]', 'localizacao');
     fillField('input[name="location"]', 'location');
-    fillField('input[name="maritalStatus"]', 'maritalStatus');
+    const maritalStatus = userData.maritalStatus;
+const selectMarital = form.querySelector('select[name="maritalStatus"]');
+if (selectMarital && maritalStatus) {
+    selectMarital.value = maritalStatus;
+}
     fillField('input[name="name"]', 'name');
     fillField('input[name="pronoun1"]', 'pronoun1');
     fillField('input[name="pronoun2"]', 'pronoun2');
@@ -116,29 +113,28 @@ function preencherFormulario(userData) {
     fillField('input[name="tel"]', 'tel');
     fillField('input[name="telefone"]', 'telefone');
 
-    // Mídia
+    // Mídia (URL como string)
+    fillField('input[name="userphoto"]', 'userphoto');
     fillField('input[name="background"]', 'background');
     fillField('input[name="headerphoto"]', 'headerphoto');
-    fillField('input[name="music"]', 'music');
-    fillField('input[name="userphoto"]', 'userphoto');
 
     // Likes
-    fillField('textarea[name="books"]', 'books');
-    fillField('textarea[name="characters"]', 'characters');
-    fillField('textarea[name="foods"]', 'foods');
-    fillField('textarea[name="games"]', 'games');
-    fillField('textarea[name="hobbies"]', 'hobbies');
-    fillField('textarea[name="movies-series"]', 'movies-series');
-    fillField('textarea[name="musicLikes"]', 'music');
-    fillField('textarea[name="others"]', 'others');
-
-    // Sobre
     fillField('textarea[name="dreams"]', 'dreams');
     fillField('textarea[name="fears"]', 'fears');
     fillField('textarea[name="overview"]', 'overview');
     fillField('textarea[name="personality"]', 'personality');
     fillField('textarea[name="styles"]', 'styles');
     fillField('input[name="tags"]', 'tags');
+
+    // About
+    fillField('textarea[name="books"]', 'books');
+    fillField('textarea[name="characters"]', 'characters');
+    fillField('textarea[name="foods"]', 'foods');
+    fillField('textarea[name="games"]', 'games');
+    fillField('textarea[name="hobbies"]', 'hobbies');
+    fillField('textarea[name="movies"]', 'movies');
+    fillField('textarea[name="music"]', 'music');
+    fillField('textarea[name="others"]', 'others');
 }
 
 // ===================
@@ -147,45 +143,42 @@ function preencherFormulario(userData) {
 async function salvarConfigPerfil(userId, formData) {
     // Dados principais
     const dadosPrincipais = {
-        born: Timestamp.fromDate(new Date('2009-10-05T00:00:00-03:00')),
+        born: Timestamp.fromDate(new Date(formData.get('born') || '2009-10-05T00:00:00-03:00')),
         displayname: formData.get('displayname'),
         email: formData.get('email'),
         gender: formData.get('gender'),
-        localizacao: formData.get('localizacao'),
         location: formData.get('location'),
         maritalStatus: formData.get('maritalStatus'),
         name: formData.get('name'),
         pronoun1: formData.get('pronoun1'),
         pronoun2: formData.get('pronoun2'),
-        status: formData.get('status'),
         surname: formData.get('surname'),
         tel: Number(formData.get('tel')),
         telefone: formData.get('telefone'),
-        ultimaAtualizacao: Timestamp.now(),
+        ultimaAtualizacao: serverTimestamp(),
         username: formData.get('username')
     };
 
-    // Mídia
+    // Mídia (URL como string)
     const dadosMedia = {
-        background: formData.get('background'),
-        headerphoto: formData.get('headerphoto'),
-        music: formData.get('music'),
-        userphoto: formData.get('userphoto')
+        userphoto: formData.get('userphoto') || "",
+        background: formData.get('background') || "",
+        headerphoto: formData.get('headerphoto') || ""
     };
 
-    // Likes
+    // Likes (agora: livros, personagens, comidas, jogos, hobbies, filmes, músicas, outros)
     const dadosLikes = {
         books: formData.get('books'),
         characters: formData.get('characters'),
         foods: formData.get('foods'),
         games: formData.get('games'),
         hobbies: formData.get('hobbies'),
-        "movies-series": formData.get('movies-series'),
-        music: formData.get('musicLikes'),
+        movies: formData.get('movies'),
+        music: formData.get('music'),
         others: formData.get('others')
     };
 
-    // Sobre
+    // About (agora: dreams, fears, overview, personality, styles, tags)
     const dadosAbout = {
         dreams: formData.get('dreams'),
         fears: formData.get('fears'),
@@ -220,7 +213,6 @@ function setupFormSubmit() {
         }
 
         try {
-            // Não faz upload, apenas salva os valores dos campos como texto/URL
             const formData = new FormData(form);
             await salvarConfigPerfil(currentUser.uid, formData);
             alert('Configurações salvas com sucesso!');
@@ -279,19 +271,6 @@ function setupCharCounters() {
     });
 }
 
-function atualizarContadores() {
-    document.querySelectorAll('textarea[maxlength], input[maxlength]').forEach(element => {
-        const counter = element.parentNode.querySelector('.char-counter');
-        if (counter) {
-            const maxLength = parseInt(element.getAttribute('maxlength'));
-            const currentLength = element.value.length;
-            counter.textContent = `${currentLength}/${maxLength}`;
-            counter.classList.toggle('danger', currentLength > maxLength * 0.9);
-            counter.classList.toggle('warning', currentLength > maxLength * 0.75 && currentLength <= maxLength * 0.9);
-        }
-    });
-}
-
 function setupSearch() {
     const searchInput = document.getElementById("searchInput");
     const resultsList = document.getElementById("searchResults");
@@ -321,7 +300,7 @@ function setupSearch() {
                 const li = document.createElement("li");
                 li.textContent = user.username;
                 li.addEventListener("click", () => {
-                    window.location.href = `PF.html?username=${user.username}`;
+                    window.location.href = `PF.html?userid=${docSnap.id}`;
                 });
                 resultsList.appendChild(li);
             });
