@@ -143,16 +143,12 @@ if (selectMarital && maritalStatus) {
 async function salvarConfigPerfil(userId, formData) {
     // Dados principais
     const dadosPrincipais = {
-        born: Timestamp.fromDate(new Date(formData.get('born') || '2009-10-05T00:00:00-03:00')),
         displayname: formData.get('displayname'),
         email: formData.get('email'),
-        gender: formData.get('gender'),
         location: formData.get('location'),
         maritalStatus: formData.get('maritalStatus'),
-        name: formData.get('name'),
         pronoun1: formData.get('pronoun1'),
         pronoun2: formData.get('pronoun2'),
-        surname: formData.get('surname'),
         tel: Number(formData.get('tel')),
         telefone: formData.get('telefone'),
         ultimaAtualizacao: serverTimestamp(),

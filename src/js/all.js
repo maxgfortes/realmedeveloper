@@ -2190,7 +2190,7 @@ const postCSS = `
 
 /* Post Cards - Enhanced Dark Glassmorphism */
 .post-card {
-  background: rgba(20, 20, 20, 0.85);
+  background: rgba(20, 20, 20, 0.582);
   backdrop-filter: blur(12px);
   border-radius: 16px;
   margin-bottom: 20px;

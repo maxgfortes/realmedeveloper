@@ -496,7 +496,7 @@ display: none;
     left: 0;
     right: 0;
     height: 70px;
-    background: rgba(20, 20, 20, 0.95);
+    background: rgba(0, 0, 0, 0.815);
     backdrop-filter: blur(20px);
       bottom: 0 !important;
   top: auto !important;  /* garante que não vai colar no topo */

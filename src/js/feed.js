@@ -278,12 +278,27 @@ function tocarSomEnvio() {
     const audio = new Audio('./src/audio/send.mp3');
     audio.volume = 0.5;
     audio.play().catch(error => {
-      console.warn("NÃ£o foi possÃ­vel reproduzir o som de envio:", error);
+      console.warn("Não foi possível reproduzir o som de envio:", error);
     });
   } catch (error) {
-    console.warn("Erro ao criar/tocar Ã¡udio:", error);
+    console.warn("Erro ao criar/tocar áudio:", error);
   }
 }
+
+
+// JS
+//document.addEventListener("DOMContentLoaded", () => {
+//  const searchBar = document.getElementById("mobileSearchBar");
+//  let shown = false;
+
+//  window.addEventListener("scroll", () => {
+//    if (!shown && window.scrollY > 50) { 
+      // ao rolar 50px para cima, mostra
+//      searchBar.classList.add("visible");
+//      shown = true; // garante que fique para sempre
+//    }
+//  });
+//});
 
 // ===================
 // VERIFICAR LOGIN COM AUTH
@@ -339,7 +354,7 @@ async function buscarDadosUsuarioPorUid(uid) {
       displayname: userData.displayname || ''
     };
   } catch (error) {
-    console.error("Erro ao buscar dados do usuÃ¡rio:", error);
+    console.error("Erro ao buscar dados do usuário:", error);
     return null;
   }
 }
@@ -414,7 +429,7 @@ async function carregarTodosOsPosts() {
     console.error("Erro ao carregar posts:", error);
     clearInterval(loadingInfo.interval);
     esconderLoading();
-    criarPopup('Erro', 'NÃ£o foi possÃ­vel carregar os posts. Tente novamente.', 'error');
+    criarPopup('Erro', 'Não foi possível carregar os posts. Tente novamente.', 'error');
     return [];
   }
 }
@@ -461,7 +476,7 @@ async function carregarComentarios(postId) {
     
     return comentarios;
   } catch (error) {
-    console.error("Erro ao carregar comentÃ¡rios:", error);
+    console.error("Erro ao carregar comentários:", error);
     return [];
   }
 }
@@ -470,7 +485,7 @@ async function carregarComentarios(postId) {
 // RENDERIZAR COMENTÃRIOS
 // ===================
 async function renderizarComentarios(uid, postId, container) {
-  const loadingInfo = mostrarLoading('Carregando comentÃ¡rios...');
+  const loadingInfo = mostrarLoading('Carregando comentários...');
   try {
     const comentarios = await carregarComentarios(postId);
     container.innerHTML = '';
@@ -518,7 +533,7 @@ async function adicionarComentario(uid, postId, conteudo) {
   if (!usuarioLogado) return;
   const linkCheck = detectarLinksMaliciosos(conteudo);
   if (linkCheck.malicioso) {
-    criarPopup('Link Bloqueado', `O link "${linkCheck.url}" foi identificado como potencialmente malicioso e nÃ£o pode ser postado.`, 'warning');
+    criarPopup('Link Bloqueado', `O link "${linkCheck.url}" foi identificado como potencialmente malicioso e não pode ser postado.`, 'warning');
     return false;
   }
   const loadingInfo = mostrarLoading('Enviando comentario...');
@@ -540,10 +555,10 @@ async function adicionarComentario(uid, postId, conteudo) {
     esconderLoading();
     return true;
   } catch (error) {
-    console.error("Erro ao adicionar comentÃ¡rio:", error);
+    console.error("Erro ao adicionar comentario:", error);
     clearInterval(loadingInfo.interval);
     esconderLoading();
-    criarPopup('Erro', 'Erro ao enviar comentÃ¡rio', 'error');
+    criarPopup('Erro', 'Erro ao enviar comentario', 'error');
     return false;
   }
 }
@@ -552,7 +567,7 @@ async function adicionarComentario(uid, postId, conteudo) {
 // FORMATAR DATA RELATIVA
 // ===================
 function formatarDataRelativa(data) {
-  if (!data) return 'Data nÃ£o disponÃ­vel';
+  if (!data) return 'Data não disponível';
   try {
     let date;
     if (typeof data === 'object' && data.seconds) {
@@ -569,15 +584,15 @@ function formatarDataRelativa(data) {
     const meses = Math.floor(dias / 30);
     const anos = Math.floor(dias / 365);
     if (minutos < 1) return 'Agora mesmo';
-    else if (minutos < 60) return `HÃ¡ ${minutos} minuto${minutos !== 1 ? 's' : ''}`;
-    else if (horas < 24) return `HÃ¡ ${horas} hora${horas !== 1 ? 's' : ''}`;
-    else if (dias < 7) return `HÃ¡ ${dias} dia${dias !== 1 ? 's' : ''}`;
-    else if (semanas < 4) return `HÃ¡ ${semanas} semana${semanas !== 1 ? 's' : ''}`;
-    else if (meses < 12) return `HÃ¡ ${meses} mÃªs${meses !== 1 ? 'es' : ''}`;
-    else return `HÃ¡ ${anos} ano${anos !== 1 ? 's' : ''}`;
+    else if (minutos < 60) return `Há ${minutos} minuto${minutos !== 1 ? 's' : ''}`;
+    else if (horas < 24) return `Há ${horas} hora${horas !== 1 ? 's' : ''}`;
+    else if (dias < 7) return `Há ${dias} dia${dias !== 1 ? 's' : ''}`;
+    else if (semanas < 4) return `Há ${semanas} semana${semanas !== 1 ? 's' : ''}`;
+    else if (meses < 12) return `Há ${meses} mês${meses !== 1 ? 'es' : ''}`;
+    else return `Há    ${anos} ano${anos !== 1 ? 's' : ''}`;
   } catch (error) {
     console.error("Erro ao formatar data:", error);
-    return 'Data invÃ¡lida';
+    return 'Data inválida';
   }
 }
 
@@ -601,7 +616,7 @@ async function loadPosts() {
     if (proximosPosts.length === 0) {
       hasMorePosts = false;
       if (loadMoreBtn) {
-        loadMoreBtn.textContent = "NÃ£o hÃ¡ mais posts";
+        loadMoreBtn.textContent = "Não há mais posts";
         loadMoreBtn.disabled = true;
       }
       loading = false;
@@ -613,7 +628,7 @@ async function loadPosts() {
   const nomeParaExibir = post.userData?.displayname || post.userData?.username || post.creatorid;
   const usernameParaExibir = post.userData?.username ? `@${post.userData.username}` : '';
   const fotoUsuario = post.userData?.userphoto || obterFotoPerfil(post.userData, null);
-  const conteudoFormatado = formatarHashtags(post.content || 'ConteÃºdo nÃ£o disponÃ­vel');
+  const conteudoFormatado = formatarHashtags(post.content || 'Conteúdo não disponível');
   let imagemHtml = '';
   if (post.img && await validarUrlImagem(post.img)) {
     imagemHtml = `
@@ -626,7 +641,7 @@ async function loadPosts() {
   postEl.innerHTML = `
     <div class="post-header">
       <div class="user-info">
-        <img src="${fotoUsuario}" alt="Avatar do usuÃ¡rio" class="avatar"
+        <img src="${fotoUsuario}" alt="Avatar do usuário" class="avatar"
              onerror="this.src='./src/icon/default.jpg'" />
         <div class="user-meta">
           <strong class="user-name-link" data-username="${post.creatorid}">${nomeParaExibir}</strong>
@@ -650,7 +665,7 @@ async function loadPosts() {
     <div class="post-date">${formatarDataRelativa(post.create)}</div>
     <div class="comments-section" style="display: none;">
       <div class="comment-form">
-        <input type="text" class="comment-input" placeholder="Escreva um comentÃ¡rio..."
+        <input type="text" class="comment-input" placeholder="Escreva um comentário..."
                data-username="${post.creatorid}" data-post-id="${post.postid}">
         <button class="comment-submit" data-username="${post.creatorid}" data-post-id="${post.postid}">
           <i class="fas fa-paper-plane"></i>
@@ -664,7 +679,7 @@ async function loadPosts() {
     if (postsExibidos + proximosPosts.length >= allPosts.length) {
       hasMorePosts = false;
       if (loadMoreBtn) {
-        loadMoreBtn.textContent = "NÃ£o hÃ¡ mais posts";
+        loadMoreBtn.textContent = "Não há mais posts";
         loadMoreBtn.disabled = true;
       }
     } else {
@@ -678,7 +693,7 @@ async function loadPosts() {
     if (loadMoreBtn) {
       loadMoreBtn.textContent = "Erro ao carregar";
     }
-    criarPopup('Erro', 'NÃ£o foi possÃ­vel carregar mais posts.', 'error');
+    criarPopup('Erro', 'Não foi possível carregar mais posts.', 'error');
   }
   loading = false;
 }
@@ -708,7 +723,7 @@ async function sendPost() {
   if (imagemInput) {
     urlImagem = imagemInput.value.trim();
     if (urlImagem && !(await validarUrlImagem(urlImagem))) {
-      criarPopup('Imagem InvÃ¡lida', 'A URL da imagem nÃ£o Ã© vÃ¡lida ou nÃ£o aponta para uma imagem.', 'warning');
+      criarPopup('Imagem Inválida', 'A URL da imagem não é válida ou não aponta para uma imagem.', 'warning');
       return;
     }
   }
@@ -724,7 +739,7 @@ async function sendPost() {
     if (!userData) {
       clearInterval(loadingInfo.interval);
       esconderLoading();
-      criarPopup('Erro', 'Erro ao buscar dados do usuÃ¡rio', 'error');
+      criarPopup('Erro', 'Erro ao buscar dados do usuário', 'error');
       return;
     }
     
@@ -912,18 +927,29 @@ function configurarLinks() {
 }
 
 // ===================
-// CRIAR INPUT DE URL DE IMAGEM
+// CRIAR INPUT DE URL DE IMAGEM (fora da post-area)
 // ===================
 function criarInputImagem() {
-  const postBox = document.querySelector('.post-box');
-  if (!postBox || document.querySelector('.image-url-input')) return;
-  const imageInputContainer = document.createElement('div');
-  imageInputContainer.className = 'image-input-container';
-  imageInputContainer.innerHTML = `
-    <input type="url" class="image-url-input" placeholder="Cole a URL da imagem aqui (opcional)">
-  `;
-  const postButton = postBox.querySelector('.post-button');
-  postBox.insertBefore(imageInputContainer, postButton);
+  const postArea = document.querySelector('.post-area');
+  const fileBtn = document.querySelector('.file-button');
+  if (!postArea || !fileBtn) return;
+
+  fileBtn.addEventListener('click', () => {
+    // Procura o input fora da post-area
+    let imageInputContainer = postArea.nextElementSibling;
+    if (!imageInputContainer || !imageInputContainer.classList.contains('image-input-container')) {
+      imageInputContainer = document.createElement('div');
+      imageInputContainer.className = 'image-input-container';
+      imageInputContainer.innerHTML = `
+        <input type="url" class="image-url-input" placeholder="Cole a URL da imagem aqui (opcional)">
+      `;
+      // Insere a div depois da post-area (fora dela)
+      postArea.parentNode.insertBefore(imageInputContainer, postArea.nextSibling);
+    } else {
+      // Alterna visibilidade
+      imageInputContainer.style.display = imageInputContainer.style.display === 'none' ? '' : 'none';
+    }
+  });
 }
 
 // ===================
@@ -1011,6 +1037,9 @@ function configurarEventListeners() {
   }
 }
 
+
+
+
 // ===================
 // ATUALIZAR MARQUEE
 // ===================
@@ -1067,43 +1096,6 @@ function adicionarEstilosCSS() {
   const style = document.createElement('style');
   style.id = 'enhanced-feed-styles';
   style.textContent = `/* Estilos para hashtags */
-    .hashtag {
-      color: #007bff;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    /* Estilos para input de imagem */
-    .image-input-container {
-      margin: 0px;
-      padding: 0px;
-    }
-
-    .image-url-input {
-      width: 100%;
-      padding: 0px;
-      border: none;
-      border-radius: 6px;
-      font-size: 14px;
-      background-color: transparent;
-      color: #fff;
-    }
-
-    .image-url-input:focus-within {
-      width: 100%;
-      padding: 0px;
-      border: none;
-      border-radius: 6px;
-      font-size: 14px;
-      background-color: transparent;
-      outline: none;
-    }
-
-    .image-help {
-      color: #666;
-      font-size: 12px;
-      margin-top: 4px;
-      display: block;
-    }
 
     /* Estilos para imagens nos posts */
     .post-image {
