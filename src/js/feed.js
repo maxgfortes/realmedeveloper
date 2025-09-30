@@ -309,7 +309,7 @@ function verificarLogin() {
       if (!user) {
         criarPopup('Acesso Negado', 'VocÃª precisa estar logado para acessar esta pÃ¡gina.', 'warning');
         setTimeout(() => {
-          window.location.href = 'index.html';
+          window.location.href = 'login.html';
         }, 2000);
         resolve(null);
       } else {
