@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RealMe</title>
+  <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="./src/icon/icon.png" type="image/png" />
   <meta name="theme-color" content="#1F1F1F" />
   <meta name="mobile-web-app-capable" content="yes">
@@ -98,17 +99,25 @@
     </div>
   </nav>
 
-  <nav class="navbar-bottom">
-    <div class="navbar-bottom-content">
-      <a href="feed.html"><i class="fa-solid fa-house"></i></a>
-      <a href="/amigos"><i class="fa-solid fa-user-group"></i></a>
-      <a href="/criar"><i class="far fa-plus-square"></i></a>
-      <a href="/mensagens"><i class="far fa-comments"></i></a>
-      <a href="PF.html">
-        <img src="./src/icon/default.jpg" alt="Perfil" id="nav-pic" class="profile-mini" style="width: 24px; height: 24px; border-radius: 50%;">
-      </a>
-    </div>
-  </nav>
+<nav class="navbar-bottom">
+  <div class="navbar-bottom-content">
+    <a href="">
+      <i class="fas fa-home"></i>
+    </a>
+    <a href="/amigos">
+      <i class="fas fa-users"></i>
+    </a>
+    <a href="/criar">
+      <i class="fas fa-plus"></i>
+    </a>
+    <a href="/mensagens">
+      <i class="fas fa-comments"></i>
+    </a>
+    <a href="PF.html">
+      <img src="./src/icon/default.jpg" alt="Perfil" id="nav-pic" class="profile-mini" style="width: 24px; height: 24px; border-radius: 50%;">
+    </a>
+  </div>
+</nav>
 
   <div class="progress-bar" id="progressBar"></div>
 
@@ -273,5 +282,6 @@
   <script type="module" src="codigo.js"></script>
   <script src="./src/js/post-modal.js"></script>
   <script src="./src/js/novidades.js"></script>
+  <script src="./src/js/pfp-navbar.js"></script>
 </body>
 </html>

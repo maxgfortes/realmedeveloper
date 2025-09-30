@@ -4,11 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RealMe</title>
+  <link rel="manifest" href="/manifest.json">
      <link rel="icon" href="./src/icon/icon.png" type="image/png" />
       <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="theme-color" content="#1F1F1F" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#000000"/>
+<!-- PWA (quando salvo na tela inicial) -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="apple-touch-icon" href="./src/icon/icon.png" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <link rel="stylesheet" href="./src/styles/base.css" />
@@ -45,7 +47,7 @@
   <style>
     /* === ESTILOS DO POST === */
     .post-card {
-      background: rgba(25, 25, 25, 0.6);
+      background: rgba(20, 20, 20, 0.582);
       padding: 20px;
       border-radius: 12px;
       border: 1px solid #2a2a2a;
@@ -382,7 +384,7 @@
   <div class="glass-overlay"></div>
 
   <!-- Navbar -->
-  <nav>
+   <nav>
     <div class="logo_area">
       <div class="logo">RealMe</div>
     </div>
@@ -403,17 +405,10 @@
     </div>
   </nav>
 
-  <nav class="navbar-top">
-    <div class="logo_area">
-      <div class="logo">RealMe</div>
-    </div>
-    <div class="search-area">
-      <div class="search-box">
-        <button><i class="fas fa-search"></i></button>
-        <input type="text" id="searchInput" placeholder="Buscar" autocomplete="off"  />
-      </div>
-    </div>
-  </nav>
+  <div class="nav-mobile">
+      <div class="logo-mobile">RealMe</div>
+      <input class="search-box-mobile" type="text" id="searchInput" placeholder="Buscar" autocomplete="off"  />
+  </div>
 
   <!-- Sidebar -->
   <aside class="sidebar">
@@ -468,8 +463,17 @@
     </section>
 
     <section class="section-friends-posts" id="feed">
-      <h2>Posts Publicos</h2>
+      <h2 class="feed-title-desktop">Posts Publicos</h2>
+      <h2 class="feed-title-mobile">Feed</h2>
       <!-- Posts aparecerão aqui -->
+       <!-- Placeholder para posts -->
+<div id="post-skeleton" class="post-card">
+  <div class="post-header">
+    <div class="avatar skeleton"></div>
+    <div class="user-meta skeleton"></div>
+  </div>
+  <div class="post-text skeleton"></div>
+</div>
     </section>
 
     <button id="load-more-btn">Carregar mais</button>
@@ -688,6 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <script type="module" src="./src/js/main-main.js"></script>
 <script type="module" src="./src/js/feed.js"></script>
+<script type="module" src="./src/js/pfp-navbar.js"></script>
 <script>
   // Função para animar o avião
   function animarAviao() {
