@@ -3,79 +3,63 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Migração de Dados - Firebase</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      padding: 30px;
-      background: #f5f5f5;
+      margin: 0;
+      font-family: sans-serif;
     }
-    h1 {
-      color: #333;
+
+    .hidden-box {
+      display: none;
+      justify-content: center;
+      align-items: center;
+      height: 80px;
+      background: #4caf50;
+      color: white;
+      font-size: 18px;
     }
-    button {
-      padding: 12px 20px;
-      font-size: 16px;
-      margin: 10px 0;
-      cursor: pointer;
-      border: none;
-      border-radius: 6px;
-      background: #4CAF50;
-      color: #fff;
-    }
-    button:disabled {
-      background: #aaa;
-      cursor: not-allowed;
-    }
-    pre {
-      background: #222;
-      color: #0f0;
-      padding: 15px;
-      border-radius: 6px;
-      max-height: 400px;
-      overflow-y: auto;
-      white-space: pre-wrap;
+
+    .content {
+      height: 200vh; /* só para poder rolar */
+      padding: 20px;
     }
   </style>
 </head>
 <body>
-  <h1>🚀 Migração de Dados Firebase</h1>
-  <p>Essa página executa o script de migração de dados (username ➝ userId).</p>
 
-  <button id="btnRun">Iniciar Migração</button>
-  <button id="btnClean">Limpar Estrutura Antiga</button>
+  <div id="topBox" class="hidden-box">Você puxou para baixo!</div>
 
-  <h3>Logs:</h3>
-  <pre id="logs"></pre>
+  <div class="content">
+    <p>Role a página. No topo, puxe para baixo para ver o efeito.</p>
+  </div>
 
-  <!-- Importa o script da migração -->
-  <script type="module">
-    import { runMigration, DataMigration } from "./migration.js"; // salve seu script como migration.js
+  <script>
+    const topBox = document.getElementById("topBox");
+    let startY = 0;
+    let pulling = false;
 
-    const logsEl = document.getElementById("logs");
-    const btnRun = document.getElementById("btnRun");
-    const btnClean = document.getElementById("btnClean");
-
-    // Redireciona console.log e console.error para aparecer no <pre>
-    function logToScreen(...args) {
-      logsEl.textContent += args.join(" ") + "\n";
-      logsEl.scrollTop = logsEl.scrollHeight;
-    }
-    console.log = logToScreen;
-    console.error = logToScreen;
-
-    btnRun.addEventListener("click", async () => {
-      btnRun.disabled = true;
-      logToScreen("▶️ Executando migração...");
-      await runMigration();
-      btnRun.disabled = false;
+    document.addEventListener("touchstart", (e) => {
+      if (window.scrollY === 0) {
+        startY = e.touches[0].clientY;
+        pulling = true;
+      }
     });
 
-    btnClean.addEventListener("click", async () => {
-      const migration = new DataMigration();
-      logToScreen("⚠️ Tentando limpar dados antigos...");
-      await migration.cleanOldData();
+    document.addEventListener("touchmove", (e) => {
+      if (!pulling) return;
+
+      let currentY = e.touches[0].clientY;
+      let diff = currentY - startY;
+
+      if (diff > 80) { // quantidade de "puxe" em pixels
+        topBox.style.display = "flex";
+      }
+    });
+
+    document.addEventListener("touchend", () => {
+      pulling = false;
     });
   </script>
+
 </body>
 </html>
