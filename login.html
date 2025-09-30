@@ -5,10 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover"/>
 <title>RealMe</title>
 
-<!-- Cor da barra no Safari (navegação normal) -->
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#FFFFFF"/>
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000"/>
-
+<meta name="theme-color" content="#1F1F1F"/>
 <!-- PWA (quando salvo na tela inicial) -->
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -51,6 +48,7 @@
       background-position: center;
       background-attachment: fixed;
       color: #dbdbdb;
+      background-color: #000000;
       height: 100vh;
       overflow: hidden;
       scrollbar-width: none;
@@ -377,6 +375,7 @@
         height: auto;
       }
 
+
       nav {
         display: none;
       }
@@ -488,11 +487,11 @@
         <form>
           <div>
             <label for="email">Email</label>
-              <input type="email" id="emaillog" name="email" placeholder="Email da conta" required autocomplete="off"  />
+              <input type="email" id="emaillog" name="email" placeholder="Email da conta" required autocomplete="off" autofocus="off" />
             </div>
           <div>
             <label for="senha">Senha</label>
-            <input type="password" id="passwordlog" name="senha" placeholder="Senha da conta" required />
+            <input type="password" id="passwordlog" name="senha" placeholder="Senha da conta" required autocomplete="off" autofocus="off"/>
           </div>
           <button class="entrarBtn" type="submit">Entrar</button>
         </form>
