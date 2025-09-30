@@ -1,65 +1,151 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body {
-      margin: 0;
-      font-family: sans-serif;
-    }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Pull-to-show (gambiarra)</title>
+<style>
+  :root { --indicator-h: 80px; }
+  html,body { height:100%; margin:0; }
+  /* Corpo com scroller próprio (evita pull-to-refresh nativo) */
+  body { overflow:hidden; }
+  .scroller {
+    height:100vh;
+    overflow:auto;
+    -webkit-overflow-scrolling: touch;
+    position:relative;
+  }
 
-    .hidden-box {
-      display: none;
-      justify-content: center;
-      align-items: center;
-      height: 80px;
-      background: #4caf50;
-      color: white;
-      font-size: 18px;
-    }
+  /* Indicador: MANTEMOS display:flex (não usar display:none) e escondemos com translateY */
+  .pull-indicator {
+    position:fixed;
+    top:0;
+    left:0;
+    right:0;
+    height:var(--indicator-h);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#1976d2;
+    color:white;
+    font-weight:600;
+    transform: translateY(calc(-1 * var(--indicator-h))); /* escondido acima */
+    transition: transform 180ms ease, opacity 180ms ease;
+    opacity:0;
+    pointer-events:none;
+    z-index:9999;
+  }
 
-    .content {
-      height: 200vh; /* só para poder rolar */
-      padding: 20px;
-    }
-  </style>
+  .pull-indicator.visible {
+    transform: translateY(0);
+    opacity:1;
+    pointer-events:auto;
+  }
+
+  main { padding:20px; padding-top: calc(var(--indicator-h) + 20px); }
+  .box { height:2000px; background:linear-gradient(#fff,#eee); }
+</style>
 </head>
 <body>
+  <div class="scroller" id="scroller">
+    <div id="pull" class="pull-indicator">Puxado! (toque para fechar)</div>
 
-  <div id="topBox" class="hidden-box">Você puxou para baixo!</div>
-
-  <div class="content">
-    <p>Role a página. No topo, puxe para baixo para ver o efeito.</p>
+    <main>
+      <h1>Conteúdo da página</h1>
+      <p>Role e, ao chegar no topo, puxe para baixo.</p>
+      <div class="box"></div>
+    </main>
   </div>
 
   <script>
-    const topBox = document.getElementById("topBox");
-    let startY = 0;
-    let pulling = false;
+  (function(){
+    const scroller = document.getElementById('scroller');
+    const pull = document.getElementById('pull');
+    const indicatorH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--indicator-h')) || 80;
+    const THRESHOLD = indicatorH; // quando ultrapassar isso, consideramos "ativado"
+    let startY = null, pulling = false, pullDistance = 0;
 
-    document.addEventListener("touchstart", (e) => {
-      if (window.scrollY === 0) {
-        startY = e.touches[0].clientY;
+    function setIndicatorPosition(px) {
+      // px -> 0.. (quanto puxou). convertendo para translateY que vai de -H -> 0
+      const translateY = Math.min(0, px - indicatorH);
+      pull.style.transform = `translateY(${translateY}px)`;
+      pull.style.opacity = Math.min(1, px / indicatorH);
+    }
+
+    // pointerdown (cobre touch + mouse em navegadores modernos)
+    scroller.addEventListener('pointerdown', (e) => {
+      if (scroller.scrollTop === 0) {
+        startY = e.clientY;
         pulling = true;
+        pullDistance = 0;
+        try { scroller.setPointerCapture(e.pointerId); } catch(_) {}
       }
     });
 
-    document.addEventListener("touchmove", (e) => {
+    // pointermove (com passive:false para permitir e.preventDefault())
+    scroller.addEventListener('pointermove', (e) => {
+      if (!pulling || startY === null) return;
+      const dy = e.clientY - startY;
+      if (dy > 0 && scroller.scrollTop === 0) {
+        // puxando para baixo no topo
+        pullDistance = dy * 0.6; // suaviza
+        setIndicatorPosition(pullDistance);
+        e.preventDefault(); // tenta impedir scroll nativo / overscroll
+      } else if (dy <= 0) {
+        pullDistance = 0;
+        setIndicatorPosition(0);
+      }
+    }, { passive: false });
+
+    function endPull(e) {
       if (!pulling) return;
-
-      let currentY = e.touches[0].clientY;
-      let diff = currentY - startY;
-
-      if (diff > 80) { // quantidade de "puxe" em pixels
-        topBox.style.display = "flex";
-      }
-    });
-
-    document.addEventListener("touchend", () => {
       pulling = false;
-    });
-  </script>
+      startY = null;
+      try { if (e && e.pointerId) scroller.releasePointerCapture(e.pointerId); } catch(_) {}
 
+      if (pullDistance >= THRESHOLD) {
+        // ativar
+        pull.classList.add('visible');
+      } else {
+        // voltar para escondido com animação
+        pull.style.transition = 'transform 200ms ease, opacity 200ms ease';
+        setIndicatorPosition(0);
+        setTimeout(() => { pull.style.transition = ''; }, 250);
+      }
+      pullDistance = 0;
+    }
+
+    scroller.addEventListener('pointerup', endPull);
+    scroller.addEventListener('pointercancel', endPull);
+
+    // wheel (desktop): simula puxe quando no topo e roda pra cima
+    let wheelAccum = 0;
+    scroller.addEventListener('wheel', (e) => {
+      if (scroller.scrollTop !== 0) return;
+      if (e.deltaY < 0) { // rolando para cima quando já está no topo
+        wheelAccum += -e.deltaY;
+        setIndicatorPosition(wheelAccum * 0.28);
+        e.preventDefault();
+        if (wheelAccum * 0.28 >= THRESHOLD) {
+          pull.classList.add('visible');
+          wheelAccum = 0;
+        }
+      } else {
+        wheelAccum = 0;
+      }
+    }, { passive: false });
+
+    // esconder ao clicar no indicador
+    pull.addEventListener('click', () => {
+      pull.classList.remove('visible');
+      pull.style.transform = `translateY(calc(-1 * ${indicatorH}px))`;
+      pull.style.opacity = 0;
+    });
+
+    // OBS: se você não quer trocar a estrutura da página, tente só:
+    // html, body { overscroll-behavior-y: contain; } — porém iOS Safari antigo ignora isso.
+    // por isso o método do scroller é a gambiarra mais confiável.
+  })();
+  </script>
 </body>
 </html>
