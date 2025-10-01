@@ -9,11 +9,22 @@ import {
   setDoc,
   increment,
   serverTimestamp
+  
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   getAuth,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+
+import {
+  query,
+  orderBy,
+  limit,
+  startAfter
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+let lastPostSnapshot = null; 
 
 // ConfiguraÃ§Ã£o do Firebase
 const firebaseConfig = {
@@ -320,7 +331,7 @@ function verificarLogin() {
 }
 
 // ===================
-// GERAR ID ÃšNICO
+// GERAR ID UNICO
 // ===================
 function gerarIdUnico(prefixo = 'id') {
   const timestamp = Date.now();
@@ -454,25 +465,22 @@ async function carregarComentarios(postId) {
     }
     
     // ORDENAÇÃO CORRIGIDA - Comentários do mais antigo para o mais recente
-    comentarios.sort((a, b) => {
-      if (!a.create || !b.create) return 0;
-      
-      let dataA, dataB;
-      
-      if (typeof a.create === 'object' && a.create.seconds) {
-        dataA = a.create.seconds;
-      } else {
-        dataA = new Date(a.create).getTime() / 1000;
-      }
-      
-      if (typeof b.create === 'object' && b.create.seconds) {
-        dataB = b.create.seconds;
-      } else {
-        dataB = new Date(b.create).getTime() / 1000;
-      }
-      
-      return dataA - dataB; // Do mais antigo para o mais recente
-    });
+    // ORDENAÇÃO CORRIGIDA - Comentários do mais antigo para o mais recente
+comentarios.sort((a, b) => {
+  if (!a.create || !b.create) return 0;
+  let dataA, dataB;
+  if (typeof a.create === 'object' && a.create.seconds) {
+    dataA = a.create.seconds;
+  } else {
+    dataA = new Date(a.create).getTime() / 1000;
+  }
+  if (typeof b.create === 'object' && b.create.seconds) {
+    dataB = b.create.seconds;
+  } else {
+    dataB = new Date(b.create).getTime() / 1000;
+  }
+  return dataA - dataB; // Do mais antigo para o mais recente
+});
     
     return comentarios;
   } catch (error) {
@@ -600,6 +608,8 @@ function formatarDataRelativa(data) {
 // ===================
 // CARREGAR POSTS NO FEED
 // ===================
+// ...existing code...
+
 async function loadPosts() {
   if (loading || !hasMorePosts) return;
   loading = true;
@@ -607,13 +617,25 @@ async function loadPosts() {
     loadMoreBtn.disabled = true;
     loadMoreBtn.textContent = "Carregando...";
   }
+
   try {
-    if (allPosts.length === 0) {
-      allPosts = await carregarTodosOsPosts();
+    // Busca lote de posts ordenados por data (mais recentes primeiro)
+    let postsQuery = query(
+      collection(db, 'posts'),
+      orderBy('create', 'desc'),
+      limit(POSTS_LIMIT)
+    );
+    if (lastPostSnapshot) {
+      postsQuery = query(
+        collection(db, 'posts'),
+        orderBy('create', 'desc'),
+        startAfter(lastPostSnapshot),
+        limit(POSTS_LIMIT)
+      );
     }
-    const postsExibidos = feed.querySelectorAll('.post-card').length;
-    const proximosPosts = allPosts.slice(postsExibidos, postsExibidos + POSTS_LIMIT);
-    if (proximosPosts.length === 0) {
+    const postsSnapshot = await getDocs(postsQuery);
+
+    if (postsSnapshot.empty) {
       hasMorePosts = false;
       if (loadMoreBtn) {
         loadMoreBtn.textContent = "Não há mais posts";
@@ -622,61 +644,86 @@ async function loadPosts() {
       loading = false;
       return;
     }
-    for (const post of proximosPosts) {
-  const postEl = document.createElement('div');
-  postEl.className = 'post-card';
-  const nomeParaExibir = post.userData?.displayname || post.userData?.username || post.creatorid;
-  const usernameParaExibir = post.userData?.username ? `@${post.userData.username}` : '';
-  const fotoUsuario = post.userData?.userphoto || obterFotoPerfil(post.userData, null);
-  const conteudoFormatado = formatarHashtags(post.content || 'Conteúdo não disponível');
-  let imagemHtml = '';
-  if (post.img && await validarUrlImagem(post.img)) {
-    imagemHtml = `
-      <div class="post-image">
-        <img src="${post.img}" alt="Imagem do post" loading="lazy"
-             onerror="this.parentElement.style.display='none'" />
-      </div>
-    `;
-  }
-  postEl.innerHTML = `
-    <div class="post-header">
-      <div class="user-info">
-        <img src="${fotoUsuario}" alt="Avatar do usuário" class="avatar"
-             onerror="this.src='./src/icon/default.jpg'" />
-        <div class="user-meta">
-          <strong class="user-name-link" data-username="${post.creatorid}">${nomeParaExibir}</strong>
-          <small class="post-username">${usernameParaExibir}</small>
+
+    lastPostSnapshot = postsSnapshot.docs[postsSnapshot.docs.length - 1];
+
+    // Coleta todos os posts do snapshot
+    const postsParaAdicionar = [];
+    for (const postDoc of postsSnapshot.docs) {
+      const postData = postDoc.data();
+      postsParaAdicionar.push(postData);
+    }
+
+    // Ordena manualmente por segurança (caso algum create esteja inconsistente)
+    postsParaAdicionar.sort((a, b) => {
+      let dataA = a.create;
+      let dataB = b.create;
+      if (typeof dataA === 'object' && dataA.seconds) dataA = dataA.seconds;
+      else dataA = new Date(dataA).getTime() / 1000;
+      if (typeof dataB === 'object' && dataB.seconds) dataB = dataB.seconds;
+      else dataB = new Date(dataB).getTime() / 1000;
+      return dataB - dataA;
+    });
+
+    // Renderiza os posts rapidamente, sem aguardar dados do usuário
+    for (const postData of postsParaAdicionar) {
+      const postEl = document.createElement('div');
+      postEl.className = 'post-card';
+      // Renderiza com dados mínimos, depois atualiza nome/foto
+      postEl.innerHTML = `
+        <div class="post-header">
+          <div class="user-info">
+            <img src="./src/icon/default.jpg" alt="Avatar do usuário" class="avatar"
+                 onerror="this.src='./src/icon/default.jpg'" />
+            <div class="user-meta">
+              <strong class="user-name-link" data-username="${postData.creatorid}">Carregando...</strong>
+              <small class="post-username"></small>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div class="post-text">${conteudoFormatado}</div>
-    ${imagemHtml}
-    <div class="post-actions">
-      <button class="btn-like" data-username="${post.creatorid}" data-id="${post.postid}">
-        <i class="fas fa-heart"></i> <span>${post.likes || 0}</span>
-      </button>
-      <button class="btn-comment" data-username="${post.creatorid}" data-id="${post.postid}">
-        <i class="fas fa-comment"></i> Comentar
-      </button>
-      <button class="btn-report" data-username="${post.creatorid}" data-id="${post.postid}">
-        <i class="fas fa-flag"></i> Denunciar
-      </button>
-    </div>
-    <div class="post-date">${formatarDataRelativa(post.create)}</div>
-    <div class="comments-section" style="display: none;">
-      <div class="comment-form">
-        <input type="text" class="comment-input" placeholder="Escreva um comentário..."
-               data-username="${post.creatorid}" data-post-id="${post.postid}">
-        <button class="comment-submit" data-username="${post.creatorid}" data-post-id="${post.postid}">
-          <i class="fas fa-paper-plane"></i>
-        </button>
-      </div>
-      <div class="comments-list"></div>
-    </div>
-  `;
-  feed.appendChild(postEl);
-}
-    if (postsExibidos + proximosPosts.length >= allPosts.length) {
+        <div class="post-text">${formatarHashtags(postData.content || 'Conteúdo não disponível')}</div>
+        ${postData.img ? `<div class="post-image"><img src="${postData.img}" alt="Imagem do post" loading="lazy" onerror="this.parentElement.style.display='none'" /></div>` : ''}
+        <div class="post-actions">
+          <button class="btn-like" data-username="${postData.creatorid}" data-id="${postData.postid}">
+            <i class="fas fa-heart"></i> <span>${postData.likes || 0}</span>
+          </button>
+          <button class="btn-comment" data-username="${postData.creatorid}" data-id="${postData.postid}">
+            <i class="fas fa-comment"></i> Comentar
+          </button>
+          <button class="btn-report" data-username="${postData.creatorid}" data-id="${postData.postid}">
+            <i class="fas fa-flag"></i> Denunciar
+          </button>
+        </div>
+        <div class="post-date">${formatarDataRelativa(postData.create)}</div>
+        <div class="comments-section" style="display: none;">
+          <div class="comment-form">
+            <input type="text" class="comment-input" placeholder="Escreva um comentário..."
+                   data-username="${postData.creatorid}" data-post-id="${postData.postid}">
+            <button class="comment-submit" data-username="${postData.creatorid}" data-post-id="${postData.postid}">
+              <i class="fas fa-paper-plane"></i>
+            </button>
+          </div>
+          <div class="comments-area">
+            <div class="comments-list"></div>
+          </div>
+        </div>
+      `;
+      feed.appendChild(postEl);
+
+      // Atualiza nome e foto do usuário assim que possível (não trava o loading)
+      buscarDadosUsuarioPorUid(postData.creatorid).then(userData => {
+        if (userData) {
+          const avatar = postEl.querySelector('.avatar');
+          const nome = postEl.querySelector('.user-name-link');
+          const username = postEl.querySelector('.post-username');
+          if (avatar) avatar.src = userData.userphoto || './src/icon/default.jpg';
+          if (nome) nome.textContent = userData.displayname || userData.username || postData.creatorid;
+          if (username) username.textContent = userData.username ? `@${userData.username}` : '';
+        }
+      });
+    }
+
+    if (postsSnapshot.size < POSTS_LIMIT) {
       hasMorePosts = false;
       if (loadMoreBtn) {
         loadMoreBtn.textContent = "Não há mais posts";
@@ -697,8 +744,7 @@ async function loadPosts() {
   }
   loading = false;
 }
-
-
+// ...existing code...
 // ===================
 // ENVIAR POST - VERSÃO OTIMIZADA
 // ===================
@@ -790,27 +836,75 @@ async function sendPost() {
 // ===================
 // CURTIR POST (posts/{postid})
 // ===================
-async function curtirPost(uid, postId, element) {
-  const loadingInfo = mostrarLoading('Curtindo post...');
+// Função para alternar entre like e deslike
+async function toggleLikePost(uid, postId, element) {
+  const postRef = doc(db, 'posts', postId);
+  const likerRef = doc(db, `posts/${postId}/likers/${uid}`);
+
   try {
-    const postRef = doc(db, 'posts', postId);
-    await updateDoc(postRef, { likes: increment(1) });
-    const spanCurtidas = element.querySelector('span');
-    const curtidasAtuais = parseInt(spanCurtidas.textContent) || 0;
-    spanCurtidas.textContent = curtidasAtuais + 1;
-    element.style.color = '#dc3545';
-    setTimeout(() => {
-      element.style.color = '';
-    }, 1000);
-    clearInterval(loadingInfo.interval);
-    esconderLoading();
+    // Verifica se o usuário já interagiu com o post
+    const likerSnap = await getDoc(likerRef);
+
+    if (likerSnap.exists()) {
+      const likerData = likerSnap.data();
+
+      if (likerData.like === true) {
+        // Se o like está ativo, alterna para false (deslike/remover like)
+        await updateDoc(likerRef, { like: false, likein: new Date() });
+        await updateDoc(postRef, { likes: increment(-1) });
+
+        // Atualiza o contador no frontend
+        const spanCurtidas = element.querySelector('span');
+        const curtidasAtuais = parseInt(spanCurtidas.textContent) || 0;
+        spanCurtidas.textContent = curtidasAtuais - 1;
+        element.style.color = ''; // Reseta a cor do botão
+      } else {
+        // Se o like está inativo, alterna para true (like)
+        await updateDoc(likerRef, { like: true, likein: new Date() });
+        await updateDoc(postRef, { likes: increment(1) });
+
+        // Atualiza o contador no frontend
+        const spanCurtidas = element.querySelector('span');
+        const curtidasAtuais = parseInt(spanCurtidas.textContent) || 0;
+        spanCurtidas.textContent = curtidasAtuais + 1;
+        element.style.color = '#dc3545'; // Destaca o botão
+      }
+    } else {
+      // Se o usuário nunca interagiu, cria o documento com like = true
+      await setDoc(likerRef, {
+        uid: uid,
+        like: true,
+        likein: new Date() // Timestamp do like
+      });
+      await updateDoc(postRef, { likes: increment(1) });
+
+      // Atualiza o contador no frontend
+      const spanCurtidas = element.querySelector('span');
+      const curtidasAtuais = parseInt(spanCurtidas.textContent) || 0;
+      spanCurtidas.textContent = curtidasAtuais + 1;
+      element.style.color = '#dc3545'; // Destaca o botão
+    }
   } catch (error) {
-    console.error("Erro ao curtir post:", error);
-    clearInterval(loadingInfo.interval);
-    esconderLoading();
-    criarPopup('Erro', 'Erro ao curtir post', 'error');
+    console.error("Erro ao curtir/descurtir post:", error);
+    criarPopup('Erro', 'Não foi possível curtir/descurtir o post. Tente novamente.', 'error');
   }
 }
+
+// Listener para capturar cliques nos botões de like
+feed.addEventListener('click', async (e) => {
+  const btnLike = e.target.closest('.btn-like');
+  if (btnLike) {
+    const uid = auth.currentUser?.uid; // ID do usuário logado
+    const postId = btnLike.dataset.id; // ID do post
+    if (uid && postId) {
+      await toggleLikePost(uid, postId, btnLike);
+    } else {
+      criarPopup('Erro', 'Você precisa estar logado para curtir posts.', 'warning');
+    }
+  }
+});
+
+
 
 // ===================
 // OBTER FOTO DE PERFIL DO USUÁRIO
@@ -1111,11 +1205,35 @@ function adicionarEstilosCSS() {
       display: block;
     }
 
-    /* Estilos para seção de comentários */
     .comments-section {
-      margin-top: 15px;
-      padding-top: 15px;
+      margin-top: 10px;
+      padding-top: 10px;
     }
+
+    /* Estilos para seção de comentários */
+    .comments-area {
+  max-height: 300px; /* Altura máxima da área de comentários */
+  overflow-y: auto; /* Adiciona barra de rolagem vertical */
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.comments-area::-webkit-scrollbar {
+  width: 8px; /* Largura da barra de rolagem */
+}
+
+.comments-area::-webkit-scrollbar-thumb {
+  background: #4A90E2; /* Cor da barra de rolagem */
+  border-radius: 4px;
+}
+
+.comments-area::-webkit-scrollbar-thumb:hover {
+  background: #0056b3; /* Cor ao passar o mouse */
+}
+
+.comments-area::-webkit-scrollbar-track {
+  background: transparent; /* Cor do fundo da barra de rolagem */
+}
 
     .comment-form {
       display: flex;

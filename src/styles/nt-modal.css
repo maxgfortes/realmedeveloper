@@ -67,3 +67,21 @@
     transform: scale(1.02);
     box-shadow: 0 4px 20px rgba(0, 212, 255, 0.2);
 }
+
+#msg-context-menu {
+  background: #232323;
+  color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px #0008;
+  padding: 8px 0;
+  min-width: 120px;
+  z-index: 9999;
+}
+#msg-context-menu .menu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#msg-context-menu .menu-item:hover {
+  background: #7c3aed;
+}

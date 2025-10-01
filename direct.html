@@ -247,30 +247,47 @@ async function criarOuObterChat(user1, user2) {
 }
 
 // Enviar mensagem
-async function enviarMensagem(conteudo) {
+// ...existing code...
+
+// Função única para enviar mensagem
+async function enviarMensagem() {
+  const conteudo = msgInput.value.trim();
   if (!conteudo || !selectedUser) return;
+  msgInput.value = ""; // Limpa imediatamente para evitar duplo envio
 
+  const replyId = msgInput.getAttribute("data-reply");
   const chatId = await criarOuObterChat(loggedUser, selectedUser);
-
-  // Gera um ID aleatório para a mensagem
   const msgDocRef = doc(collection(db, "chats", chatId, "messages"));
-  await setDoc(msgDocRef, {
+  const msgData = {
     content: conteudo,
     sender: loggedUser,
     timestamp: serverTimestamp()
-  });
-
+  };
+  if (replyId) {
+    msgData.reply = replyId;
+    msgInput.removeAttribute("data-reply");
+  }
+  await setDoc(msgDocRef, msgData);
   const chatRef = doc(db, "chats", chatId);
   await updateDoc(chatRef, {
     lastMessage: conteudo,
     lastMessageTime: serverTimestamp()
   });
-
-  msgInput.value = "";
-
-  // Toca som de envio
   audioSend.play();
 }
+
+// Clique no botão
+sendBtn?.addEventListener("click", enviarMensagem);
+
+// Enter para enviar (mas não Shift+Enter)
+msgInput?.addEventListener("keypress", function(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    enviarMensagem();
+  }
+});
+
+// ...existing code...
 
 // Carregar mensagens em tempo real
 function carregarMensagensTempoReal() {
@@ -307,11 +324,22 @@ function carregarMensagensTempoReal() {
 // Renderizar mensagens
 // ...existing code...
 
+// ...existing code...
+
 function renderizarMensagens(mensagens) {
   chatArea.innerHTML = "";
 
-  // Mostra do mais antigo para o mais recente na tela (mas carregou do mais recente para o mais antigo)
-  mensagens.slice().reverse().forEach((m) => {
+  // Remove mensagens duplicadas pelo id
+  const mensagensUnicas = [];
+  const idsVistos = new Set();
+  for (const m of mensagens.slice().reverse()) {
+    if (!m.id || idsVistos.has(m.id)) continue;
+    idsVistos.add(m.id);
+    mensagensUnicas.push(m);
+  }
+
+  // Renderiza do mais antigo para o mais recente, sem duplicatas
+  mensagensUnicas.forEach((m) => {
     // Ignora mensagens deletadas para todos
     if (m.deleted) return;
     // Ignora mensagens deletadas só para o usuário logado
@@ -331,7 +359,7 @@ function renderizarMensagens(mensagens) {
     // Reply visual: balão roxo acima da mensagem
     let replyHtml = "";
     if (m.reply) {
-      const replyMsg = mensagens.find(msg => msg.id === m.reply);
+      const replyMsg = mensagensUnicas.find(msg => msg.id === m.reply);
       if (replyMsg) {
         replyHtml = `
         <div class="reply-container">
@@ -340,7 +368,7 @@ function renderizarMensagens(mensagens) {
             <span class="reply-user">${replyMsg.sender === loggedUser ? "Você" : "Outro"}</span>
             <span class="reply-content">${replyMsg.content || "[mensagem apagada]"}</span>
           </div>
-          </div>
+        </div>
         `;
       }
     }
@@ -356,6 +384,7 @@ function renderizarMensagens(mensagens) {
   chatArea.scrollTop = chatArea.scrollHeight;
 }
 
+// ...existing code...
 // ...existing code...
 
 // Adicione o CSS para o balão roxo do reply:
