@@ -77,7 +77,7 @@
   </aside>
 
 
-
+<div class="chat-search-results"></div>
 <div class="full-dm-container">
   <div class="users-dms">
     <h1>Mensagens</h1>
@@ -438,6 +438,7 @@ async function carregarConversas() {
   // Busca todos os chats onde o usuário participa
   const chatsSnap = await getDocs(chatsRef);
 
+
   // Monta array com dados e ordena por lastMessageTime (mais recente primeiro)
   const chatsArray = [];
   for (const chatDoc of chatsSnap.docs) {
@@ -480,12 +481,138 @@ async function carregarConversas() {
       }
     } catch (error) {}
 
-    const btn = document.createElement("button");
-    btn.innerHTML = `<img src="${friendPhotoUrl}" alt="Foto do usuário"><span>${friendDisplayName}</span>`;
-    btn.addEventListener("click", () => selecionarUsuario(friendId));
-    recentsUsersDiv.appendChild(btn);
+    const lastMsg = chatObj.chatData.lastMessage || "";
+const lastMsgHtml = lastMsg
+  ? `<div class="last-message">${lastMsg.length > 40 ? lastMsg.slice(0, 40) + "..." : lastMsg}</div>`
+  : `<div class="last-message" style="color:#888;">Nenhuma mensagem ainda</div>`;
+
+const ts = chatObj.chatData.lastMessageTime?.seconds ? chatObj.chatData.lastMessageTime.seconds * 1000 : null;
+const tempo = ts ? tempoRelativo(ts) : "";
+
+const btn = document.createElement("button");
+btn.innerHTML = `
+  <img src="${friendPhotoUrl}" alt="Foto do usuário">
+  <div class="info-conversa">
+    <span>${friendDisplayName}</span>
+    <span class="last-msg-time">${tempo}</span>
+  </div>
+`;
+btn.addEventListener("click", () => selecionarUsuario(friendId));
+recentsUsersDiv.appendChild(btn);
   }
 }
+
+
+function tempoRelativo(timestamp) {
+  if (!timestamp) return "";
+  const agora = Date.now();
+  const diff = agora - timestamp;
+  const segundos = Math.floor(diff / 1000);
+  const minutos = Math.floor(segundos / 60);
+  const horas = Math.floor(minutos / 60);
+  const dias = Math.floor(horas / 24);
+
+  if (dias > 0) return `Enviado há ${dias} dia${dias > 1 ? 's' : ''}`;
+  if (horas > 0) return `Enviado há ${horas} h${horas > 1 ? '' : ''}`;
+  if (minutos > 0) return `Enviado há ${minutos} min${minutos > 1 ? '' : ''}`;
+  return "Enviado agora mesmo";
+}
+// ...após definir loggedUser e carregarConversas...
+
+const buscarChatsInput = document.querySelector('.buscar-chats');
+const chatResultsDiv = document.querySelector('.chat-search-results');
+
+let todosSeusChats = []; // Armazena todos os chats do usuário
+
+// Carrega todos os chats do usuário ao logar
+async function carregarTodosSeusChats() {
+  if (!loggedUser) return;
+  todosSeusChats = [];
+  const chatsRef = collection(db, "chats");
+  const chatsSnap = await getDocs(chatsRef);
+
+ for (const chatDoc of chatsSnap.docs) {
+  const chatData = chatDoc.data();
+  if (chatData.participants && chatData.participants.includes(loggedUser)) {
+    const friendId = chatData.participants.find(p => p !== loggedUser);
+    let friendDisplayName = friendId;
+    let friendPhotoUrl = "./src/icon/default.jpg";
+    try {
+      // Primeiro tenta buscar a foto na subcoleção user-infos/user-media
+      const friendMediaDoc = await getDoc(doc(db, "users", friendId, "user-infos", "user-media"));
+      if (friendMediaDoc.exists()) {
+        const data = friendMediaDoc.data();
+        if (data.userphoto) friendPhotoUrl = data.userphoto;
+      }
+      // Busca displayname normalmente
+      const friendDoc = await getDoc(doc(db, "users", friendId));
+      if (friendDoc.exists()) {
+        const data = friendDoc.data();
+        friendDisplayName = data.displayname || data.username || friendId;
+        // Se não achou foto antes, tenta pegar do userDoc
+        if (data.userphoto && friendPhotoUrl === "./src/icon/default.jpg") friendPhotoUrl = data.userphoto;
+      }
+    } catch {}
+    todosSeusChats.push({
+      friendId,
+      friendDisplayName,
+      friendPhotoUrl
+    });
+  }
+}
+}
+
+// Chame ao logar:
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    loggedUser = user.uid;
+    carregarConversas();
+    carregarTodosSeusChats();
+  } else {
+    window.location.href = "login.html";
+  }
+});
+
+// Busca dinâmica
+buscarChatsInput?.addEventListener('input', function() {
+  const termo = buscarChatsInput.value.trim().toLowerCase();
+  if (!termo) {
+    chatResultsDiv.innerHTML = '';
+    chatResultsDiv.classList.remove('visible');
+    return;
+  }
+  const filtrados = todosSeusChats.filter(chat =>
+    chat.friendDisplayName.toLowerCase().includes(termo)
+  );
+  if (filtrados.length === 0) {
+    chatResultsDiv.innerHTML = '<div class="chat-result">Nenhuma conversa encontrada</div>';
+  } else {
+    chatResultsDiv.innerHTML = filtrados.map(chat => `
+      <div class="chat-result" data-id="${chat.friendId}">
+        <img src="${chat.friendPhotoUrl}" alt="Foto">
+        <span>${chat.friendDisplayName}</span>
+      </div>
+    `).join('');
+  }
+  chatResultsDiv.classList.add('visible');
+});
+
+// Clique no resultado para abrir o chat
+chatResultsDiv.addEventListener('click', function(e) {
+  const el = e.target.closest('.chat-result');
+  if (el && el.dataset.id) {
+    selecionarUsuario(el.dataset.id);
+    chatResultsDiv.classList.remove('visible');
+    buscarChatsInput.value = '';
+  }
+});
+
+// Esconde resultados ao clicar fora
+document.addEventListener('click', function(e) {
+  if (!chatResultsDiv.contains(e.target) && e.target !== buscarChatsInput) {
+    chatResultsDiv.classList.remove('visible');
+  }
+});
 
 // Logout
 function logout() {
@@ -495,15 +622,6 @@ function logout() {
 }
 window.logout = logout;
 
-// Inicialização após Auth
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    loggedUser = user.uid;
-    carregarConversas();
-  } else {
-    window.location.href = "login.html";
-  }
-});
 
 // Eventos
 sendBtn?.addEventListener("click", () => enviarMensagem(msgInput.value.trim()));
@@ -650,10 +768,27 @@ msgInput?.addEventListener("keypress", async (e) => {
     audioSend.play();
   }
 });
+
+async function atualizarMarqueeUltimoUsuario() {
+  const lastUpdateRef = doc(db, "lastupdate", "latestUser");
+  const docSnap = await getDoc(lastUpdateRef);
+  const marquee = document.querySelector(".marquee");
+  if (!marquee) return;
+  if (docSnap.exists()) {
+    const data = docSnap.data();
+    const nomeUsuario = data.username || "Usuário";
+    marquee.textContent = `${nomeUsuario} acabou de entrar no RealMe!`;
+  } else {
+    marquee.textContent = "Bem-vindo ao RealMe!";
+  }
+}
+
+document.addEventListener('DOMContentLoaded', atualizarMarqueeUltimoUsuario);
 </script>
 
 <script src="./src/js/loading.js"></script>
-<script src="./src/js/search.js"></script>
+<script type="module" src="./src/js/search.js"></script>
 <script type="module" src="./src/js/navbar.js" defer></script>
+<script type="module" src="./src/js/more.js" defer></script>
 </body>
 </html>

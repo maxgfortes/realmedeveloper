@@ -164,19 +164,20 @@ const db = getFirestore();
 
 onAuthStateChanged(auth, async (user) => {
   if (user) {
-    // Busca o username do usuário logado
+    // Busca o displayname do usuário logado
     const userRef = doc(db, "users", user.uid);
     const userSnap = await getDoc(userRef);
-    let username = user.email;
+    let displayname = user.email;
     if (userSnap.exists()) {
       const data = userSnap.data();
-      username = data.username || username;
+      displayname = data.displayname || displayname;
     }
     // Atualiza o texto do span
     const span = document.querySelector('.notifications-header span');
-    if (span) span.textContent = username;
+    if (span) span.textContent = displayname;
   }
 });
   </script>
+  <script type="module" src="./src/js/navbar.js"></script>
 </body>
 </html>

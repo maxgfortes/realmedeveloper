@@ -40,6 +40,7 @@ let currentUser = null;
 let currentUserId = null;
 let currentUserData = null;
 
+
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     window.location.href = 'index.html';
@@ -161,30 +162,47 @@ async function contarSeguindo(userid) {
   return snap.size;
 }
 
+async function contarAmigos(userid) {
+  const col = collection(db, 'users', userid, 'friends');
+  const snap = await getDocs(col);
+  return snap.size;
+}
+
 async function atualizarEstatisticasPerfil(userid) {
   const postsRef = collection(db, 'users', userid, 'posts');
   const postsSnap = await getDocs(postsRef);
   const numPosts = postsSnap.size;
   const numSeguidores = await contarSeguidores(userid);
   const numSeguindo = await contarSeguindo(userid);
+  const numAmigos = await contarAmigos(userid);
   const statsElement = document.querySelector('.profile-stats');
   if (statsElement) {
     statsElement.innerHTML = `
       <div class="stats">
-          <span><strong>${numPosts}</strong> posts</span>
-        </div>
-        <div class="stats">
-          <span><strong>${numSeguidores}</strong> seguidores</span>
-        </div>
-        <div class="stats">
-          <span><strong>0</strong> amigos</span>
-        </div>
-        <div class="stats">
-          <span><strong>${numSeguindo}</strong> seguindo</span>
-        </div>
+        <span><strong>${numPosts}</strong> posts</span>
+      </div>
+      <div class="stats">
+        <span>
+          <strong>${numSeguidores}</strong>
+          <a href="list.html?userid=${userid}&tab=seguidores" class="stats-link">seguidores</a>
+        </span>
+      </div>
+      <div class="stats">
+        <span>
+          <strong>${numAmigos}</strong>
+          <a href="list.html?userid=${userid}&tab=amigos" class="stats-link">amigos</a>
+        </span>
+      </div>
+      <div class="stats">
+        <span>
+          <strong>${numSeguindo}</strong>
+          <a href="list.html?userid=${userid}&tab=seguindo" class="stats-link">seguindo</a>
+        </span>
+      </div>
     `;
   }
 }
+
 
 async function configurarBotaoSeguir(targetUserId) {
   const followBtn = document.querySelector('.btn-follow');
@@ -285,32 +303,36 @@ function criarElementoDepoimento(depoData, autorData, depoId, targetUserId) {
   const depoElement = document.createElement('div');
   depoElement.className = 'depoimento-card';
   depoElement.setAttribute('data-depo-id', depoId);
-  const autorFoto = autorData.userphoto || './src/icon/default.jpg';
-  const autorNome = autorData.displayname || autorData.username || 'Usuário';
-  const dataFormatada = formatarDataPost(depoData.criadoem);
-  const conteudo = depoData.conteudo || 'Depoimento sem conteúdo';
-  const isOwner = currentUserId === targetUserId;
-  const isAuthor = currentUserId === depoData.creatorid;
-  const podeExcluir = isOwner || isAuthor;
-  depoElement.innerHTML = `
-    <div class="depoimento-header">
-      <div class="autor-info">
-        <img src="${autorFoto}" alt="Foto do autor" class="autor-pic"
-          onerror="this.src='./src/icon/default.jpg'"
-          onclick="window.location.href='PF.html?userid=${depoData.creatorid}'">
-        <div class="autor-details">
-          <span class="autor-nome" onclick="window.location.href='PF.html?userid=${depoData.creatorid}'">${autorNome}</span>
-          <span class="depo-time">${dataFormatada}</span>
+  let autorFotoPromise = getUserPhoto(depoData.creatorid);
+  autorFotoPromise.then(autorFoto => {
+    const autorNome = autorData.displayname || autorData.username || 'Usuário';
+    const dataFormatada = formatarDataPost(depoData.criadoem);
+    const conteudo = depoData.conteudo || 'Depoimento sem conteúdo';
+    const isOwner = currentUserId === targetUserId;
+    const isAuthor = currentUserId === depoData.creatorid;
+    const podeExcluir = isOwner || isAuthor;
+    depoElement.innerHTML = `
+      <div class="depoimento-header">
+        <div class="autor-info">
+          <img src="${autorFoto}" alt="Foto do autor" class="autor-pic"
+            onerror="this.src='./src/icon/default.jpg'"
+            onclick="window.location.href='PF.html?userid=${depoData.creatorid}'">
+          <div class="autor-details">
+            <span class="autor-nome" onclick="window.location.href='PF.html?userid=${depoData.creatorid}'">${autorNome}</span>
+            <span class="depo-time">${dataFormatada}</span>
+          </div>
         </div>
+        ${podeExcluir ? `<button class="delete-depo-btn" onclick="excluirDepoimento('${depoId}', '${targetUserId}')">
+          <i class="fas fa-trash"></i>
+        </button>` : ''}
       </div>
-      ${podeExcluir ? `<button class="delete-depo-btn" onclick="excluirDepoimento('${depoId}', '${targetUserId}')">
-        <i class="fas fa-trash"></i>
-      </button>` : ''}
-    </div>
-    <div class="depoimento-content"><p>${conteudo}</p></div>
-  `;
+      <div class="depoimento-content"><p>${conteudo}</p></div>
+    `;
+  });
+
   return depoElement;
 }
+
 
 async function enviarDepoimento(targetUserId) {
   const textarea = document.getElementById('depoimentoTexto');
@@ -344,7 +366,7 @@ async function enviarDepoimento(targetUserId) {
     successMsg.textContent = 'Depoimento enviado com sucesso!';
     successMsg.style.cssText = `
       position: fixed; top: 20px; right: 20px; background: #28a745; color: white;
-      padding: 12px 20px; border-radius: 8px; z-index: 9999; animation: slideIn 0.3s ease-out;
+      padding: 12px 20px; border-radius: 8px; z-index: 999999999; animation: slideIn 0.3s ease-out;
     `;
     document.body.appendChild(successMsg);
     setTimeout(() => { successMsg.remove(); }, 3000);
@@ -417,6 +439,11 @@ async function carregarComentariosDoPost(userid, postId, container) {
     container.innerHTML = '<div class="no-comments">Nenhum comentário ainda.</div>';
     return;
   }
+
+  // Cria a nova div .comentarios
+  const comentariosDiv = document.createElement('div');
+  comentariosDiv.className = 'comentarios';
+
   for (const comentDoc of comentariosSnap.docs) {
     const comentData = comentDoc.data();
     const userData = await getUserData(comentData.senderid);
@@ -432,15 +459,17 @@ async function carregarComentariosDoPost(userid, postId, container) {
         <div class="comentario-meta">
           <strong>${nome}</strong>
           <small>${username}</small>
-          <small>${data}</small>
+          <small>Há ${data}</small>
         </div>
       </div>
       <div class="comentario-conteudo">${formatarConteudoPost(comentData.content)}</div>
     `;
-    container.appendChild(comentEl);
+    comentariosDiv.appendChild(comentEl);
   }
-}
 
+  // Adiciona a nova div .comentarios dentro do container
+  container.appendChild(comentariosDiv);
+}
 // Comentar post
 async function comentarPost(userid, postId, conteudo, comentariosContainer) {
   if (!conteudo) return;
@@ -1099,11 +1128,6 @@ async function atualizarImagensPerfil(userData, userid) {
     pic.onerror = () => { pic.src = './src/icon/default.jpg'; };
   });
 
-  const navPic = document.querySelectorAll('.profile-mini');
-  navPic.forEach(pic => {
-    pic.src = mediaData.userphoto || './src/icon/default.jpg';
-    pic.onerror = () => { pic.src = './src/icon/default.jpg'; };
-  });
 
   const bgUrl = mediaData.background;
   if (bgUrl) {
