@@ -6,7 +6,7 @@
   width: 320px;
   background: rgba(20, 20, 20, 0.61);
   backdrop-filter: blur(8px);
-  border: 1px solid #2a2a2a;
+  border: 1px solid #2a2a2a !important;
   border-radius: 12px;
   z-index: 9999;
   list-style: none;
@@ -23,7 +23,7 @@
 
 #searchResults li {
   padding: 12px 16px;
-  border: 1px solid #2a2a2a;
+  border-bottom: 1px solid #2a2a2a !important;
   cursor: pointer;
   transition: background 0.2s ease;
 }
@@ -32,4 +32,26 @@
   background: rgba(20, 20, 20, 0.747);
   color: #007bff;
   backdrop-filter: blur(22px);
+}
+
+#searchResults li:last-child {
+  border-bottom: none !important;
+}
+
+
+#searchResults::-webkit-scrollbar {
+  width: 8px;
+}
+#searchResults::-webkit-scrollbar-track {
+  background: transparent;
+}
+#searchResults::-webkit-scrollbar-thumb {
+  background: #4a90e299;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+#searchResults::-webkit-scrollbar-thumb:hover {
+  background: rgba(74, 144, 226, 0.9);
+  background-clip: content-box;
 }

@@ -11,3 +11,5 @@ async function atualizarMarqueeUltimoUsuario() {
     marquee.textContent = "Bem-vindo ao RealMe!";
   }
 }
+
+document.addEventListener('DOMContentLoaded', atualizarMarqueeUltimoUsuario);

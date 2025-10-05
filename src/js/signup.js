@@ -264,6 +264,7 @@ async function criarContaSegura(event) {
     };
 
     await setDoc(doc(db, "users", user.uid), userData);
+    await setDoc(doc(db, "lastupdate/latestuser"), { username: username }, { merge: true });
 
     // Salva em /newusers/{userid} para o feed de novos usuários
     await setDoc(doc(db, "newusers", user.uid), {
@@ -300,12 +301,10 @@ async function criarContaSegura(event) {
     // Download simples
     downloadAccountInfoSimple({ usuario: username, email, senha });
 
-    showSuccess("Conta criada com sucesso! Redirecionando para sua conta...");
-    document.querySelector('.form-section form').reset();
-
     setTimeout(() => {
       window.location.href = 'PF.html';
     }, 2000);
+
 
   } catch (error) {
     showLoading(false);

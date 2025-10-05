@@ -327,65 +327,6 @@ class LiveStatusManager {
 }
 
 // ===================
-// FUNCIONALIDADE DE BUSCA (mantida igual)
-// ===================
-const searchInput = document.getElementById('searchInput');
-const resultsList = document.getElementById('searchResults');
-const searchButton = document.querySelector('.search-box button');
-
-if (searchInput && resultsList && searchButton) {
-  async function performSearch() {
-    const term = searchInput.value.trim().toLowerCase();
-    resultsList.innerHTML = '';
-    resultsList.classList.remove('visible');
-
-    if (!term) return;
-
-    const usersRef = collection(db, 'users');
-    const q = query(usersRef, orderBy('username'), startAt(term), endAt(term + '\uf8ff'));
-
-    try {
-      const snapshot = await getDocs(q);
-
-      if (snapshot.empty) {
-        resultsList.innerHTML = '<li>Nenhum usuário encontrado</li>';
-        resultsList.classList.add('visible');
-        return;
-      }
-
-      snapshot.forEach(docSnap => {
-        const user = docSnap.data();
-        const li = document.createElement('li');
-        li.textContent = user.username;
-        li.addEventListener('click', () => {
-          window.location.href = `PF.html?username=${user.username}`;
-        });
-        resultsList.appendChild(li);
-      });
-
-      resultsList.classList.add('visible');
-    } catch (err) {
-      console.error('Erro na busca:', err);
-      resultsList.innerHTML = '<li>Erro na busca</li>';
-      resultsList.classList.add('visible');
-    }
-  }
-
-  searchButton.addEventListener('click', (e) => {
-    e.preventDefault();
-    performSearch();
-  });
-
-  searchInput.addEventListener('input', performSearch);
-
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.search-area')) {
-      resultsList.classList.remove('visible');
-    }
-  });
-}
-
-// ===================
 // SISTEMA DE POSTS CORRIGIDO E MELHORADO
 // ===================
 

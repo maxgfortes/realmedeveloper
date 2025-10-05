@@ -21,9 +21,14 @@ if (!getApps().length) {
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-function copiarConvite(codigo) {
+function copiarConvite(btn, codigo) {
   navigator.clipboard.writeText(codigo);
-  alert("Convite copiado: " + codigo);
+  btn.classList.add('copied');
+  btn.disabled = true;
+  setTimeout(() => {
+    btn.classList.remove('copied');
+    btn.disabled = false;
+  }, 6000);
 }
 
 async function getUserInfo(userid) {
@@ -43,11 +48,27 @@ async function getUserInfo(userid) {
   }
 }
 
+async function atualizarMarqueeUltimoUsuario() {
+  const lastUpdateRef = doc(db, "lastupdate", "latestUser");
+  const docSnap = await getDoc(lastUpdateRef);
+  const marquee = document.querySelector(".marquee");
+  if (!marquee) return;
+  if (docSnap.exists()) {
+    const data = docSnap.data();
+    const nomeUsuario = data.username || "Usuário";
+    marquee.textContent = `${nomeUsuario} acabou de entrar no RealMe!`;
+  } else {
+    marquee.textContent = "Bem-vindo ao RealMe!";
+  }
+}
+
+document.addEventListener('DOMContentLoaded', atualizarMarqueeUltimoUsuario);
+
 async function mostrarConvites(userid) {
   const container = document.querySelector('.invites-container');
   const infoSpan = document.querySelector('.info-container h2 span');
   if (!container) return;
-  container.innerHTML = 'Carregando...';
+  container.innerHTML = `<div class="progress-bar" id="progressBar"></div>`;
   const q = query(collection(db, "invites"), where("criadoPor", "==", userid));
   const snap = await getDocs(q);
   if (snap.empty) {
@@ -75,7 +96,7 @@ async function mostrarConvites(userid) {
         <div class="invite-code">
         <h3>${codigo}</h3>
         <div class="invite-code-row">
-          ${!usado ? `<button class="invite-copy-btn" onclick="copiarConvite('${codigo}')"><i class="fas fa-copy"></i></button>` : ''}
+          ${!usado ? `<button class="invite-copy-btn" onclick="copiarConvite(this, '${codigo}')"><i class="fas fa-copy"></i></button>` : ''}
         </div>
         </div>
         <div class="usedby">

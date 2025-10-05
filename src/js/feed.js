@@ -8,7 +8,8 @@ import {
   updateDoc,
   setDoc,
   increment,
-  serverTimestamp
+  serverTimestamp,
+  where
   
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
@@ -60,6 +61,8 @@ const DOMINIOS_MALICIOSOS = [
   'bit.ly', 'tinyurl.com', 'goo.gl', 'ow.ly', 't.co',
   'phishing-example.com', 'malware-site.net', 'scam-website.org'
 ];
+
+
 
 // ===================
 // SISTEMA DE POP-UPS
@@ -136,6 +139,181 @@ function mostrarPopupConfirmacao(titulo, mensagem, callback) {
   });
   return popup;
 }
+
+
+function criarModalDenuncia({targetType, targetId, targetPath, targetOwnerId, targetOwnerUsername}) {
+  const modalExistente = document.querySelector('.modal-denuncia');
+  if (modalExistente) modalExistente.remove();
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-denuncia';
+  modal.innerHTML = `
+    <div class="modal-content">
+      <h2>Denunciar conteúdo</h2>
+      <form id="formDenuncia">
+        <label>Categoria:</label>
+        <select name="category" required>
+          <option value="inappropriate_content">Conteúdo impróprio</option>
+        </select>
+        <label>Subcategoria:</label>
+        <select name="subcategory" required>
+          <option value="nudity">Nudez</option>
+          <option value="violence">Violência</option>
+          <option value="hate_speech">Discurso de ódio</option>
+          <option value="spam">Spam</option>
+          <option value="other">Outro</option>
+        </select>
+        <label>Motivo (opcional):</label>
+        <input type="text" name="reason" maxlength="120" placeholder="Descreva o motivo (opcional)">
+        <label>Descrição detalhada (opcional):</label>
+        <textarea name="description" rows="3" maxlength="500" placeholder="Descreva o problema (opcional)"></textarea>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel">Cancelar</button>
+          <button type="submit" class="btn-submit">Enviar denúncia</button>
+        </div>
+      </form>
+    </div>
+    <div class="modal-overlay"></div>
+  `;
+  document.body.appendChild(modal);
+
+  modal.querySelector('.btn-cancel').onclick = () => modal.remove();
+  modal.querySelector('.modal-overlay').onclick = () => modal.remove();
+
+  modal.querySelector('#formDenuncia').onsubmit = async (e) => {
+    e.preventDefault();
+    const usuarioLogado = auth.currentUser;
+    if (!usuarioLogado) {
+      criarPopup('Erro', 'Você precisa estar logado para denunciar.', 'warning');
+      modal.remove();
+      return;
+    }
+    const form = e.target;
+    const category = form.category.value;
+    const subcategory = form.subcategory.value;
+    const reason = form.reason.value.trim();
+    const description = form.description.value.trim();
+
+    // Só permite uma denúncia por usuário por post
+    const reportsRef = collection(db, 'reports');
+    const q = query(
+      reportsRef,
+      where('targetType', '==', targetType),
+      where('targetId', '==', targetId),
+      where('reporterId', '==', usuarioLogado.uid)
+    );
+    const existing = await getDocs(q);
+    if (!existing.empty) {
+      criarPopup('Atenção', 'Você já denunciou este conteúdo.', 'warning');
+      modal.remove();
+      return;
+    }
+
+    // Dados do denunciante
+    let reporterUsername = "cache";
+    let reporterEmail = "cache";
+    try {
+      const userData = await buscarDadosUsuarioPorUid(usuarioLogado.uid);
+      reporterUsername = userData?.username || usuarioLogado.displayName || usuarioLogado.email || "cache";
+      reporterEmail = usuarioLogado.email || "cache";
+    } catch {}
+
+    // Monta o objeto de denúncia
+    const reportId = gerarIdUnico('rep');
+    const reportData = {
+      reportId,
+      createdAt: serverTimestamp(),
+      targetType,
+      targetId,
+      targetPath,
+      targetOwnerId,
+      targetOwnerUsername,
+      reporterId: usuarioLogado.uid,
+      reporterUsername,
+      reporterEmail,
+      isAnonymous: false,
+      category,
+      subcategory,
+      reason,
+      description,
+      evidence: [],
+      status: "open",
+      priority: "medium",
+      severity: 2
+    };
+
+    try {
+      const reportRef = doc(db, 'reports', reportId);
+      await setDoc(reportRef, reportData);
+
+      // Checa se já existem 8 denúncias para este post
+      const q2 = query(
+  reportsRef,
+  where('targetType', '==', targetType),
+  where('targetId', '==', targetId)
+);
+const snap = await getDocs(q2);
+// Use o ID do documento do post, não o campo postid
+const postRef = doc(db, 'posts', targetId);
+if ((await getDoc(postRef)).exists() && snap.size >= 8) {
+  await updateDoc(postRef, { visible: false });
+}
+
+      modal.querySelector('.modal-content').innerHTML = `
+        <h2>Denúncia enviada</h2>
+        <p>Sua denúncia foi registrada e será analisada pela equipe.</p>
+        <div style="text-align:center;margin-top:20px;">
+          <button class="btn-ok" style="padding:8px 24px;border-radius:6px;background:#4A90E2;color:#fff;border:none;font-size:1em;cursor:pointer;">OK</button>
+        </div>
+      `;
+      modal.querySelector('.btn-ok').onclick = () => modal.remove();
+    } catch (error) {
+      criarPopup('Erro', 'Não foi possível enviar a denúncia.', 'error');
+      modal.remove();
+    }
+  };
+}
+
+// CSS do modal de denúncia
+(function adicionarEstiloModalDenuncia() {
+  if (document.getElementById('modal-denuncia-css')) return;
+  const style = document.createElement('style');
+  style.id = 'modal-denuncia-css';
+  style.textContent = `
+    .modal-denuncia {
+      position: fixed; z-index: 100000000001; top: 0; left: 0; width: 100vw; height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .modal-denuncia .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.5);
+    }
+    .modal-denuncia .modal-content {
+      background: #232323; color: #fff; border-radius: 12px; padding: 28px 24px 18px 24px;
+      min-width: 320px; max-width: 95vw; box-shadow: 0 8px 32px #000a;
+      position: relative; z-index: 2;
+    }
+    .modal-denuncia h2 { margin-top: 0; font-size: 1.3em; }
+    .modal-denuncia label { display: block; margin: 12px 0 4px 0; font-size: 0.98em; }
+    .modal-denuncia select, .modal-denuncia input[type="text"], .modal-denuncia textarea {
+      width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid #444; background: #181818; color: #fff;
+      margin-bottom: 6px; font-size: 1em;
+    }
+    .modal-denuncia textarea { resize: none;
+      height: 100px;
+    .modal-denuncia .modal-actions {
+      display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px;
+    }
+    .modal-denuncia .btn-cancel, .modal-denuncia .btn-submit {
+      padding: 7px 18px; border-radius: 6px; border: none; font-size: 1em; cursor: pointer;
+    }
+    .modal-denuncia .btn-cancel { background: #444; color: #fff; }
+    .modal-denuncia .btn-submit { background: #e74c3c; color: #fff; }
+    .modal-denuncia .btn-submit:hover { background: #c0392b; }
+  `;
+  document.head.appendChild(style);
+})();
+
 
 // ===================
 // ANIMAÃ‡ÃƒO DO AVIÃƒO DE PAPEL
@@ -665,11 +843,24 @@ async function loadPosts() {
       return dataB - dataA;
     });
 
-    // Renderiza os posts rapidamente, sem aguardar dados do usuário
     for (const postData of postsParaAdicionar) {
+      // OCULTA DO FEED NORMAL SE visible: false
+      if (postData.visible === false) {
+        const avisoEl = document.createElement('div');
+        avisoEl.className = 'post-card post-oculto-aviso';
+        avisoEl.innerHTML = `
+          <div class="post-oculto-msg">
+            <p>Este conteúdo foi denunciado por muitos usuários.<br>Você ainda quer ver?</p>
+            <button class="btn-ver-post" data-id="${postData.postid}">Ver assim mesmo</button>
+          </div>
+        `;
+        feed.appendChild(avisoEl);
+        continue;
+      }
+
+      // Renderiza o post normalmente
       const postEl = document.createElement('div');
       postEl.className = 'post-card';
-      // Renderiza com dados mínimos, depois atualiza nome/foto
       postEl.innerHTML = `
         <div class="post-header">
           <div class="user-info">
@@ -1077,8 +1268,86 @@ function configurarEventListeners() {
         curtirPost(uid, postId, btnLike);
       }
       if (btnReport) {
-        criarPopup('Em Desenvolvimento', 'Funcionalidade de denúncia será implementada em breve', 'info');
+  const postId = btnReport.dataset.id;
+  const uid = btnReport.dataset.username;
+  let targetOwnerUsername = "cache";
+  try {
+    const userData = await buscarDadosUsuarioPorUid(uid);
+    targetOwnerUsername = userData?.username || userData?.displayname || "cache";
+  } catch {}
+  criarModalDenuncia({
+    targetType: "post",
+    targetId: postId,
+    targetPath: `posts/${postId}`,
+    targetOwnerId: uid,
+    targetOwnerUsername
+  });
+}
+
+const btnVer = e.target.closest('.btn-ver-post');
+  if (btnVer) {
+    const postId = btnVer.dataset.id;
+    const postRef = doc(db, 'posts', postId);
+    const postSnap = await getDoc(postRef);
+    if (postSnap.exists()) {
+      const postData = postSnap.data();
+      const avisoEl = btnVer.closest('.post-card');
+if (avisoEl) {
+  avisoEl.innerHTML = `
+    <div class="post-header">
+      <div class="user-info">
+        <img src="./src/icon/default.jpg" alt="Avatar do usuário" class="avatar"
+             onerror="this.src='./src/icon/default.jpg'" />
+        <div class="user-meta">
+          <strong class="user-name-link" data-username="${postData.creatorid}">Carregando...</strong>
+          <small class="post-username"></small>
+        </div>
+      </div>
+    </div>
+    <div class="post-text">${formatarHashtags(postData.content || 'Conteúdo não disponível')}</div>
+    ${postData.img ? `<div class="post-image"><img src="${postData.img}" alt="Imagem do post" loading="lazy" onerror="this.parentElement.style.display='none'" /></div>` : ''}
+    <div class="post-actions">
+      <button class="btn-like" data-username="${postData.creatorid}" data-id="${postData.postid}">
+        <i class="fas fa-heart"></i> <span>${postData.likes || 0}</span>
+      </button>
+      <button class="btn-comment" data-username="${postData.creatorid}" data-id="${postData.postid}">
+        <i class="fas fa-comment"></i> Comentar
+      </button>
+      <button class="btn-report" data-username="${postData.creatorid}" data-id="${postData.postid}">
+        <i class="fas fa-flag"></i> Denunciar
+      </button>
+    </div>
+    <div class="post-date">${formatarDataRelativa(postData.create)}</div>
+    <div class="comments-section" style="display: none;">
+      <div class="comment-form">
+        <input type="text" class="comment-input" placeholder="Escreva um comentário..."
+               data-username="${postData.creatorid}" data-post-id="${postData.postid}">
+        <button class="comment-submit" data-username="${postData.creatorid}" data-post-id="${postData.postid}">
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </div>
+      <div class="comments-area">
+        <div class="comments-list"></div>
+      </div>
+    </div>
+  `;
+  avisoEl.classList.remove('post-oculto-aviso'); // <-- Adicione esta linha
+  // Atualiza nome e foto do usuário...
+
+        // Atualiza nome e foto do usuário
+        buscarDadosUsuarioPorUid(postData.creatorid).then(userData => {
+          if (userData) {
+            const avatar = avisoEl.querySelector('.avatar');
+            const nome = avisoEl.querySelector('.user-name-link');
+            const username = avisoEl.querySelector('.post-username');
+            if (avatar) avatar.src = userData.userphoto || './src/icon/default.jpg';
+            if (nome) nome.textContent = userData.displayname || userData.username || postData.creatorid;
+            if (username) username.textContent = userData.username ? `@${userData.username}` : '';
+          }
+        });
       }
+    }
+  }
       if (btnComment) {
         const commentsSection = btnComment.closest('.post-card').querySelector('.comments-section');
         if (commentsSection.style.display === 'none') {
