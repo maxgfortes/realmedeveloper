@@ -234,57 +234,7 @@
       pullDistance = 0;
     });
 
-    // Mouse events para desktop (teste)
-    let isMouseDown = false;
 
-    container.addEventListener('mousedown', (e) => {
-      if (container.scrollTop === 0) {
-        startY = e.clientY;
-        isMouseDown = true;
-        isPulling = true;
-      }
-    });
-
-    container.addEventListener('mousemove', (e) => {
-      if (!isMouseDown || !isPulling) return;
-      
-      // Se começou a rolar para baixo, cancela o pull
-      if (container.scrollTop > 0) {
-        isMouseDown = false;
-        isPulling = false;
-        resetPull();
-        return;
-      }
-
-      currentY = e.clientY;
-      pullDistance = Math.min(currentY - startY, maxPull);
-
-      if (pullDistance > 10) {
-        content.style.transform = `translateY(${pullDistance}px)`;
-        hiddenContent.style.transform = `translateY(${pullDistance}px)`;
-        pullIndicator.classList.add('active');
-        
-        if (pullDistance >= threshold) {
-          arrow.classList.add('ready');
-        } else {
-          arrow.classList.remove('ready');
-        }
-      }
-    });
-
-    container.addEventListener('mouseup', () => {
-      if (isMouseDown) {
-        if (pullDistance >= threshold) {
-          revealHiddenContent();
-        } else {
-          resetPull();
-        }
-        
-        isMouseDown = false;
-        isPulling = false;
-        pullDistance = 0;
-      }
-    });
 
     function revealHiddenContent() {
       // Mostra o conteúdo oculto completamente
