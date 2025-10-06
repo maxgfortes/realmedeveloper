@@ -1219,22 +1219,22 @@ function criarInputImagem() {
   const fileBtn = document.querySelector('.file-button');
   if (!postArea || !fileBtn) return;
 
-  fileBtn.addEventListener('click', () => {
-    // Procura o input fora da post-area
-    let imageInputContainer = postArea.nextElementSibling;
-    if (!imageInputContainer || !imageInputContainer.classList.contains('image-input-container')) {
-      imageInputContainer = document.createElement('div');
-      imageInputContainer.className = 'image-input-container';
-      imageInputContainer.innerHTML = `
-        <input type="url" class="image-url-input" placeholder="Cole a URL da imagem aqui (opcional)">
-      `;
-      // Insere a div depois da post-area (fora dela)
-      postArea.parentNode.insertBefore(imageInputContainer, postArea.nextSibling);
-    } else {
-      // Alterna visibilidade
-      imageInputContainer.style.display = imageInputContainer.style.display === 'none' ? '' : 'none';
-    }
-  });
+fileBtn.addEventListener('click', () => {
+  let imageInputContainer = postArea.nextElementSibling;
+  if (!imageInputContainer || !imageInputContainer.classList.contains('image-input-container')) {
+    imageInputContainer = document.createElement('div');
+    imageInputContainer.className = 'image-input-container';
+    imageInputContainer.innerHTML = `
+      <input type="url" class="image-url-input" placeholder="Cole a URL da imagem aqui (opcional)">
+    `;
+    postArea.parentNode.insertBefore(imageInputContainer, postArea.nextSibling);
+    // Adiciona a classe para animar ao abrir
+    setTimeout(() => imageInputContainer.classList.add('aberta'), 10);
+  } else {
+    // Alterna a classe para animar abrir/fechar
+    imageInputContainer.classList.toggle('aberta');
+  }
+});
 }
 
 // ===================
@@ -1450,6 +1450,8 @@ function atualizarDatasAutomaticamente() {
     });
   }, 60000);
 }
+
+
 
 // ===================
 // ADICIONAR ESTILOS CSS NECESSÁRIOS
@@ -1713,4 +1715,59 @@ document.addEventListener('click', (e) => {
       window.location.href = `PF.html?userid=${encodeURIComponent(uid)}`;
     }
   }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  const searchBtn = document.querySelector('.search-mobile-btn');
+  const searchContainer = document.getElementById('mobile-search-container');
+  let searchInput = null;
+
+  function showSearchInput() {
+    if (!searchInput) {
+      searchInput = document.createElement('input');
+      searchInput.type = 'text';
+      searchInput.placeholder = 'Buscar...';
+      searchInput.className = 'search-box-mobile';
+      searchInput.autocomplete = 'off';
+      searchContainer.appendChild(searchInput);
+    }
+    searchContainer.classList.add('active');
+    searchInput.focus();
+  }
+
+  function hideSearchInput() {
+    searchContainer.classList.remove('active');
+    if (searchInput) searchInput.blur();
+  }
+
+  // Alterna ao clicar no botão
+  searchBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (searchContainer.classList.contains('active')) {
+      hideSearchInput();
+    } else {
+      showSearchInput();
+    }
+  });
+
+  // Esconde ao rolar a página
+  let lastScroll = window.scrollY;
+  window.addEventListener('scroll', function() {
+    if (searchContainer.classList.contains('active') && Math.abs(window.scrollY - lastScroll) > 40) {
+      hideSearchInput();
+    }
+    lastScroll = window.scrollY;
+  });
+
+  // Esconde ao clicar fora do input e do botão
+  document.addEventListener('click', function(e) {
+    if (
+      searchContainer.classList.contains('active') &&
+      !searchContainer.contains(e.target) &&
+      !searchBtn.contains(e.target)
+    ) {
+      hideSearchInput();
+    }
+  });
+  
 });

@@ -299,555 +299,8 @@
     </div>
 
 <script src="./src/js/postmodal.js"></script>
-<script src="/js/mobile-lock.js"></script>
-<script type="module" src="./src/js/main-main.js"></script>
-<script type="module">
-// Imports do Firebase (apenas uma vez)
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import {
-  getFirestore,
-  collection,
-  query,
-  orderBy,
-  startAt,
-  endAt,
-  getDocs,
-  doc,
-  getDoc,
-  setDoc
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { 
-  getStorage, 
-  ref, 
-  uploadBytes, 
-  getDownloadURL 
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
-
-// Configuração do Firebase (apenas uma vez)
-const firebaseConfig = {
-  apiKey: "AIzaSyB2N41DiH0-Wjdos19dizlWSKOlkpPuOWs",
-  authDomain: "ifriendmatch.firebaseapp.com",
-  projectId: "ifriendmatch",
-  storageBucket: "ifriendmatch.appspot.com",
-  messagingSenderId: "306331636603",
-  appId: "1:306331636603:web:c0ae0bd22501803995e3de",
-  measurementId: "G-D96BEW6RC3"
-};
-
-// Inicializar Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const storage = getStorage(app);
-
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('DOM carregado, inicializando aplicação');
-
-  // Verificar se usuário está logado
-  const usuarioLogadoJSON = localStorage.getItem('usuarioLogado');
-  if (!usuarioLogadoJSON) {
-    alert('Você precisa estar logado para acessar esta página.');
-    window.location.href = 'login.html';
-    return;
-  }
-
-  const usuarioLogado = JSON.parse(usuarioLogadoJSON);
-  const username = usuarioLogado.username;
-
-  // Atualizar informações do usuário na página
-  const nomeCompleto = document.getElementById("nomeCompleto");
-  if (nomeCompleto) {
-    nomeCompleto.textContent = `${usuarioLogado.nome || ''} ${usuarioLogado.sobrenome || ''}`;
-  }
-
-  const usernameElement = document.getElementById("username");
-  if (usernameElement) {
-    usernameElement.textContent = `@${usuarioLogado.username}`;
-  }
-
-  // Atualizar links de perfil
-  const urlPerfil = `PF.html?user=${encodeURIComponent(username)}`;
-  const linkSidebar = document.getElementById('linkPerfilSidebar');
-  const linkMobile = document.getElementById('linkPerfilMobile');
-  if(linkSidebar) linkSidebar.href = urlPerfil;
-  if(linkMobile) linkMobile.href = urlPerfil;
-
-  // ===================
-  // FUNCIONALIDADE DAS ABAS
-  // ===================
-  document.querySelectorAll('.tab-button').forEach(button => {
-    button.addEventListener('click', () => {
-      // Remove active class from all tabs and contents
-      document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-      
-      // Add active class to clicked tab and corresponding content
-      button.classList.add('active');
-      const tabContent = document.getElementById(button.dataset.tab);
-      if (tabContent) {
-        tabContent.classList.add('active');
-      }
-    });
-  });
-
-  // ===================
-  // CONTADOR DE CARACTERES
-  // ===================
-  function atualizarContadores() {
-    document.querySelectorAll('textarea[maxlength], input[maxlength]').forEach(element => {
-      const counter = element.parentNode.querySelector('.char-counter');
-      if (counter) {
-        const maxLength = parseInt(element.getAttribute('maxlength'));
-        
-        const updateCounter = () => {
-          const currentLength = element.value.length;
-          counter.textContent = `${currentLength}/${maxLength}`;
-          
-          // Add warning classes
-          counter.classList.remove('warning', 'danger');
-          if (currentLength > maxLength * 0.9) {
-            counter.classList.add('danger');
-          } else if (currentLength > maxLength * 0.75) {
-            counter.classList.add('warning');
-          }
-        };
-        
-        element.addEventListener('input', updateCounter);
-        updateCounter(); // Initial count
-      }
-    });
-  }
-
-  // ===================
-  // FUNCIONALIDADE DE BUSCA
-  // ===================
-  const searchInput = document.getElementById("searchInput");
-  const resultsList = document.getElementById("searchResults");
-  const searchButton = document.querySelector(".search-box button");
-
-  if (searchInput && resultsList && searchButton) {
-    async function performSearch() {
-      const term = searchInput.value.trim().toLowerCase();
-      resultsList.innerHTML = "";
-      resultsList.classList.remove("visible");
-
-      if (!term) return;
-
-      const usersRef = collection(db, "users");
-      const q = query(usersRef, orderBy("username"), startAt(term), endAt(term + "\uf8ff"));
-
-      try {
-        const snapshot = await getDocs(q);
-        if (snapshot.empty) {
-          resultsList.innerHTML = "<li>Nenhum usuário encontrado</li>";
-          resultsList.classList.add("visible");
-          return;
-        }
-
-        snapshot.forEach((docSnap) => {
-          const user = docSnap.data();
-          const li = document.createElement("li");
-          li.textContent = user.username;
-          li.addEventListener("click", () => {
-            window.location.href = `PF.html?username=${user.username}`;
-          });
-          resultsList.appendChild(li);
-        });
-
-        resultsList.classList.add("visible");
-      } catch (err) {
-        console.error("Erro na busca:", err);
-        resultsList.innerHTML = "<li>Erro na busca</li>";
-        resultsList.classList.add("visible");
-      }
-    }
-
-    searchButton.addEventListener("click", (e) => {
-      e.preventDefault();
-      performSearch();
-    });
-
-    searchInput.addEventListener("input", performSearch);
-
-    document.addEventListener("click", (e) => {
-      if (!e.target.closest(".search-area")) {
-        resultsList.classList.remove("visible");
-      }
-    });
-  }
-
-  // ===================
-  // CARREGAR DADOS EXISTENTES
-  // ===================
-  async function carregarDadosUsuario() {
-    try {
-      const userRef = doc(db, "users", username);
-      const userSnap = await getDoc(userRef);
-      
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        preencherFormulario(userData);
-      }
-    } catch (error) {
-      console.error("Erro ao carregar dados do usuário:", error);
-    }
-  }
-
-  // Preencher formulário com dados existentes
-  function preencherFormulario(userData) {
-    // Informações básicas
-    const usernameInput = document.querySelector('input[name="username"]');
-    if (usernameInput && userData.username) usernameInput.value = userData.username;
-    
-    const displaynameInput = document.querySelector('input[name="displayname"]');
-    if (displaynameInput && userData.displayname) displaynameInput.value = userData.displayname;
-    
-    const pronoun1Input = document.querySelector('input[name="pronoun1"]');
-    if (pronoun1Input && userData.pronoun1) pronoun1Input.value = userData.pronoun1;
-    
-    const userphotoInput = document.querySelector('input[name="userphoto"]');
-    if (userphotoInput && userData.userphoto) userphotoInput.value = userData.userphoto;
-    
-    const backgroundphotoInput = document.querySelector('input[name="backgroundphoto"]');
-    if (backgroundphotoInput && userData.backgroundphoto) backgroundphotoInput.value = userData.backgroundphoto;
-    
-    const headerphotoInput = document.querySelector('input[name="headerphoto"]');
-    if (headerphotoInput && userData.headerphoto) headerphotoInput.value = userData.headerphoto;
-    
-    const pronoun2Input = document.querySelector('input[name="pronoun2"]');
-    if (pronoun2Input && userData.pronoun2) pronoun2Input.value = userData.pronoun2;
-    
-    const estadoCivilSelect = document.querySelector('select[name="estadoCivil"]');
-    if (estadoCivilSelect && userData.estadoCivil) estadoCivilSelect.value = userData.estadoCivil;
-    
-    const localizacaoInput = document.querySelector('input[name="localizacao"]');
-    if (localizacaoInput && userData.localizacao) localizacaoInput.value = userData.localizacao;
-
-    // Descrição
-    const tagsInput = document.querySelector('input[name="tags"]');
-    if (tagsInput && userData.tags) tagsInput.value = userData.tags;
-    
-    const visaoGeralTextarea = document.querySelector('textarea[name="visaoGeral"]');
-    if (visaoGeralTextarea && userData.visaoGeral) visaoGeralTextarea.value = userData.visaoGeral;
-    
-    const estiloTextarea = document.querySelector('textarea[name="estilo"]');
-    if (estiloTextarea && userData.estilo) estiloTextarea.value = userData.estilo;
-
-    // Personalidade
-    const sonhosTextarea = document.querySelector('textarea[name="sonhos"]');
-    if (sonhosTextarea && userData.sonhos) sonhosTextarea.value = userData.sonhos;
-    
-    const medosTextarea = document.querySelector('textarea[name="medos"]');
-    if (medosTextarea && userData.medos) medosTextarea.value = userData.medos;
-    
-    const personalidadeTextarea = document.querySelector('textarea[name="personalidade"]');
-    if (personalidadeTextarea && userData.personalidade) personalidadeTextarea.value = userData.personalidade;
-
-    // Preferências
-    const gostosTextarea = document.querySelector('textarea[name="gostos"]');
-    if (gostosTextarea && userData.gostos) gostosTextarea.value = userData.gostos;
-    
-    const musicasTextarea = document.querySelector('textarea[name="musicas"]');
-    if (musicasTextarea && userData.musicas) musicasTextarea.value = userData.musicas;
-    
-    const filmesSeriesTextarea = document.querySelector('textarea[name="filmesSeries"]');
-    if (filmesSeriesTextarea && userData.filmesSeries) filmesSeriesTextarea.value = userData.filmesSeries;
-    
-    const livrosTextarea = document.querySelector('textarea[name="livros"]');
-    if (livrosTextarea && userData.livros) livrosTextarea.value = userData.livros;
-    
-    const personagensTextarea = document.querySelector('textarea[name="personagens"]');
-    if (personagensTextarea && userData.personagens) personagensTextarea.value = userData.personagens;
-    
-    const comidasTextarea = document.querySelector('textarea[name="comidas"]');
-    if (comidasTextarea && userData.comidas) comidasTextarea.value = userData.comidas;
-    
-    const hobbiesTextarea = document.querySelector('textarea[name="hobbies"]');
-    if (hobbiesTextarea && userData.hobbies) hobbiesTextarea.value = userData.hobbies;
-    
-    const jogosTextarea = document.querySelector('textarea[name="jogos"]');
-    if (jogosTextarea && userData.jogos) jogosTextarea.value = userData.jogos;
-    
-    const outrosGostosTextarea = document.querySelector('textarea[name="outrosGostos"]');
-    if (outrosGostosTextarea && userData.outrosGostos) outrosGostosTextarea.value = userData.outrosGostos;
-
-    // Conta
-    const emailInput = document.querySelector('input[name="email"]');
-    if (emailInput && userData.email) emailInput.value = userData.email;
-    
-    const telefoneInput = document.querySelector('input[name="telefone"]');
-    if (telefoneInput && userData.telefone) telefoneInput.value = userData.telefone;
-
-    // Atualizar contadores após preencher
-    setTimeout(atualizarContadores, 100);
-  }
-
-  // ===================
-  // SALVAR CONFIGURAÇÕES
-  // ===================
-  const form = document.querySelector('form');
-  if (form) {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const submitBtn = document.querySelector('.submit-btn');
-      const originalText = submitBtn ? submitBtn.textContent : 'Salvar Configurações';
-      
-      if (submitBtn) {
-        submitBtn.textContent = 'Salvando...';
-        submitBtn.disabled = true;
-      }
-
-      try {
-        console.log('Iniciando salvamento das configurações...');
-
-        // Coletar dados do formulário
-        const formData = new FormData(form);
-        const dadosParaSalvar = {
-          username: username,
-          ultimaAtualizacao: new Date().toISOString()
-        };
-
-        // Converter FormData para objeto
-        for (const [chave, valor] of formData.entries()) {
-          if (valor && valor.trim() !== '') {
-            dadosParaSalvar[chave] = valor;
-          }
-        }
-
-        // Salvar no Firestore
-        const userRef = doc(db, 'users', username);
-        await setDoc(userRef, dadosParaSalvar, { merge: true });
-
-        // Atualizar localStorage com novos dados
-        const dadosAtualizados = { ...usuarioLogado, ...dadosParaSalvar };
-        localStorage.setItem('usuarioLogado', JSON.stringify(dadosAtualizados));
-
-        alert('Configurações salvas com sucesso!');
-        console.log('Dados salvos:', dadosParaSalvar);
-
-      } catch (error) {
-        console.error('Erro ao salvar configurações:', error);
-        alert('Erro ao salvar as configurações: ' + error.message);
-      } finally {
-        if (submitBtn) {
-          submitBtn.textContent = originalText;
-          submitBtn.disabled = false;
-        }
-      }
-    });
-  }
-
-  // Funcionalidade extra para menus (se existir)
-  const menuItems = document.querySelectorAll('.menu-item');
-  const tabs = document.querySelectorAll('.tab');
-
-  if (menuItems.length > 0 && tabs.length > 0) {
-    menuItems.forEach((item, index) => {
-      item.addEventListener('click', () => {
-        // Troca abas
-        tabs.forEach(tab => tab.classList.remove('active'));
-        if (tabs[index]) tabs[index].classList.add('active');
-
-        // Troca botão ativo
-        menuItems.forEach(btn => btn.classList.remove('active'));
-        item.classList.add('active');
-      });
-    });
-  }
-
-  // Inicializar funcionalidades
-  carregarDadosUsuario();
-  atualizarContadores();
-});
-</script>
-
 <script src="./src/js/more.js"></script>
-    <script>
-        // Função para alternar seções
-        function toggleSection(section) {
-            section.classList.toggle('active');
-            
-            // Adiciona efeito de ondulação
-            const ripple = document.createElement('div');
-            ripple.style.position = 'absolute';
-            ripple.style.borderRadius = '50%';
-            ripple.style.background = 'rgba(52, 152, 219, 0.3)';
-            ripple.style.transform = 'scale(0)';
-            ripple.style.animation = 'ripple 0.6s linear';
-            ripple.style.left = '50%';
-            ripple.style.top = '50%';
-            
-            section.appendChild(ripple);
-            
-            setTimeout(() => {
-                ripple.remove();
-            }, 600);
-        }
 
-        // Função para expandir todas as seções
-        function expandAll() {
-            const sections = document.querySelectorAll('.realme-section');
-            sections.forEach((section, index) => {
-                setTimeout(() => {
-                    section.classList.add('active');
-                }, index * 100);
-            });
-        }
-
-        // Função para recolher todas as seções
-        function collapseAll() {
-            const sections = document.querySelectorAll('.realme-section');
-            sections.forEach((section, index) => {
-                setTimeout(() => {
-                    section.classList.remove('active');
-                }, index * 100);
-            });
-        }
-
-        // Criar partículas flutuantes
-        function createParticles() {
-            const particlesContainer = document.getElementById('particles');
-            const particleCount = 50;
-            
-            for (let i = 0; i < particleCount; i++) {
-                const particle = document.createElement('div');
-                particle.className = 'particle';
-                particle.style.left = Math.random() * 100 + '%';
-                particle.style.top = Math.random() * 100 + '%';
-                particle.style.animationDelay = Math.random() * 6 + 's';
-                particle.style.animationDuration = (Math.random() * 4 + 4) + 's';
-                particlesContainer.appendChild(particle);
-            }
-        }
-
-        // Barra de progresso de scroll
-        function updateProgressBar() {
-            const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
-            const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-            const scrolled = (winScroll / height) * 100;
-            document.getElementById('progressBar').style.width = scrolled + '%';
-        }
-
-        // Adicionar CSS para animação de ondulação
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes ripple {
-                to {
-                    transform: scale(4);
-                    opacity: 0;
-                }
-            }
-        `;
-        document.head.appendChild(style);
-
-        // Inicializar quando a página carregar
-        document.addEventListener('DOMContentLoaded', function() {
-            createParticles();
-            
-            // Adicionar listener para barra de progresso
-            window.addEventListener('scroll', updateProgressBar);
-            
-            // Efeito de aparição suave dos elementos
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.style.opacity = '1';
-                        entry.target.style.transform = 'translateY(0)';
-                    }
-                });
-            });
-
-            document.querySelectorAll('.realme-section').forEach(section => {
-                observer.observe(section);
-            });
-        });
-
-        // Adicionar efeitos de teclado para acessibilidade
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' || e.key === ' ') {
-                const focusedElement = document.activeElement;
-                if (focusedElement.classList.contains('section-header') || focusedElement.closest('.realme-section')) {
-                    e.preventDefault();
-                    const section = focusedElement.closest('.realme-section') || focusedElement.parentElement;
-                    toggleSection(section);
-                }
-            }
-        });
-
-        // Tornar seções focusáveis para acessibilidade
-        document.querySelectorAll('.realme-section').forEach(section => {
-            section.setAttribute('tabindex', '0');
-            section.setAttribute('role', 'button');
-            section.setAttribute('aria-expanded', 'false');
-            
-            section.addEventListener('click', function() {
-                const isActive = this.classList.contains('active');
-                this.setAttribute('aria-expanded', isActive ? 'true' : 'false');
-            });
-        });
-    </script>
-    <script>
-(function () {
-  // largura útil do container (sem padding/borda)
-  function getAvailableWidth(el) {
-    const cs = getComputedStyle(el);
-    const paddingX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
-    const borderX  = parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
-    return el.getBoundingClientRect().width - paddingX - borderX;
-  }
-
-  function fitOne(el, min=12, max=22) {
-    const parent = el.parentElement;
-    if (!parent) return;
-
-    // preparar para medir
-    el.style.whiteSpace   = 'nowrap';
-    el.style.overflow     = 'visible';
-    el.style.textOverflow = 'clip';
-    el.style.display      = 'inline-block';
-    el.style.maxWidth     = '100%';
-
-    const avail = Math.floor(getAvailableWidth(parent));
-    if (avail <= 0) return;
-
-    // começa no máximo
-    let lo = min, hi = max, best = min;
-    el.style.fontSize = max + 'px';
-
-    // busca binária: ajusta até caber
-    while (lo <= hi) {
-      const mid = Math.floor((lo + hi) / 2);
-      el.style.fontSize = mid + 'px';
-      const tooWide = el.scrollWidth > avail;
-      if (tooWide) hi = mid - 1;
-      else { best = mid; lo = mid + 1; }
-    }
-    el.style.fontSize = best + 'px';
-  }
-
-  function fitAll(selector='.profile-name p', min=12, max=22) {
-    document.querySelectorAll(selector).forEach(el => fitOne(el, min, max));
-  }
-
-  // roda quando tudo está pronto
-  function bootstrap() {
-    fitAll();
-    // re-ajusta ao redimensionar
-    window.addEventListener('resize', () => fitAll());
-    // observa mudanças no tamanho dos containers
-    const ro = new ResizeObserver(() => fitAll());
-    document.querySelectorAll('.profile-name').forEach(p => ro.observe(p));
-  }
-
-  if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(bootstrap);
-  } else if (document.readyState === 'complete') {
-    bootstrap();
-  } else {
-    window.addEventListener('load', bootstrap);
-  }
-})();
-</script>
 
 <script>
         // Dados dos usuários
@@ -1140,7 +593,160 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.addEventListener('load', bootstrap);
             }
         })();
-    </script>
+</script>
+<script type="module">
+  import {
+  getFirestore,
+  collection,
+  getDocs,
+  doc,
+  getDoc
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import {
+  getAuth,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+// Inicializa Firebase
+const db = getFirestore();
+const auth = getAuth();
+
+// Função para pegar filtros dos inputs do seu HTML
+function getFiltros() {
+  return {
+    estilo: document.querySelector('input[placeholder*="estilo"]')?.value.trim().toLowerCase() || "",
+    personalidade: document.querySelector('input[placeholder*="Personalidade"]')?.value.trim().toLowerCase() || "",
+    medos: document.querySelector('input[placeholder*="Medos"]')?.value.trim().toLowerCase() || "",
+    sonhos: document.querySelector('input[placeholder*="Sonhos"]')?.value.trim().toLowerCase() || "",
+    musicas: document.querySelector('input[placeholder*="Musicas"]')?.value.trim().toLowerCase() || "",
+    personagens: document.querySelector('input[placeholder*="Personagens"]')?.value.trim().toLowerCase() || "",
+    localizacao: document.querySelector('input[placeholder*="localização"]')?.value.trim().toLowerCase() || "",
+    hobbies: document.querySelector('input[placeholder*="Hobbies"]')?.value.trim().toLowerCase() || "",
+    genero: document.getElementById('genero')?.value || "",
+    idadeMin: parseInt(document.getElementById('idade-min')?.value) || 13,
+    idadeMax: parseInt(document.getElementById('idade-max')?.value) || 99
+  };
+}
+
+// Função para buscar dados do usuário logado (igual a mim)
+async function getMeuPerfil(uid) {
+  const userRef = doc(db, "users", uid);
+  const userSnap = await getDoc(userRef);
+  return userSnap.exists() ? userSnap.data() : null;
+}
+
+// Algoritmo de match simples
+function calcularScore(user, filtros) {
+  let score = 0;
+  if (filtros.estilo && user.estilo && user.estilo.toLowerCase().includes(filtros.estilo)) score++;
+  if (filtros.personalidade && user.personalidade && user.personalidade.toLowerCase().includes(filtros.personalidade)) score++;
+  if (filtros.medos && user.medos && user.medos.toLowerCase().includes(filtros.medos)) score++;
+  if (filtros.sonhos && user.sonhos && user.sonhos.toLowerCase().includes(filtros.sonhos)) score++;
+  if (filtros.musicas && user.musicas && user.musicas.toLowerCase().includes(filtros.musicas)) score++;
+  if (filtros.personagens && user.personagens && user.personagens.toLowerCase().includes(filtros.personagens)) score++;
+  if (filtros.localizacao && user.localizacao && user.localizacao.toLowerCase().includes(filtros.localizacao)) score++;
+  if (filtros.hobbies && user.hobbies && user.hobbies.toLowerCase().includes(filtros.hobbies)) score++;
+  if (filtros.genero && user.genero && user.genero === filtros.genero) score++;
+  if (user.idade && user.idade >= filtros.idadeMin && user.idade <= filtros.idadeMax) score++;
+  return score;
+}
+
+// Busca perfis e calcula match
+async function buscarPerfis(filtros, meuUid) {
+  const usersRef = collection(db, "users");
+  const snapshot = await getDocs(usersRef);
+  const resultados = [];
+
+  snapshot.forEach(docSnap => {
+    const user = docSnap.data();
+    // Não mostra o próprio perfil
+    if (docSnap.id === meuUid) return;
+    const score = calcularScore(user, filtros);
+    if (score > 0) {
+      resultados.push({ ...user, score });
+    }
+  });
+
+  // Ordena por score (mais parecido primeiro)
+  resultados.sort((a, b) => b.score - a.score);
+  return resultados;
+}
+
+// Mostra os resultados na tela (cards)
+function mostrarResultados(resultados) {
+  const wrapper = document.getElementById('cardsWrapper');
+  wrapper.innerHTML = '';
+  if (resultados.length === 0) {
+    wrapper.innerHTML = '<p>Nenhum perfil parecido encontrado.</p>';
+    return;
+  }
+  resultados.forEach(user => {
+    const card = document.createElement('div');
+    card.className = 'friend-card';
+    card.innerHTML = `
+      <div class="card-content">
+        <img src="${user.userphoto || './src/icon/default.jpg'}" alt="${user.displayname}">
+        <div class="card-info">
+          <div class="card-name">${user.displayname}</div>
+          <div class="card-username">@${user.username}</div>
+          <div class="card-score">Match: ${user.score}</div>
+        </div>
+        <a href="PF.html?username=${user.username}" class="view-profile-btn"><p>Ver Perfil</p></a>
+      </div>
+    `;
+    wrapper.appendChild(card);
+  });
+}
+
+// Deixa filtros escuros e inclicáveis se "Igual a mim" estiver ativado
+function toggleFiltrosDesabilitados(desabilitar) {
+  document.querySelectorAll('.filtros input, .filtros select, .filtros .age-input').forEach(el => {
+    el.disabled = desabilitar;
+    el.style.opacity = desabilitar ? '0.5' : '1';
+    el.style.pointerEvents = desabilitar ? 'none' : 'auto';
+  });
+}
+
+// Evento do switch "Igual a mim"
+document.getElementById('igualAMim').addEventListener('change', function() {
+  toggleFiltrosDesabilitados(this.checked);
+});
+
+// Evento do botão Buscar!
+document.querySelector('.search-btn').addEventListener('click', async (e) => {
+  e.preventDefault();
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) return;
+    let filtros = getFiltros();
+
+    // Se "Igual a mim" estiver marcado, usa seu perfil como filtro
+    const igualAMim = document.getElementById('igualAMim')?.checked;
+    let meuUid = user.uid;
+    if (igualAMim) {
+      const meuPerfil = await getMeuPerfil(meuUid);
+      if (meuPerfil) {
+        filtros = {
+          estilo: meuPerfil.estilo || "",
+          personalidade: meuPerfil.personalidade || "",
+          medos: meuPerfil.medos || "",
+          sonhos: meuPerfil.sonhos || "",
+          musicas: meuPerfil.musicas || "",
+          personagens: meuPerfil.personagens || "",
+          localizacao: meuPerfil.localizacao || "",
+          hobbies: meuPerfil.hobbies || "",
+          genero: meuPerfil.genero || "",
+          idadeMin: meuPerfil.idade || 13,
+          idadeMax: meuPerfil.idade || 99
+        };
+      }
+    }
+
+    const resultados = await buscarPerfis(filtros, meuUid);
+    mostrarResultados(resultados);
+  });
+});
+</script>
+<script src="./block.js"></script>
 
 </body>
 </html>

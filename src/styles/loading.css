@@ -12,6 +12,6 @@
 
         @media (max-width: 768px) {
             .progress-bar {
-               display: none;
+               display: none !important;
             }
         }

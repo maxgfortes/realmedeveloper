@@ -6,19 +6,16 @@
   width: 100%;
 }
 
+
 body {
   margin: 0;
   padding: 0;
   background-color: #000000;
-  background-image: none;
   color: #ffffff;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   overflow-x: hidden; /* Evita scroll horizontal */
 }
 
-.image-url-input {
-    display: none;
-}
 
 .navbar-top {
   display: flex;
@@ -46,6 +43,9 @@ nav {
   backdrop-filter: blur(20px);
   border-bottom: 1px solid #333;
   z-index: 1000;
+  background: #1C1C1C;
+      background: linear-gradient(0deg, #141414 0%, #1F1F1F 100%);
+  
 }
 
 
@@ -168,7 +168,7 @@ nav {
   margin: 12px !important;
   max-width: 300px !important;
   padding: 6px 12px !important;
-  border-radius: 30px !important;
+  border-radius: 10px !important;
   border: 1px solid #444 !important;
   background: rgba(255, 255, 255, 0.05) !important;
   color: #dbdbdb;
@@ -764,6 +764,10 @@ textarea#postText:focus {
   outline: none;
 }
 
+.post-box input::placeholder {
+  font-size: 14px;
+}
+
 .post-button p {
     display: none;
 }
@@ -814,11 +818,109 @@ textarea#postText:focus {
     padding-left: 5px;
     font-size: 24px;
     margin-bottom: 20px;
+    display: none;
 }
 
 
 
+html, body{
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+ .welcome-container {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 10px;
+  width: 100vw;
+  max-width: 100vw;
+  overflow-x: hidden;
+  margin-top: 60px;
+}
+
+.post-card:hover {
+    transform: none !important;
+}
+
+.nav-mobile {
+  display: flex;
+  justify-content: space-between;
+}  
 
 
+  .nav-mobile {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  z-index: 1001; /* maior que o do #mobile-search-container */
+}
+
+.nav-mobile {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 60px;
+  z-index: 2000;
+  background: #232323;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#mobile-search-container {
+  position: fixed;
+  top: 60px;
+  left: 0;
+  width: 100vw;
+  z-index: 1500;
+  display: flex;
+  justify-content: center;
+  background: rgba(28,28,28,0.98);
+  padding: 0;
+  box-shadow: 0 4px 16px #0004;
+  border-radius: 0px 0px 12px 12px;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: all 0.6s cubic-bezier(.4,0,.2,1);
+  backdrop-filter: blur(8px);
+  
+}
+
+#mobile-search-container.active {
+  max-height: 80px; /* ajuste conforme necessário */
+  opacity: 1;
+  padding: 12px 0 10px 0;
+}
+#mobile-search-container input {
+  width: 90vw;
+  max-width: 400px;
+  height: 40px;
+  padding: 22px 16px;
+  border-radius: 10px;
+  border: 1px solid #444;
+  background: #181818;
+  color: #fff;
+  font-size: 16px;
+  outline: none;
+}
+
+
+
+.search-mobile-btn {
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 20px;
+  cursor: pointer;
+  margin-right: 14px;
+  transition: color 0.3s;
+  padding-right: 12px;
+}
 
 }

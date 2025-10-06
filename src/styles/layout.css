@@ -1,5 +1,5 @@
 .welcome-container {
-  margin-left: 34px;
+  margin-left: 150px;
   margin-top: 40px;
   padding: 40px 6px 40px 40px;
   width: 840px;
@@ -12,11 +12,13 @@
   border-radius: 12px;
   max-width: 800px;
   box-shadow: 0 0 20px rgba(0,0,0,0.7);
+  
 }
 
 .user-welcome {
     background-color: rgba(0, 255, 255, 0);
     display: flex;
+    transition: all 0.6s cubic-bezier(.4,0,.2,1);
 }
 
 .user-welcome img {
@@ -738,4 +740,16 @@ textarea#postText:focus {
 }
 .post-oculto-msg button.btn-ver-post:hover {
   background: #357ab8;
+}
+
+.image-input-container {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: all 0.6s cubic-bezier(.4,0,.2,1);
+}
+
+.image-input-container.aberta {
+  max-height: 120px; /* ou o valor necessário para o conteúdo aparecer */
+  opacity: 1;
 }

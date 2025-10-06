@@ -5,7 +5,8 @@
   body {
     margin: 0;
     padding: 0;
-    background: #000;
+    background-color: #000;
+    background-image: none !important;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
@@ -359,6 +360,35 @@
     margin-right: 16px;
   }
 
+#mobile-search-container {
+  position: fixed;
+  top: 60px; /* altura da nav-mobile */
+  left: 0;
+  width: 100vw;
+  z-index: 999;
+  display: none;
+  justify-content: center;
+  background: rgba(28,28,28,0.98);
+  padding: 12px 0 10px 0;
+  box-shadow: 0 4px 16px #0004;
+}
+
+#mobile-search-container.active {
+  display: flex;
+}
+
+#mobile-search-container input {
+  width: 90vw;
+  max-width: 400px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid #444;
+  background: #181818;
+  color: #fff;
+  font-size: 16px;
+  outline: none;
+}
+
   .search-box {
     flex: 1;
     background: rgba(255, 255, 255, 0.1);
@@ -486,8 +516,69 @@
   button, .menu-item, .navbar-bottom a {
     touch-action: manipulation;
   }
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
 }
 
+@media (max-width: 768px) {
+  .profile-header.shrink,
+  .profile-header.shrink *,
+  .full-profile-container.shrink-header,
+  .mural-tab.shrink-header {
+    all: unset !important;
+    display: revert !important;
+    font-size: revert !important;
+    padding: revert !important;
+    margin: revert !important;
+    height: revert !important;
+    min-height: revert !important;
+    border-radius: revert !important;
+    transition: none !important;
+    background: none !important;
+    box-shadow: none !important;
+  }
+
+@media (max-width: 768px) {
+  .profile-header.shrink,
+  .full-profile-container.shrink-header,
+  .mural-tab.shrink-header {
+    all: unset !important;
+    display: revert !important;
+    font-size: revert !important;
+    padding: revert !important;
+    margin: revert !important;
+    height: revert !important;
+    min-height: revert !important;
+    border-radius: revert !important;
+    transition: none !important;
+    background: none !important;
+    box-shadow: none !important;
+  }
+}
+  
+}
+@media (max-width: 768px) {
+  .post-card {
+    padding: 16px !important;
+    margin-bottom: 12px !important;
+    border-radius: 12px !important;
+    min-height: 130px !important;
+    background: rgba(20, 20, 20, 0.85) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+  }
+}
 /* Breakpoint para telas muito pequenas */
 @media (max-width: 400px) {
   .profile-name {
@@ -621,3 +712,5 @@
 
 
 }
+
+
