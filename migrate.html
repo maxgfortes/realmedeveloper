@@ -190,12 +190,19 @@
     }, { passive: true });
 
     container.addEventListener('touchmove', (e) => {
-      if (!isPulling || container.scrollTop > 0) return;
+      if (!isPulling) return;
+      
+      // Se começou a rolar para baixo, cancela o pull
+      if (container.scrollTop > 0) {
+        isPulling = false;
+        resetPull();
+        return;
+      }
 
       currentY = e.touches[0].clientY;
       pullDistance = Math.min(currentY - startY, maxPull);
 
-      if (pullDistance > 0) {
+      if (pullDistance > 10) {
         e.preventDefault();
         
         // Atualiza visual
@@ -239,12 +246,20 @@
     });
 
     container.addEventListener('mousemove', (e) => {
-      if (!isMouseDown || !isPulling || container.scrollTop > 0) return;
+      if (!isMouseDown || !isPulling) return;
+      
+      // Se começou a rolar para baixo, cancela o pull
+      if (container.scrollTop > 0) {
+        isMouseDown = false;
+        isPulling = false;
+        resetPull();
+        return;
+      }
 
       currentY = e.clientY;
       pullDistance = Math.min(currentY - startY, maxPull);
 
-      if (pullDistance > 0) {
+      if (pullDistance > 10) {
         content.style.transform = `translateY(${pullDistance}px)`;
         hiddenContent.style.transform = `translateY(${pullDistance}px)`;
         pullIndicator.classList.add('active');
