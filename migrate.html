@@ -3,59 +3,300 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pull Down</title>
   <style>
-    body {
+    * {
       margin: 0;
-      font-family: sans-serif;
-      height: 200vh; /* só para ter rolagem */
+      padding: 0;
+      box-sizing: border-box;
     }
 
-    #banner {
-      display: none; /* começa escondido */
-      justify-content: center;
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overscroll-behavior-y: contain;
+      background: #f5f5f5;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      min-height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hidden-content {
+      position: absolute;
+      top: -100px;
+      left: 0;
+      right: 0;
+      height: 100px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
       align-items: center;
-      height: 80px;
-      background: #4caf50;
+      justify-content: center;
       color: white;
       font-size: 18px;
-      position: sticky;
-      top: 0;
-      z-index: 1000;
+      font-weight: 600;
+      transition: transform 0.3s ease;
+      z-index: 10;
+    }
+
+    .content {
+      padding: 20px;
+      position: relative;
+      transition: transform 0.2s ease-out;
+      background: white;
+    }
+
+    .pull-indicator {
+      position: absolute;
+      top: -50px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .pull-indicator.active {
+      opacity: 1;
+    }
+
+    .arrow {
+      width: 24px;
+      height: 24px;
+      border: 3px solid #667eea;
+      border-left: none;
+      border-top: none;
+      transform: rotate(45deg);
+      transition: transform 0.3s;
+    }
+
+    .arrow.ready {
+      transform: rotate(225deg);
+      border-color: #4caf50;
+    }
+
+    .header {
+      padding: 20px;
+      background: #667eea;
+      color: white;
+      text-align: center;
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .message {
+      background: #e3f2fd;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 8px;
+      border-left: 4px solid #2196f3;
+    }
+
+    .instruction {
+      text-align: center;
+      padding: 40px 20px;
+      color: #666;
+      font-size: 14px;
     }
   </style>
 </head>
 <body>
+  <div class="container" id="container">
+    <div class="hidden-content" id="hiddenContent">
+      🗂️ Conteúdo Arquivado
+    </div>
+    
+    <div class="pull-indicator" id="pullIndicator">
+      <div class="arrow" id="arrow"></div>
+    </div>
+    
+    <div class="content" id="content">
+      <div class="header">Pull Down Demo</div>
+      
+      <div class="instruction">
+        👆 Puxe para baixo para revelar o conteúdo oculto
+      </div>
+      
+      <div class="message">
+        <strong>Mensagem 1</strong><br>
+        Este é um exemplo de pull-down, similar ao WhatsApp!
+      </div>
+      
+      <div class="message">
+        <strong>Mensagem 2</strong><br>
+        Role para baixo para ver mais conteúdo...
+      </div>
+      
+      <div class="message">
+        <strong>Mensagem 3</strong><br>
+        Quando estiver no topo, puxe para baixo.
+      </div>
+      
+      <div class="message">
+        <strong>Mensagem 4</strong><br>
+        Um indicador visual aparecerá mostrando o progresso.
+      </div>
+      
+      <div class="message">
+        <strong>Mensagem 5</strong><br>
+        Continue puxando até o indicador ficar verde.
+      </div>
+      
+      <div class="message">
+        <strong>Mensagem 6</strong><br>
+        Então solte para revelar o conteúdo oculto!
+      </div>
 
-  <div id="banner">🎉 Você puxou para baixo uma vez e eu fico aqui!</div>
+      <div class="message">
+        <strong>Mensagem 7</strong><br>
+        Mais conteúdo para você poder rolar...
+      </div>
 
-  <main>
-    <p>Role, vá até o topo e puxe para baixo. O banner aparece e não some mais.</p>
-  </main>
+      <div class="message">
+        <strong>Mensagem 8</strong><br>
+        Continue rolando...
+      </div>
+    </div>
+  </div>
 
   <script>
-    const banner = document.getElementById("banner");
+    const container = document.getElementById('container');
+    const content = document.getElementById('content');
+    const hiddenContent = document.getElementById('hiddenContent');
+    const pullIndicator = document.getElementById('pullIndicator');
+    const arrow = document.getElementById('arrow');
+    
     let startY = 0;
-    let activated = false;
+    let currentY = 0;
+    let pullDistance = 0;
+    let isPulling = false;
+    const threshold = 100;
+    const maxPull = 150;
 
-    document.addEventListener("touchstart", (e) => {
-      if (window.scrollY === 0 && !activated) {
+    // Touch events
+    container.addEventListener('touchstart', (e) => {
+      if (container.scrollTop === 0) {
         startY = e.touches[0].clientY;
+        isPulling = true;
+      }
+    }, { passive: true });
+
+    container.addEventListener('touchmove', (e) => {
+      if (!isPulling || container.scrollTop > 0) return;
+
+      currentY = e.touches[0].clientY;
+      pullDistance = Math.min(currentY - startY, maxPull);
+
+      if (pullDistance > 0) {
+        e.preventDefault();
+        
+        // Atualiza visual
+        content.style.transform = `translateY(${pullDistance}px)`;
+        hiddenContent.style.transform = `translateY(${pullDistance}px)`;
+        
+        // Mostra indicador
+        pullIndicator.classList.add('active');
+        
+        // Muda cor quando passar do threshold
+        if (pullDistance >= threshold) {
+          arrow.classList.add('ready');
+        } else {
+          arrow.classList.remove('ready');
+        }
+      }
+    }, { passive: false });
+
+    container.addEventListener('touchend', () => {
+      if (pullDistance >= threshold) {
+        // Ativa o conteúdo oculto
+        revealHiddenContent();
+      } else {
+        // Reset
+        resetPull();
+      }
+      
+      isPulling = false;
+      pullDistance = 0;
+    });
+
+    // Mouse events para desktop (teste)
+    let isMouseDown = false;
+
+    container.addEventListener('mousedown', (e) => {
+      if (container.scrollTop === 0) {
+        startY = e.clientY;
+        isMouseDown = true;
+        isPulling = true;
       }
     });
 
-    document.addEventListener("touchmove", (e) => {
-      if (activated) return; // se já mostrou, não faz nada
-      if (window.scrollY === 0) {
-        let currentY = e.touches[0].clientY;
-        let diff = currentY - startY;
+    container.addEventListener('mousemove', (e) => {
+      if (!isMouseDown || !isPulling || container.scrollTop > 0) return;
 
-        if (diff > 60) { // puxou 60px ou mais
-          banner.style.display = "flex";
-          activated = true;
+      currentY = e.clientY;
+      pullDistance = Math.min(currentY - startY, maxPull);
+
+      if (pullDistance > 0) {
+        content.style.transform = `translateY(${pullDistance}px)`;
+        hiddenContent.style.transform = `translateY(${pullDistance}px)`;
+        pullIndicator.classList.add('active');
+        
+        if (pullDistance >= threshold) {
+          arrow.classList.add('ready');
+        } else {
+          arrow.classList.remove('ready');
         }
       }
     });
-  </script>
 
+    container.addEventListener('mouseup', () => {
+      if (isMouseDown) {
+        if (pullDistance >= threshold) {
+          revealHiddenContent();
+        } else {
+          resetPull();
+        }
+        
+        isMouseDown = false;
+        isPulling = false;
+        pullDistance = 0;
+      }
+    });
+
+    function revealHiddenContent() {
+      // Mostra o conteúdo oculto completamente
+      content.style.transition = 'transform 0.3s ease';
+      hiddenContent.style.transition = 'transform 0.3s ease';
+      content.style.transform = 'translateY(100px)';
+      hiddenContent.style.transform = 'translateY(100px)';
+      
+      // Esconde depois de 2 segundos
+      setTimeout(() => {
+        resetPull();
+      }, 2000);
+    }
+
+    function resetPull() {
+      content.style.transition = 'transform 0.3s ease';
+      hiddenContent.style.transition = 'transform 0.3s ease';
+      content.style.transform = 'translateY(0)';
+      hiddenContent.style.transform = 'translateY(0)';
+      pullIndicator.classList.remove('active');
+      arrow.classList.remove('ready');
+      
+      setTimeout(() => {
+        content.style.transition = 'transform 0.2s ease-out';
+        hiddenContent.style.transition = 'transform 0.3s ease';
+      }, 300);
+    }
+  </script>
 </body>
 </html>
