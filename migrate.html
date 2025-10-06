@@ -39,14 +39,12 @@
       color: white;
       font-size: 18px;
       font-weight: 600;
-      transition: transform 0.3s ease;
       z-index: 10;
     }
 
     .content {
       padding: 20px;
       position: relative;
-      transition: transform 0.2s ease-out;
       background: white;
     }
 
@@ -238,8 +236,6 @@
 
     function revealHiddenContent() {
       // Mostra o conteúdo oculto completamente
-      content.style.transition = 'transform 0.3s ease';
-      hiddenContent.style.transition = 'transform 0.3s ease';
       content.style.transform = 'translateY(100px)';
       hiddenContent.style.transform = 'translateY(100px)';
       
@@ -250,17 +246,10 @@
     }
 
     function resetPull() {
-      content.style.transition = 'transform 0.3s ease';
-      hiddenContent.style.transition = 'transform 0.3s ease';
       content.style.transform = 'translateY(0)';
       hiddenContent.style.transform = 'translateY(0)';
       pullIndicator.classList.remove('active');
       arrow.classList.remove('ready');
-      
-      setTimeout(() => {
-        content.style.transition = 'transform 0.2s ease-out';
-        hiddenContent.style.transition = 'transform 0.3s ease';
-      }, 300);
     }
   </script>
 </body>
