@@ -58,7 +58,7 @@
       </div>
     </div>
     <div class="marquee-container">
-      <div class="marquee">marcio_marques acabou de postar uma foto...</div>
+      <div class="marquee">Conectando...</div>
     </div>
   </nav>
 
@@ -68,22 +68,21 @@
     <a href="acharamigos.html"><i class="fas fa-user-friends"></i> Achar Amigos</a>
     <a href="direct.html"><i class="fas fa-comments"></i> Mensagens</a>
     <a href="nt.html"><i class="fas fa-bell"></i> Notificações</a>
-    <a href="feed.html" onclick=""><i class="fas fa-plus-square"></i> Criar</a>
+    <a href="#" class="postmodal"><i class="fas fa-plus-square"></i> Criar</a>
     <a href="#" id="linkPerfilSidebar"><i class="fas fa-user"></i> Perfil</a>
-    <!-- Menu Mais com submenu flutuante -->
-        <div class="more-menu" id="moreMenu">
-            <a href="#" class="more-toggle" id="moreToggle">
-                <i class="fa-solid fa-bars"></i>
-                Mais
-            </a>
-            <div class="floating-menu" id="floatingMenu">
-                <a href="config.html"><i class="fas fa-cog"></i> Configurações</a>
-                <a href="invites.html"><i class="fa-solid fa-user-plus"></i> Convites</a>
-                <a href="como-usar.html"><i class="fa-solid fa-book-open"></i> Como Usar</a>
-                <a href="sobre.html"><i class="fas fa-question-circle"></i> Sobre</a>
-                <a href="#" id="btnSair"><i class="fas fa-sign-out-alt"></i> Sair</a>
-            </div>
-        </div>
+    <div class="more-menu" id="moreMenu">
+      <a href="#" class="more-toggle" id="moreToggle">
+        <i class="fa-solid fa-bars"></i>
+        Mais
+      </a>
+      <div class="floating-menu" id="floatingMenu">
+        <a href="config.html"><i class="fas fa-cog"></i> Configurações</a>
+        <a href="invites.html"><i class="fa-solid fa-user-plus"></i> Convites</a>
+        <a href="como-usar.html"><i class="fa-solid fa-book-open"></i> Como Usar</a>
+        <a href="sobre.html"><i class="fas fa-question-circle"></i> Sobre</a>
+        <a href="#" id="btnSair"><i class="fas fa-sign-out-alt"></i> Sair</a>
+      </div>
+    </div>
   </aside>
 
   <!-- Navbar Bottom (Mobile) -->
@@ -183,7 +182,6 @@
     </div>
 </div>
 <script src="/js/mobile-lock.js"></script>
-<script type="module" src="./src/js/main-main.js"></script>
 <script type="module">
 // Imports do Firebase (apenas uma vez)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -225,13 +223,7 @@ const storage = getStorage(app);
 document.addEventListener('DOMContentLoaded', () => {
   console.log('DOM carregado, inicializando aplicação');
 
-  // Verificar se usuário está logado
-  const usuarioLogadoJSON = localStorage.getItem('usuarioLogado');
-  if (!usuarioLogadoJSON) {
-    alert('Você precisa estar logado para acessar esta página.');
-    window.location.href = 'login.html';
-    return;
-  }
+
 
   const usuarioLogado = JSON.parse(usuarioLogadoJSON);
   const username = usuarioLogado.username;
@@ -464,62 +456,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(atualizarContadores, 100);
   }
 
-  // ===================
-  // SALVAR CONFIGURAÇÕES
-  // ===================
-  const form = document.querySelector('form');
-  if (form) {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const submitBtn = document.querySelector('.submit-btn');
-      const originalText = submitBtn ? submitBtn.textContent : 'Salvar Configurações';
-      
-      if (submitBtn) {
-        submitBtn.textContent = 'Salvando...';
-        submitBtn.disabled = true;
-      }
-
-      try {
-        console.log('Iniciando salvamento das configurações...');
-
-        // Coletar dados do formulário
-        const formData = new FormData(form);
-        const dadosParaSalvar = {
-          username: username,
-          ultimaAtualizacao: new Date().toISOString()
-        };
-
-        // Converter FormData para objeto
-        for (const [chave, valor] of formData.entries()) {
-          if (valor && valor.trim() !== '') {
-            dadosParaSalvar[chave] = valor;
-          }
-        }
-
-        // Salvar no Firestore
-        const userRef = doc(db, 'users', username);
-        await setDoc(userRef, dadosParaSalvar, { merge: true });
-
-        // Atualizar localStorage com novos dados
-        const dadosAtualizados = { ...usuarioLogado, ...dadosParaSalvar };
-        localStorage.setItem('usuarioLogado', JSON.stringify(dadosAtualizados));
-
-        alert('Configurações salvas com sucesso!');
-        console.log('Dados salvos:', dadosParaSalvar);
-
-      } catch (error) {
-        console.error('Erro ao salvar configurações:', error);
-        alert('Erro ao salvar as configurações: ' + error.message);
-      } finally {
-        if (submitBtn) {
-          submitBtn.textContent = originalText;
-          submitBtn.disabled = false;
-        }
-      }
-    });
-  }
-
   // Funcionalidade extra para menus (se existir)
   const menuItems = document.querySelectorAll('.menu-item');
   const tabs = document.querySelectorAll('.tab');
@@ -609,6 +545,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('progressBar').style.width = scrolled + '%';
         }
 
+        
+
         // Adicionar CSS para animação de ondulação
         const style = document.createElement('style');
         style.textContent = `
@@ -666,8 +604,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.setAttribute('aria-expanded', isActive ? 'true' : 'false');
             });
         });
+
+        async function atualizarMarqueeUltimoUsuario() {
+  const lastUpdateRef = doc(db, "lastupdate", "latestUser");
+  const docSnap = await getDoc(lastUpdateRef);
+  const marquee = document.querySelector(".marquee");
+  if (!marquee) return;
+  if (docSnap.exists()) {
+    const data = docSnap.data();
+    const nomeUsuario = data.username || "Usuário";
+    marquee.textContent = `${nomeUsuario} acabou de entrar no RealMe!`;
+  } else {
+    marquee.textContent = "Bem-vindo ao RealMe!";
+  }
+}
+
+document.addEventListener('DOMContentLoaded', atualizarMarqueeUltimoUsuario);
+
+
+    
     </script>
     <script src="./src/js/more.js"></script>
     <script src="./block.js"></script>
+    <script type="module" src="./src/js/search.js"></script>
+<script src="./src/js/more.js"></script>
+<script type="module" src="./src/js/loading.js"></script>
 </body>
 </html>

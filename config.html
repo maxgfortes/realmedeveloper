@@ -10,28 +10,23 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="apple-touch-icon" href="./src/icon/icon.png" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-    <link rel="stylesheet" href="./src/styles/base.css" />
+  <link rel="stylesheet" href="./src/styles/base.css" />
   <link rel="stylesheet" href="./src/styles/config-layout.css" />
   <link rel="stylesheet" href="./src/styles/config-components.css" />
   <link rel="stylesheet" href="./src/styles/media-queries.css" />
   <link rel="stylesheet" href="./src/styles/navbars.css" />
   <link rel="stylesheet" href="./src/styles/search.css" />
 
-    <!-- Título do preview -->
+  <!-- Título do preview -->
   <meta property="og:title" content="RealMe">
-
   <!-- Descrição -->
   <meta property="og:description" content="Entre no RealMe ainda hoje e seja você mesmo!">
-
   <!-- URL principal -->
   <meta property="og:url" content="https://maxgfortes.github.io/realme/PF.html">
-
   <!-- Imagem de destaque -->
   <meta property="og:image" content="https://maxgfortes.github.io/realme/src/icon/share_icon.png">
-
   <!-- Tipo de conteúdo -->
   <meta property="og:type" content="website">
-
   <!-- Para Twitter -->
   <meta name="twitter:card" content="https://i.postimg.cc/7PfNb8TT/share-icon.png">
 </head>
@@ -45,10 +40,10 @@
       <div class="logo">RealMe</div>
     </div>
     <div class="search-area">
-  <div class="search-box">
-    <button><i class="fas fa-search"></i></button>
-    <input type="text" id="searchInput" placeholder="Buscar" autocomplete="off" />
-  </div>
+      <div class="search-box">
+        <button><i class="fas fa-search"></i></button>
+        <input type="text" id="searchInput" placeholder="Buscar" autocomplete="off" />
+      </div>
     </div>
     <div class="last-update-area">
       <div class="last-update">
@@ -61,28 +56,26 @@
   </nav>
 
   <!-- Sidebar Desktop -->
-  <!-- Sidebar -->
   <aside class="sidebar">
     <a href="feed.html"><i class="fas fa-home"></i> Início</a>
     <a href="#"><i class="fas fa-user-friends"></i> Achar Amigos</a>
     <a href="direct.html"><i class="fas fa-comments"></i> Mensagens</a>
     <a href="#"><i class="fas fa-bell"></i> Notificações</a>
-    <a href="feed.html" onclick=""><i class="fas fa-plus-square"></i> Criar</a>
+    <a href="feed.html"><i class="fas fa-plus-square"></i> Criar</a>
     <a href="#" id="linkPerfilSidebar"><i class="fas fa-user"></i> Perfil</a>
-    <!-- Menu Mais com submenu flutuante -->
-        <div class="more-menu" id="moreMenu">
-            <a href="#" class="more-toggle" id="moreToggle">
-                <i class="fa-solid fa-bars"></i>
-                Mais
-            </a>
-            <div class="floating-menu" id="floatingMenu">
-                <a href="config.html"><i class="fas fa-cog"></i> Configurações</a>
-                <a href="#"><i class="fa-solid fa-user-plus"></i> Convites</a>
-                <a href="como-usar.html"><i class="fa-solid fa-book-open"></i> Como Usar</a>
-                <a href="sobre.html"><i class="fas fa-question-circle"></i> Sobre</a>
-                <a href="#" id="btnSair"><i class="fas fa-sign-out-alt"></i> Sair</a>
-            </div>
-        </div>
+    <div class="more-menu" id="moreMenu">
+      <a href="#" class="more-toggle" id="moreToggle">
+        <i class="fa-solid fa-bars"></i>
+        Mais
+      </a>
+      <div class="floating-menu" id="floatingMenu">
+        <a href="config.html"><i class="fas fa-cog"></i> Configurações</a>
+        <a href="#"><i class="fa-solid fa-user-plus"></i> Convites</a>
+        <a href="como-usar.html"><i class="fa-solid fa-book-open"></i> Como Usar</a>
+        <a href="sobre.html"><i class="fas fa-question-circle"></i> Sobre</a>
+        <a href="#" id="btnSair"><i class="fas fa-sign-out-alt"></i> Sair</a>
+      </div>
+    </div>
   </aside>
 
   <!-- Navbar Bottom (Mobile) -->
@@ -100,261 +93,277 @@
 
   <ul id="searchResults"></ul>
 
+  <section class="config-box-layout">
+    <div class="form-container">
+      <h2>Configurações do Perfil</h2>
 
-
-<section class="config-box-layout">
-  <div class="form-container">
-    <h2>Configurações do Perfil</h2>
-
-    <!-- Tabs -->
-    <div class="config-tabs">
-      <button class="tab-button active" data-tab="perfil">
-        <i class="fas fa-user"></i> Perfil
-      </button>
-      <button class="tab-button" data-tab="preferencias">
-        <i class="fas fa-heart"></i> Preferências
-      </button>
-      <button class="tab-button" data-tab="conta">
-        <i class="fas fa-shield-alt"></i> Conta
-      </button>
-    </div>
-
-    <form>
-      <!-- Tab: Perfil -->
-      <div class="tab-content active" id="perfil">
-        <div class="form-section">
-          <div class="section-header">
-            <i class="fas fa-id-card"></i>
-            <h3>Informações Básicas</h3>
-          </div>
-          <div class="form-grid two-column">
-            <div class="form-group">
-              <label>Nome de Usuário:</label>
-              <input type="text" name="username" minlength="3" required maxlength="100">
-            </div>
-            <div class="form-group">
-              <label>Nome visível:</label>
-              <input type="text" name="displayname">
-            </div>
-            <div class="form-group">
-              <label>Pronome 1:</label>
-              <input type="text" maxlength="5" name="pronoun1">
-            </div>
-            <div class="form-group">
-              <label>Pronome 2:</label>
-              <input type="text" maxlength="5" name="pronoun2">
-            </div>
-            <div class="form-group">
-              <label>Estado Civil:</label>
-              <select name="maritalStatus">
-                <option value="">Selecione...</option>
-                <option value="solteiro">Solteiro(a)</option>
-                <option value="namorando">Namorando</option>
-                <option value="casado">Casado(a)</option>
-                <option value="divorciado">Divorciado(a)</option>
-                <option value="viuvo">Viúvo(a)</option>
-                <option value="em compromisso">em Compromisso</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Localização:</label>
-              <input type="text" name="location" maxlength="100">
-              <div class="char-counter">0/100</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="form-section">
-          <div class="section-header">
-            <i class="fas fa-image"></i>
-            <h3>Imagens do Perfil</h3>
-          </div>
-
-          <div class="form-grid two-column">
-            <div class="form-group">
-              <label>Foto de perfil:</label>
-              <input type="text" name="userphoto" maxlength="500" placeholder="URL da foto de perfil">
-            </div>
-            <div class="form-group">
-              <label>Imagem de Banner:</label>
-              <input type="text" name="headerphoto" maxlength="500" placeholder="URL da imagem de fundo">
-            </div>
-            <div class="form-group">
-              <label>Background:</label>
-              <input type="text" name="backgroundphoto" maxlength="500" placeholder="URL da foto do cabeçalho">
-            </div>
-          </div>
-        </div>
-
-        <div class="form-section">
-          <div class="section-header">
-            <i class="fa-solid fa-palette"></i>
-            <h3>Cores de Perfil</h3>
-          </div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Cor Principal</label>
-              <input type="color" class="color-input" id="colorInput" value="#3498db">
-            </div>
-            <div class="form-group">
-              <label>Cor Secundaria</label>
-              <input type="color" class="color-input" id="colorInput" value="#3498db">
-            </div>
-          </div>
-        </div>
-        
-  
-
-        <!-- Descrição -->
-<div class="form-section">
-  <div class="section-header">
-    <i class="fas fa-tags"></i>
-    <h3>Descrição</h3>
-  </div>
-  <div class="form-grid">
-    <div class="form-group">
-      <label>Tags:</label>
-      <input type="text" name="tags" maxlength="8">
-    </div>
-    <div class="form-group">
-      <label>Visão Geral:</label>
-      <textarea name="overview" maxlength="600"></textarea>
-      <div class="char-counter">0/600</div>
-    </div>
-    <div class="form-group">
-      <label>Estilo:</label>
-      <textarea name="styles" maxlength="500"></textarea>
-      <div class="char-counter">0/500</div>
-    </div>
-  </div>
-</div>
-
-<!-- Personalidade -->
-<div class="form-section">
-  <div class="section-header">
-    <i class="fas fa-brain"></i>
-    <h3>Personalidade</h3>
-  </div>
-  <div class="form-grid">
-    <div class="form-group">
-      <label>Sonhos e desejos:</label>
-      <textarea name="dreams" maxlength="500"></textarea>
-      <div class="char-counter">0/500</div>
-    </div>
-    <div class="form-group">
-      <label>Medos:</label>
-      <textarea name="fears" maxlength="500"></textarea>
-      <div class="char-counter">0/500</div>
-    </div>
-    <div class="form-group">
-      <label>Personalidade:</label>
-      <textarea name="personality" maxlength="500"></textarea>
-      <div class="char-counter">0/500</div>
-    </div>
-  </div>
-</div>
-
-<!-- Preferências (Gostos) -->
-<div class="form-section">
-  <div class="section-header">
-    <i class="fas fa-heart"></i>
-    <h3>Gostos</h3>
-  </div>
-  <div class="form-grid">
-    <div class="form-group">
-      <label>Livros:</label>
-      <textarea name="books" maxlength="500"></textarea>
-      <div class="char-counter">0/500</div>
-    </div>
-    <div class="form-group">
-      <label>Personagens:</label>
-      <textarea name="characters" maxlength="500"></textarea>
-      <div class="char-counter">0/500</div>
-    </div>
-    <div class="form-group">
-      <label>Comidas e Bebidas:</label>
-      <textarea name="foods" maxlength="500"></textarea>
-      <div class="char-counter">0/500</div>
-    </div>
-    <div class="form-group">
-      <label>Jogos favoritos:</label>
-      <textarea name="games" maxlength="500"></textarea>
-      <div class="char-counter">0/500</div>
-    </div>
-    <div class="form-group">
-      <label>Hobbies:</label>
-      <textarea name="hobbies" maxlength="500"></textarea>
-      <div class="char-counter">0/500</div>
-    </div>
-    <div class="form-group">
-      <label>Filmes e Séries:</label>
-      <textarea name="movies" maxlength="500"></textarea>
-      <div class="char-counter">0/500</div>
-    </div>
-    <div class="form-group">
-      <label>Músicas:</label>
-      <textarea name="music" maxlength="500"></textarea>
-      <div class="char-counter">0/500</div>
-    </div>
-    <div class="form-group">
-      <label>Outros gostos:</label>
-      <textarea name="others" maxlength="500"></textarea>
-      <div class="char-counter">0/500</div>
-    </div>
-  </div>
-</div>
-
-      <!-- Tab: Conta -->
-      <div class="tab-content" id="conta">
-        <div class="form-section">
-          <div class="section-header">
-            <i class="fas fa-envelope"></i>
-            <h3>Informações de Contato</h3>
-          </div>
-          <div class="form-grid two-column">
-            <div class="form-group">
-              <label>Email:</label>
-              <input type="email" name="email" value="seuemail@exemplo.com">
-            </div>
-            <div class="form-group">
-              <label>Número de telefone:</label>
-              <input type="text" name="telefone" value="(00) 00000-0000">
-            </div>
-          </div>
-        </div>
-
-        <div class="form-section">
-          <div class="section-header">
-            <i class="fas fa-lock"></i>
-            <h3>Segurança</h3>
-          </div>
-          <div class="form-grid two-column">
-            <div class="form-group">
-              <label>Senha atual:</label>
-              <input type="password" name="senhaAtual">
-            </div>
-            <div class="form-group">
-              <label>Nova senha:</label>
-              <input type="password" name="novaSenha">
-            </div>
-          </div>
-        </div>
+      <!-- Tabs -->
+      <div class="config-tabs">
+        <button class="tab-button active" data-tab="perfil">
+          <i class="fas fa-user"></i> Perfil
+        </button>
+        <button class="tab-button" data-tab="preferencias">
+          <i class="fas fa-heart"></i> Preferências
+        </button>
+        <button class="tab-button" data-tab="conta">
+          <i class="fas fa-shield-alt"></i> Conta
+        </button>
       </div>
 
-      <button type="submit" class="submit-btn">Salvar Configurações</button>
-    </form>
-  </div>
-  
-  <footer>
-    <div>
-      <a href="sobre.html">Sobre</a>
-      <a href="contato.html">Contato</a>
-      <a href="privacidade.html">Privacidade</a>
+      <form>
+        <!-- Tab: Perfil -->
+        <div class="tab-content active" id="perfil">
+          <div class="form-section">
+            <div class="section-header">
+              <i class="fas fa-id-card"></i>
+              <h3>Informações Básicas</h3>
+            </div>
+            <div class="form-grid two-column">
+              <div class="form-group">
+                <label>Nome de Usuário:</label>
+                <input type="text" name="username" minlength="3" required maxlength="100">
+              </div>
+              <div class="form-group">
+                <label>Nome visível:</label>
+                <input type="text" name="displayname">
+              </div>
+              <div class="form-group">
+                <label>Pronome 1:</label>
+                <input type="text" maxlength="5" name="pronoun1">
+              </div>
+              <div class="form-group">
+                <label>Pronome 2:</label>
+                <input type="text" maxlength="5" name="pronoun2">
+              </div>
+              <div class="form-group">
+                <label>Estado Civil:</label>
+                <select name="maritalStatus">
+                  <option value="">Selecione...</option>
+                  <option value="solteiro">Solteiro(a)</option>
+                  <option value="namorando">Namorando</option>
+                  <option value="casado">Casado(a)</option>
+                  <option value="divorciado">Divorciado(a)</option>
+                  <option value="viuvo">Viúvo(a)</option>
+                  <option value="em compromisso">em Compromisso</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Localização:</label>
+                <input type="text" name="location" maxlength="100">
+                <div class="char-counter">0/100</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="section-header">
+              <i class="fas fa-image"></i>
+              <h3>Imagens do Perfil</h3>
+            </div>
+            <div class="form-grid two-column">
+              <div class="form-group">
+                <label>Foto de perfil:</label>
+                <input type="text" name="userphoto" maxlength="500" placeholder="URL da foto de perfil">
+              </div>
+              <div class="form-group">
+                <label>Imagem de Banner:</label>
+                <input type="text" name="headerphoto" maxlength="500" placeholder="URL da imagem de fundo">
+              </div>
+              <div class="form-group">
+                <label>Background:</label>
+                <input type="text" name="background" maxlength="500" placeholder="URL da foto do cabeçalho">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="section-header">
+              <i class="fa-solid fa-palette"></i>
+              <h3>Cores de Perfil</h3>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Cor Principal</label>
+                <input type="color" class="color-input" id="colorInput" value="#3498db">
+              </div>
+              <div class="form-group">
+                <label>Cor Secundaria</label>
+                <input type="color" class="color-input" id="colorInput" value="#3498db">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Preferências -->
+        <div class="tab-content" id="preferencias">
+          <!-- Descrição -->
+          <div class="form-section">
+            <div class="section-header">
+              <i class="fas fa-tags"></i>
+              <h3>Descrição</h3>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Tags:</label>
+                <input type="text" name="tags" maxlength="8">
+              </div>
+              <div class="form-group">
+                <label>Visão Geral:</label>
+                <textarea name="overview" maxlength="600"></textarea>
+                <div class="char-counter">0/600</div>
+              </div>
+              <div class="form-group">
+                <label>Estilo:</label>
+                <textarea name="styles" maxlength="500"></textarea>
+                <div class="char-counter">0/500</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Personalidade -->
+          <div class="form-section">
+            <div class="section-header">
+              <i class="fas fa-brain"></i>
+              <h3>Personalidade</h3>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Sonhos e desejos:</label>
+                <textarea name="dreams" maxlength="500"></textarea>
+                <div class="char-counter">0/500</div>
+              </div>
+              <div class="form-group">
+                <label>Medos:</label>
+                <textarea name="fears" maxlength="500"></textarea>
+                <div class="char-counter">0/500</div>
+              </div>
+              <div class="form-group">
+                <label>Personalidade:</label>
+                <textarea name="personality" maxlength="500"></textarea>
+                <div class="char-counter">0/500</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Preferências (Gostos) -->
+          <div class="form-section">
+            <div class="section-header">
+              <i class="fas fa-heart"></i>
+              <h3>Gostos</h3>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Livros:</label>
+                <textarea name="books" maxlength="500"></textarea>
+                <div class="char-counter">0/500</div>
+              </div>
+              <div class="form-group">
+                <label>Personagens:</label>
+                <textarea name="characters" maxlength="500"></textarea>
+                <div class="char-counter">0/500</div>
+              </div>
+              <div class="form-group">
+                <label>Comidas e Bebidas:</label>
+                <textarea name="foods" maxlength="500"></textarea>
+                <div class="char-counter">0/500</div>
+              </div>
+              <div class="form-group">
+                <label>Jogos favoritos:</label>
+                <textarea name="games" maxlength="500"></textarea>
+                <div class="char-counter">0/500</div>
+              </div>
+              <div class="form-group">
+                <label>Hobbies:</label>
+                <textarea name="hobbies" maxlength="500"></textarea>
+                <div class="char-counter">0/500</div>
+              </div>
+              <div class="form-group">
+                <label>Filmes e Séries:</label>
+                <textarea name="movies" maxlength="500"></textarea>
+                <div class="char-counter">0/500</div>
+              </div>
+              <div class="form-group">
+                <label>Músicas:</label>
+                <textarea name="music" maxlength="500"></textarea>
+                <div class="char-counter">0/500</div>
+              </div>
+              <div class="form-group">
+                <label>Outros gostos:</label>
+                <textarea name="others" maxlength="500"></textarea>
+                <div class="char-counter">0/500</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Conta -->
+        <div class="tab-content" id="conta">
+          <div class="form-section">
+            <div class="section-header">
+              <i class="fas fa-envelope"></i>
+              <h3>Informações de Contato</h3>
+            </div>
+            <div class="form-grid two-column">
+              <div class="form-group">
+                <label>Email:</label>
+                <input type="email" name="email" value="seuemail@exemplo.com">
+              </div>
+              <div class="form-group">
+                <label>Número de telefone:</label>
+                <input type="text" name="telefone" value="(00) 00000-0000">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="section-header">
+              <i class="fas fa-lock"></i>
+              <h3>Segurança</h3>
+            </div>
+            <div class="form-grid two-column">
+              <div class="form-group">
+                <label>Senha atual:</label>
+                <input type="password" name="senhaAtual">
+              </div>
+              <div class="form-group">
+                <label>Nova senha:</label>
+                <input type="password" name="novaSenha">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="submit-btn">Salvar Configurações</button>
+      </form>
     </div>
-    <p>&copy; 2025 RealMe - Criado por Maxgfortes</p>
-  </footer>
-</section>
-<script type="module" src="./src/js/user-config.js"></script>
-<script type="module" src="./src/js/navbar.js"></script>
+    
+    <footer>
+      <div>
+        <a href="sobre.html">Sobre</a>
+        <a href="contato.html">Contato</a>
+        <a href="privacidade.html">Privacidade</a>
+      </div>
+      <p>&copy; 2025 RealMe - Criado por Maxgfortes</p>
+    </footer>
+  </section>
+  <script type="module" src="./src/js/user-config.js"></script>
+  <script type="module" src="./src/js/navbar.js"></script>
+  <script>
+    // Sistema de tabs
+    document.addEventListener("DOMContentLoaded", function() {
+      document.querySelectorAll('.tab-button').forEach(button => {
+        button.addEventListener('click', () => {
+          document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+          button.classList.add('active');
+          const tabContent = document.getElementById(button.dataset.tab);
+          if (tabContent) {
+            tabContent.classList.add('active');
+          }
+        });
+      });
+    });
+  </script>
+  <script src="./block.js"></script>
 </body>
 </html>

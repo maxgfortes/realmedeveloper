@@ -117,7 +117,6 @@
 <div id="msg-context-menu">
   <div class="menu-item" data-action="reply">Responder</div>
   <div class="menu-item" data-action="copy">Copiar</div>
-  <div class="menu-item" data-action="delete">Excluir</div>
   <div class="menu-item" data-action="deleteforyou">Excluir só para mim</div>
 </div>
 
@@ -365,7 +364,7 @@ function renderizarMensagens(mensagens) {
         <div class="reply-container">
           <div class="reply-border"></div>
           <div class="reply-balao">
-            <span class="reply-user">${replyMsg.sender === loggedUser ? "Você" : "Outro"}</span>
+            <span class="reply-user">${replyMsg.sender === loggedUser ? "Você:" : "Outro:"}</span>
             <span class="reply-content">${replyMsg.content || "[mensagem apagada]"}</span>
           </div>
         </div>

@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="./src/styles/navbars.css" />
   <link rel="stylesheet" href="./src/styles/search.css" />
   <link rel="stylesheet" href="./src/styles/post-modal.css" />
+  <link rel="stylesheet" href="./src/styles/search.css" />
 </head>
 <body>
 
@@ -39,33 +40,31 @@
       </div>
     </div>
     <div class="marquee-container">
-      <div class="marquee">marcio_marques acabou de postar uma foto...</div>
+      <div class="marquee"></div>
     </div>
   </nav>
 
-  <!-- Sidebar Desktop -->
-  <!-- Sidebar -->
+   <!-- Sidebar -->
   <aside class="sidebar">
     <a href="feed.html"><i class="fas fa-home"></i> Início</a>
     <a href="acharamigos.html"><i class="fas fa-user-friends"></i> Achar Amigos</a>
     <a href="direct.html"><i class="fas fa-comments"></i> Mensagens</a>
     <a href="nt.html"><i class="fas fa-bell"></i> Notificações</a>
-    <a href="#" class="modalopen"><i class="fas fa-plus-square"></i> Criar</a>
+    <a href="#" class="postmodal"><i class="fas fa-plus-square"></i> Criar</a>
     <a href="#" id="linkPerfilSidebar"><i class="fas fa-user"></i> Perfil</a>
-    <!-- Menu Mais com submenu flutuante -->
-        <div class="more-menu" id="moreMenu">
-            <a href="#" class="more-toggle" id="moreToggle">
-                <i class="fa-solid fa-bars"></i>
-                Mais
-            </a>
-            <div class="floating-menu" id="floatingMenu">
-                <a href="config.html"><i class="fas fa-cog"></i> Configurações</a>
-                <a href="invites.html"><i class="fa-solid fa-user-plus"></i> Convites</a>
-                <a href="como-usar.html"><i class="fa-solid fa-book-open"></i> Como Usar</a>
-                <a href="sobre.html"><i class="fas fa-question-circle"></i> Sobre</a>
-                <a href="#" id="btnSair"><i class="fas fa-sign-out-alt"></i> Sair</a>
-            </div>
-        </div>
+    <div class="more-menu" id="moreMenu">
+      <a href="#" class="more-toggle" id="moreToggle">
+        <i class="fa-solid fa-bars"></i>
+        Mais
+      </a>
+      <div class="floating-menu" id="floatingMenu">
+        <a href="config.html"><i class="fas fa-cog"></i> Configurações</a>
+        <a href="invites.html"><i class="fa-solid fa-user-plus"></i> Convites</a>
+        <a href="como-usar.html"><i class="fa-solid fa-book-open"></i> Como Usar</a>
+        <a href="sobre.html"><i class="fas fa-question-circle"></i> Sobre</a>
+        <a href="#" id="btnSair"><i class="fas fa-sign-out-alt"></i> Sair</a>
+      </div>
+    </div>
   </aside>
   <ul id="searchResults"></ul>
 
@@ -594,159 +593,12 @@
             }
         })();
 </script>
-<script type="module">
-  import {
-  getFirestore,
-  collection,
-  getDocs,
-  doc,
-  getDoc
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import {
-  getAuth,
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-// Inicializa Firebase
-const db = getFirestore();
-const auth = getAuth();
-
-// Função para pegar filtros dos inputs do seu HTML
-function getFiltros() {
-  return {
-    estilo: document.querySelector('input[placeholder*="estilo"]')?.value.trim().toLowerCase() || "",
-    personalidade: document.querySelector('input[placeholder*="Personalidade"]')?.value.trim().toLowerCase() || "",
-    medos: document.querySelector('input[placeholder*="Medos"]')?.value.trim().toLowerCase() || "",
-    sonhos: document.querySelector('input[placeholder*="Sonhos"]')?.value.trim().toLowerCase() || "",
-    musicas: document.querySelector('input[placeholder*="Musicas"]')?.value.trim().toLowerCase() || "",
-    personagens: document.querySelector('input[placeholder*="Personagens"]')?.value.trim().toLowerCase() || "",
-    localizacao: document.querySelector('input[placeholder*="localização"]')?.value.trim().toLowerCase() || "",
-    hobbies: document.querySelector('input[placeholder*="Hobbies"]')?.value.trim().toLowerCase() || "",
-    genero: document.getElementById('genero')?.value || "",
-    idadeMin: parseInt(document.getElementById('idade-min')?.value) || 13,
-    idadeMax: parseInt(document.getElementById('idade-max')?.value) || 99
-  };
-}
-
-// Função para buscar dados do usuário logado (igual a mim)
-async function getMeuPerfil(uid) {
-  const userRef = doc(db, "users", uid);
-  const userSnap = await getDoc(userRef);
-  return userSnap.exists() ? userSnap.data() : null;
-}
-
-// Algoritmo de match simples
-function calcularScore(user, filtros) {
-  let score = 0;
-  if (filtros.estilo && user.estilo && user.estilo.toLowerCase().includes(filtros.estilo)) score++;
-  if (filtros.personalidade && user.personalidade && user.personalidade.toLowerCase().includes(filtros.personalidade)) score++;
-  if (filtros.medos && user.medos && user.medos.toLowerCase().includes(filtros.medos)) score++;
-  if (filtros.sonhos && user.sonhos && user.sonhos.toLowerCase().includes(filtros.sonhos)) score++;
-  if (filtros.musicas && user.musicas && user.musicas.toLowerCase().includes(filtros.musicas)) score++;
-  if (filtros.personagens && user.personagens && user.personagens.toLowerCase().includes(filtros.personagens)) score++;
-  if (filtros.localizacao && user.localizacao && user.localizacao.toLowerCase().includes(filtros.localizacao)) score++;
-  if (filtros.hobbies && user.hobbies && user.hobbies.toLowerCase().includes(filtros.hobbies)) score++;
-  if (filtros.genero && user.genero && user.genero === filtros.genero) score++;
-  if (user.idade && user.idade >= filtros.idadeMin && user.idade <= filtros.idadeMax) score++;
-  return score;
-}
-
-// Busca perfis e calcula match
-async function buscarPerfis(filtros, meuUid) {
-  const usersRef = collection(db, "users");
-  const snapshot = await getDocs(usersRef);
-  const resultados = [];
-
-  snapshot.forEach(docSnap => {
-    const user = docSnap.data();
-    // Não mostra o próprio perfil
-    if (docSnap.id === meuUid) return;
-    const score = calcularScore(user, filtros);
-    if (score > 0) {
-      resultados.push({ ...user, score });
-    }
-  });
-
-  // Ordena por score (mais parecido primeiro)
-  resultados.sort((a, b) => b.score - a.score);
-  return resultados;
-}
-
-// Mostra os resultados na tela (cards)
-function mostrarResultados(resultados) {
-  const wrapper = document.getElementById('cardsWrapper');
-  wrapper.innerHTML = '';
-  if (resultados.length === 0) {
-    wrapper.innerHTML = '<p>Nenhum perfil parecido encontrado.</p>';
-    return;
-  }
-  resultados.forEach(user => {
-    const card = document.createElement('div');
-    card.className = 'friend-card';
-    card.innerHTML = `
-      <div class="card-content">
-        <img src="${user.userphoto || './src/icon/default.jpg'}" alt="${user.displayname}">
-        <div class="card-info">
-          <div class="card-name">${user.displayname}</div>
-          <div class="card-username">@${user.username}</div>
-          <div class="card-score">Match: ${user.score}</div>
-        </div>
-        <a href="PF.html?username=${user.username}" class="view-profile-btn"><p>Ver Perfil</p></a>
-      </div>
-    `;
-    wrapper.appendChild(card);
-  });
-}
-
-// Deixa filtros escuros e inclicáveis se "Igual a mim" estiver ativado
-function toggleFiltrosDesabilitados(desabilitar) {
-  document.querySelectorAll('.filtros input, .filtros select, .filtros .age-input').forEach(el => {
-    el.disabled = desabilitar;
-    el.style.opacity = desabilitar ? '0.5' : '1';
-    el.style.pointerEvents = desabilitar ? 'none' : 'auto';
-  });
-}
-
-// Evento do switch "Igual a mim"
-document.getElementById('igualAMim').addEventListener('change', function() {
-  toggleFiltrosDesabilitados(this.checked);
-});
-
-// Evento do botão Buscar!
-document.querySelector('.search-btn').addEventListener('click', async (e) => {
-  e.preventDefault();
-  onAuthStateChanged(auth, async (user) => {
-    if (!user) return;
-    let filtros = getFiltros();
-
-    // Se "Igual a mim" estiver marcado, usa seu perfil como filtro
-    const igualAMim = document.getElementById('igualAMim')?.checked;
-    let meuUid = user.uid;
-    if (igualAMim) {
-      const meuPerfil = await getMeuPerfil(meuUid);
-      if (meuPerfil) {
-        filtros = {
-          estilo: meuPerfil.estilo || "",
-          personalidade: meuPerfil.personalidade || "",
-          medos: meuPerfil.medos || "",
-          sonhos: meuPerfil.sonhos || "",
-          musicas: meuPerfil.musicas || "",
-          personagens: meuPerfil.personagens || "",
-          localizacao: meuPerfil.localizacao || "",
-          hobbies: meuPerfil.hobbies || "",
-          genero: meuPerfil.genero || "",
-          idadeMin: meuPerfil.idade || 13,
-          idadeMax: meuPerfil.idade || 99
-        };
-      }
-    }
-
-    const resultados = await buscarPerfis(filtros, meuUid);
-    mostrarResultados(resultados);
-  });
-});
-</script>
+<script src="./src/js/search.js"></script>
 <script src="./block.js"></script>
-
+<script type="module" src="./src/js/search.js"></script>
+<script src="./src/js/more.js"></script>
+<script type="module" src="./src/js/loading.js"></script>
+<script type="module" src="./src/js/navbar.js" defer></script>
 </body>
 </html>

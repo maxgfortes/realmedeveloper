@@ -842,6 +842,23 @@ function determinarUsuarioParaCarregar() {
   return currentUserId;
 }
 
+async function atualizarMarqueeUltimoUsuario() {
+  const lastUpdateRef = doc(db, "lastupdate", "latestUser");
+  const docSnap = await getDoc(lastUpdateRef);
+  const marquee = document.querySelector(".marquee");
+  if (!marquee) return;
+  if (docSnap.exists()) {
+    const data = docSnap.data();
+    const nomeUsuario = data.username || "Usuário";
+    marquee.textContent = `${nomeUsuario} acabou de entrar no RealMe!`;
+  } else {
+    marquee.textContent = "Bem-vindo ao RealMe!";
+  }
+}
+
+document.addEventListener('DOMContentLoaded', atualizarMarqueeUltimoUsuario);
+
+
 async function carregarPerfilCompleto() {
   const userid = determinarUsuarioParaCarregar();
   if (!userid) {
@@ -1165,3 +1182,40 @@ function configurarLinks() {
     });
   }
 }
+document.addEventListener('DOMContentLoaded', function() {
+  if (window.innerWidth <= 768) {
+    const header = document.querySelector('.profile-header');
+    if (header) {
+      // Remove imediatamente
+      header.classList.remove('shrink');
+      // Observa mudanças de classe e remove sempre que aparecer
+      const observer = new MutationObserver(() => {
+        if (header.classList.contains('shrink')) {
+          header.classList.remove('shrink');
+        }
+      });
+      observer.observe(header, { attributes: true, attributeFilter: ['class'] });
+    }
+  }
+});
+
+function removerShrinkHeaderMobile() {
+  if (window.innerWidth <= 768) {
+    const header = document.querySelector('.profile-header');
+    if (header) {
+      header.classList.remove('shrink');
+      // Observa mudanças de classe e remove sempre que aparecer
+      if (!header._shrinkObserver) {
+        const observer = new MutationObserver(() => {
+          if (header.classList.contains('shrink')) {
+            header.classList.remove('shrink');
+          }
+        });
+        observer.observe(header, { attributes: true, attributeFilter: ['class'] });
+        header._shrinkObserver = observer;
+      }
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded', removerShrinkHeaderMobile);
+window.addEventListener('resize', removerShrinkHeaderMobile);
