@@ -209,17 +209,17 @@ function setupFormSubmit() {
         }
 
         try {
-            const formData = new FormData(form);
-            await salvarConfigPerfil(currentUser.uid, formData);
-            alert('Configurações salvas com sucesso!');
-        } catch (error) {
-            alert('Erro ao salvar as configurações: ' + error.message);
-        } finally {
-            if (submitBtn) {
-                submitBtn.textContent = originalText;
-                submitBtn.disabled = false;
-            }
-        }
+    const formData = new FormData(form);
+    await salvarConfigPerfil(currentUser.uid, formData);
+    window.location.href = `PF.html?userid=${currentUser.uid}`;
+} catch (error) {
+    alert('Erro ao salvar as configurações: ' + error.message);
+} finally {
+    if (submitBtn) {
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+    }
+}
     });
 }
 

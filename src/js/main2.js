@@ -74,10 +74,4 @@ auth.onAuthStateChanged(async (user) => {
       onlineGrid.innerHTML = '<p>Nenhum amigo online</p>';
     }
 
-  } else {
-    // Fallback se não logado
-    greetingEl.textContent = 'Olá';
-    marqueeEl.textContent = 'Nenhuma novidade no momento';
-    onlineGrid.innerHTML = '<p>Nenhum amigo online</p>';
-  }
 );

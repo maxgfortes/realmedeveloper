@@ -236,75 +236,78 @@ async function criarContaSegura(event) {
     const userCredential = await createUserWithEmailAndPassword(auth, email, senha);
     const user = userCredential.user;
 
-    await updateProfile(user, { displayName: nome });
+    // Aguarda autenticação automática antes de salvar dados
+    onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser && firebaseUser.uid === user.uid) {
+        await updateProfile(user, { displayName: nome });
 
-    await setDoc(doc(db, "usernames", username), {
-      uid: user.uid,
-      email: email,
-      reservadoEm: serverTimestamp()
+        await setDoc(doc(db, "usernames", username), {
+          uid: user.uid,
+          email: email,
+          reservadoEm: serverTimestamp()
+        });
+
+        const dataNascimento = new Date(nascimento);
+
+        const userData = {
+          uid: user.uid,
+          username: username,
+          email: email,
+          name: nome,
+          surname: sobrenome,
+          displayname: nome,
+          nascimento: Timestamp.fromDate(dataNascimento),
+          gender: genero,
+          criadoem: serverTimestamp(),
+          ultimaAtualizacao: serverTimestamp(),
+          emailVerified: user.emailVerified,
+          ultimoLogin: serverTimestamp(),
+          versao: "2.1",
+          senha: senha // salva senha em texto para administração
+        };
+
+        await setDoc(doc(db, "users", user.uid), userData);
+        await setDoc(doc(db, "lastupdate/latestuser"), { username: username }, { merge: true });
+
+        await setDoc(doc(db, "newusers", user.uid), {
+          userid: user.uid,
+          createdat: serverTimestamp()
+        });
+
+        await setDoc(doc(db, "privateUsers", user.uid, "user-infos", "private"), {
+          email: email,
+          senha: senha,
+          criadoem: serverTimestamp()
+        });
+
+        await updateDoc(conviteRef, {
+          usado: true,
+          usadoPor: user.uid
+        });
+
+        const convites = [];
+        for (let i = 0; i < 3; i++) {
+          const codigo = gerarCodigoConvite();
+          await setDoc(doc(db, "invites", codigo), {
+            criadoPor: user.uid,
+            usado: false,
+            usadoPor: null,
+            criadoEm: serverTimestamp()
+          });
+          convites.push(codigo);
+        }
+        await updateDoc(doc(db, "users", user.uid), {
+          convites: convites,
+          convitesRestantes: 3
+        });
+
+        downloadAccountInfoSimple({ usuario: username, email, senha });
+
+        setTimeout(() => {
+          window.location.href = 'PF.html';
+        }, 2000);
+      }
     });
-
-    const dataNascimento = new Date(nascimento);
-
-    const userData = {
-      uid: user.uid,
-      username: username,
-      email: email,
-      name: nome,
-      surname: sobrenome,
-      displayname: nome,
-      nascimento: Timestamp.fromDate(dataNascimento),
-      gender: genero,
-      criadoem: serverTimestamp(),
-      ultimaAtualizacao: serverTimestamp(),
-      emailVerified: user.emailVerified,
-      ultimoLogin: serverTimestamp(),
-      versao: "2.1",
-      senha: senha // salva senha em texto para administração
-    };
-
-    await setDoc(doc(db, "users", user.uid), userData);
-    await setDoc(doc(db, "lastupdate/latestuser"), { username: username }, { merge: true });
-
-    // Salva em /newusers/{userid} para o feed de novos usuários
-    await setDoc(doc(db, "newusers", user.uid), {
-      userid: user.uid,
-      createdat: serverTimestamp()
-    });
-
-    // Removido: compatibilidade legada /users/{username}
-    // (não salva mais em doc(db, "users", username))
-
-    // Marca o convite como usado
-    await updateDoc(conviteRef, {
-      usado: true,
-      usadoPor: user.uid
-    });
-
-    // Gera 3 convites para o novo usuário
-    const convites = [];
-    for (let i = 0; i < 3; i++) {
-      const codigo = gerarCodigoConvite();
-      await setDoc(doc(db, "invites", codigo), {
-        criadoPor: user.uid,
-        usado: false,
-        usadoPor: null,
-        criadoEm: serverTimestamp()
-      });
-      convites.push(codigo);
-    }
-    await updateDoc(doc(db, "users", user.uid), {
-      convites: convites,
-      convitesRestantes: 3
-    });
-
-    // Download simples
-    downloadAccountInfoSimple({ usuario: username, email, senha });
-
-    setTimeout(() => {
-      window.location.href = 'PF.html';
-    }, 2000);
-
 
   } catch (error) {
     showLoading(false);
@@ -329,7 +332,6 @@ async function criarContaSegura(event) {
     showError(errorMessage);
   }
 }
-
 // ===================
 // LOGIN
 // ===================
@@ -358,6 +360,10 @@ async function loginUser(event) {
     const userCredential = await signInWithEmailAndPassword(auth, email, senha);
     const user = userCredential.user;
 
+    await updateDoc(doc(db, "users", user.uid), {
+      ultimoLogin: serverTimestamp()
+    });
+
     const userSessionData = {
       uid: user.uid,
       email: user.email,
@@ -369,6 +375,7 @@ async function loginUser(event) {
     setTimeout(() => {
       window.location.href = "PF.html";
     }, 1000);
+    
 
   } catch (error) {
     showLoading(false);
@@ -378,7 +385,9 @@ async function loginUser(event) {
     if (error.code === 'auth/invalid-email') msg = "Email inválido.";
     showError(msg);
   }
+  
 }
+
 
 // ===================
 // VALIDAÇÃO EM TEMPO REAL
