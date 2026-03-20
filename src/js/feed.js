@@ -2512,86 +2512,55 @@ let postImageFile = null;
 let storyImageFile = null;
 
 function inicializarSistemaTipoPost() {
-  const tabs = document.querySelectorAll('.post-type-tab');
-  const contentTypes = document.querySelectorAll('.post-content-type');
-  const sendBtn = document.querySelector('.send-post-btn');
-
-  // Troca de tabs
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      const type = tab.dataset.type;
-      
-      // Atualiza tabs
-      tabs.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      
-      // Atualiza conteúdo
-      contentTypes.forEach(ct => ct.classList.remove('active'));
-      document.querySelector(`.post-content-type[data-type="${type}"]`).classList.add('active');
-      
-      currentPostType = type;
-      
-      // Limpa inputs
-      limparInputsPost();
-    });
-  });
-
-  // Contador de caracteres
+  // Contador de caracteres (igual ao original)
   document.querySelectorAll('.np-text-input').forEach(textarea => {
     textarea.addEventListener('input', (e) => {
       const counter = e.target.parentElement.querySelector('.char-counter');
       if (counter) {
-        const max = parseInt(textarea.getAttribute('maxlength'));
+        const max     = parseInt(textarea.getAttribute('maxlength'));
         const current = e.target.value.length;
         counter.textContent = `${current}/${max}`;
-        
-        if (current >= max * 0.9) {
-          counter.classList.add('limit');
-        } else {
-          counter.classList.remove('limit');
-        }
+        counter.classList.toggle('limit', current >= max * 0.9);
       }
     });
   });
 
-  // Upload de imagem POST
+  // Upload de imagem POST (igual ao original)
   const postFileArea = document.getElementById('post-file-input');
   if (postFileArea) {
     postFileArea.addEventListener('click', () => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
+      const input   = document.createElement('input');
+      input.type    = 'file';
+      input.accept  = 'image/*';
       input.onchange = (e) => handlePostImageUpload(e.target.files[0]);
       input.click();
     });
   }
 
-  // Upload de imagem STORY
-  const storyFileArea = document.getElementById('story-file-input');
-  if (storyFileArea) {
-    storyFileArea.addEventListener('click', () => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.onchange = (e) => handleStoryImageUpload(e.target.files[0]);
-      input.click();
-    });
-  }
-
-  // Remover imagem POST
+  // Remover imagem POST (igual ao original)
   document.querySelector('.remove-image-post')?.addEventListener('click', () => {
     postImageFile = null;
-    document.querySelector('.image-preview-post').style.display = 'none';
+    const preview = document.querySelector('.image-preview-post');
+    if (preview) preview.style.display = 'none';
   });
 
-  // Remover imagem STORY
-  document.querySelector('.remove-image-story')?.addEventListener('click', () => {
-    storyImageFile = null;
-    document.querySelector('.image-preview-story').style.display = 'none';
+  // -------------------------------------------------------
+  // BOTÃO "POST" — envia texto + imagem
+  // -------------------------------------------------------
+  document.getElementById('btn-post')?.addEventListener('click', async () => {
+    const user  = auth.currentUser;
+    const texto = document.querySelector('.np-text-input').value.trim();
+    await enviarPost(user, texto, postImageFile);
   });
 
-  // Botão de enviar
-  sendBtn.addEventListener('click', enviarPublicacao);
+  // -------------------------------------------------------
+  // BOTÃO "NOTA" — envia só texto, ignora imagem
+  // -------------------------------------------------------
+  document.getElementById('btn-bubble')?.addEventListener('click', async () => {
+    const user  = auth.currentUser;
+    const texto = document.querySelector('.np-text-input').value.trim();
+    await enviarBubble(user, texto);
+  });
 }
 
 function handlePostImageUpload(file) {
@@ -2634,11 +2603,17 @@ function limparInputsPost() {
       counter.classList.remove('limit');
     }
   });
-  
-  postImageFile = null;
+
+  postImageFile  = null;
   storyImageFile = null;
-  document.querySelector('.image-preview-post').style.display = 'none';
-  document.querySelector('.image-preview-story').style.display = 'none';
+
+  const previewPost  = document.querySelector('.image-preview-post');
+  const previewStory = document.querySelector('.image-preview-story');
+  if (previewPost)  previewPost.style.display  = 'none';
+  if (previewStory) previewStory.style.display = 'none';
+
+  const postFileArea = document.getElementById('post-file-input');
+  if (postFileArea) postFileArea.style.display = '';
 }
 
 async function enviarPublicacao() {
@@ -2662,10 +2637,19 @@ async function enviarPublicacao() {
 
 async function enviarPost(user, texto, imageFile) {
   if (!texto && !imageFile) {
+    alert('Escreva algo ou adicione uma imagem!');
     return;
   }
 
-  const loadingInfo = mostrarLoading('Enviando post...');
+  // Fecha o modal na hora
+  const postLayer = document.getElementById('postLayer');
+  if (postLayer) postLayer.classList.remove('active');
+  document.body.style.overflow = '';
+  limparInputsPost();
+
+  // Inicia barra em 0%
+  const bar = criarBarraPost();
+  avancarBarra(bar, 10); // começa com 10% imediatamente
 
   try {
     const postId = gerarIdUnico('post');
@@ -2673,90 +2657,148 @@ async function enviarPost(user, texto, imageFile) {
     let deleteUrlImagem = '';
 
     if (imageFile) {
-      atualizarTextoLoading('Fazendo upload da imagem...');
+      avancarBarra(bar, 30); // 30% — iniciando upload
       const uploadResult = await uploadImagemPost(imageFile, user.uid);
       if (!uploadResult.success) {
-        clearInterval(loadingInfo.interval);
-        esconderLoading();
+        removerBarra(bar);
+        alert('Erro no upload: ' + uploadResult.error);
         return;
       }
-      urlImagem = uploadResult.url;
+      urlImagem       = uploadResult.url;
       deleteUrlImagem = uploadResult.deleteUrl;
+      avancarBarra(bar, 70); // 70% — upload concluído
+    } else {
+      avancarBarra(bar, 60); // sem imagem, vai direto pra 60%
     }
 
-    atualizarTextoLoading('Salvando post...');
-
     const postData = {
-      content: texto,
-      img: urlImagem,
+      content:      texto,
+      img:          urlImagem,
       imgDeleteUrl: deleteUrlImagem,
-      urlVideo: '',
-      likes: 0,
-      saves: 0,
-      comentarios: 0,
-      postid: postId,
-      creatorid: user.uid,
-      reports: 0,
-      visible: true,
-      create: serverTimestamp()
+      urlVideo:     '',
+      likes:        0,
+      saves:        0,
+      comentarios:  0,
+      postid:       postId,
+      creatorid:    user.uid,
+      reports:      0,
+      visible:      true,
+      create:       serverTimestamp()
     };
 
-    await setDoc(doc(db, 'users', user.uid, 'posts', postId), postData);
+    avancarBarra(bar, 85); // 85% — salvando
     await setDoc(doc(db, 'posts', postId), postData);
+    await setDoc(doc(db, 'users', user.uid, 'posts', postId), postData);
 
-    clearInterval(loadingInfo.interval);
-    esconderLoading();
-    limparInputsPost();
-    document.getElementById('closeLayerBtn').click();
-    feed.innerHTML = '';
+    avancarBarra(bar, 100); // 100% — salvo!
+    setTimeout(() => removerBarra(bar), 400);
+
+    feed.innerHTML   = '';
     lastPostSnapshot = null;
-    hasMorePosts = true;
-    loading = false;
+    hasMorePosts     = true;
+    loading          = false;
     limparCacheFeed();
     await loadPosts();
 
   } catch (error) {
-    console.error("Erro ao enviar post:", error);
-    clearInterval(loadingInfo.interval);
-    esconderLoading();
+    console.error('Erro ao enviar post:', error);
+    removerBarra(bar);
+    alert('Erro ao enviar post: ' + error.message);
   }
 }
 
 async function enviarBubble(user, texto) {
   if (!texto) {
+    alert('Escreva algo para a nota!');
     return;
   }
 
-  const loadingInfo = mostrarLoading('Enviando bubble...');
+  // Fecha o modal na hora
+  const postLayer = document.getElementById('postLayer');
+  if (postLayer) postLayer.classList.remove('active');
+  document.body.style.overflow = '';
+  limparInputsPost();
+
+  // Inicia barra em 0%
+  const bar = criarBarraPost();
+  avancarBarra(bar, 20);
 
   try {
     const bubbleId = gerarIdUnico('bubble');
 
-    const bubbleData = {
-      content: texto,
-      bubbleid: bubbleId,
+    avancarBarra(bar, 60); // salvando
+    await setDoc(doc(db, 'bubbles', bubbleId), {
+      content:   texto,
+      bubbleid:  bubbleId,
       creatorid: user.uid,
-      create: serverTimestamp(),
-      musicUrl: ''
-    };
+      create:    serverTimestamp(),
+      musicUrl:  ''
+    });
 
-    await setDoc(doc(db, 'bubbles', bubbleId), bubbleData);
+    avancarBarra(bar, 100); // pronto
+    setTimeout(() => removerBarra(bar), 400);
 
-    clearInterval(loadingInfo.interval);
-    esconderLoading();
-    limparInputsPost();
-    document.getElementById('closeLayerBtn').click();
-    feed.innerHTML = '';
+    feed.innerHTML   = '';
     lastPostSnapshot = null;
-    hasMorePosts = true;
-    loading = false;
+    hasMorePosts     = true;
+    loading          = false;
     limparCacheFeed();
     await loadPosts();
 
   } catch (error) {
-    console.error("Erro ao enviar bubble:", error);
-    clearInterval(loadingInfo.interval);
-    esconderLoading();
+    console.error('Erro ao enviar nota:', error);
+    removerBarra(bar);
+    alert('Erro ao enviar nota: ' + error.message);
+  }
+}
+
+// ===================
+// BARRA DE PROGRESSO DO POST (0% → 100%)
+// ===================
+function criarBarraPost() {
+  // injeta o CSS uma única vez
+  if (!document.getElementById('plb-style')) {
+    const s = document.createElement('style');
+    s.id = 'plb-style';
+    s.textContent = `
+      #post-loading-bar {
+        position: fixed;
+        bottom: 80px;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        background: var(--bg-primary);
+        z-index: 99997;
+      }
+      #post-loading-bar .plb-inner {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #4A90E2, #4A90E2);
+        transition: width 0.4s ease;
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
+  // remove barra antiga se existir
+  document.getElementById('post-loading-bar')?.remove();
+
+  const bar = document.createElement('div');
+  bar.id = 'post-loading-bar';
+  bar.innerHTML = '<div class="plb-inner"></div>';
+  document.body.appendChild(bar);
+  return bar;
+}
+
+function avancarBarra(bar, porcentagem) {
+  const inner = bar?.querySelector('.plb-inner');
+  if (inner) inner.style.width = porcentagem + '%';
+}
+
+function removerBarra(bar) {
+  if (bar) {
+    avancarBarra(bar, 100);
+    setTimeout(() => bar.remove(), 400);
   }
 }
 
