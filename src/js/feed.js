@@ -26,6 +26,11 @@ import {
   verificarSeEstaSalvo 
 } from './save-posts.js';
 
+import {
+  triggerNovoPost,
+  triggerNovoBubble,
+  triggerNovoComentario
+} from './activitie-creator.js';
 
 
 let lastPostSnapshot = null; 
@@ -389,13 +394,101 @@ function configurarScrollInfinito() {
   }, true); // true = captura eventos de scroll de todos os elementos
 }
 
+// ==============================
+// CACHE DE COMENTÁRIOS (localStorage + stale-while-revalidate)
+// ==============================
+const COMENTARIOS_CACHE_TTL = 2 * 60 * 1000; // 2 minutos
+const COMENTARIOS_CACHE_PREFIX = 'coments_cache_';
+const COMENTARIOS_CACHE_MAX_POSTS = 30; // máximo de posts em cache
+
+function _coments_getKey(postId) {
+  return COMENTARIOS_CACHE_PREFIX + postId;
+}
+
+// Retorna os comentários do cache (mesmo que expirado — stale)
+function getComentariosCache(postId) {
+  try {
+    const raw = localStorage.getItem(_coments_getKey(postId));
+    if (!raw) return null;
+    const entry = JSON.parse(raw);
+    return entry.comentarios;
+  } catch {
+    return null;
+  }
+}
+
+// Verifica se o cache expirou (mas ainda existe)
+function comentariosCacheExpirado(postId) {
+  try {
+    const raw = localStorage.getItem(_coments_getKey(postId));
+    if (!raw) return true;
+    const entry = JSON.parse(raw);
+    return Date.now() - entry.timestamp > COMENTARIOS_CACHE_TTL;
+  } catch {
+    return true;
+  }
+}
+
+// Salva comentários no cache
+function setComentariosCache(postId, comentarios) {
+  try {
+    // Serializa timestamps do Firestore (objeto {seconds, nanoseconds}) para número
+    const serializados = comentarios.map(c => ({
+      ...c,
+      create: (c.create && c.create.seconds) ? c.create.seconds * 1000 : c.create
+    }));
+
+    localStorage.setItem(_coments_getKey(postId), JSON.stringify({
+      timestamp: Date.now(),
+      comentarios: serializados
+    }));
+
+    // Limpar entradas antigas se passou do limite
+    _coments_limparExcesso();
+  } catch (e) {
+    console.warn('Erro ao salvar cache de comentários:', e);
+  }
+}
+
+// Invalida o cache de um post (após enviar novo comentário)
+function invalidarCacheComentarios(postId) {
+  try {
+    localStorage.removeItem(_coments_getKey(postId));
+  } catch {}
+}
+
+// Evita lotar o localStorage — remove entradas mais antigas
+function _coments_limparExcesso() {
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(COMENTARIOS_CACHE_PREFIX)) keys.push(k);
+    }
+    if (keys.length <= COMENTARIOS_CACHE_MAX_POSTS) return;
+
+    // Ordena por timestamp e remove os mais velhos
+    const comTimestamp = keys.map(k => {
+      try { return { k, t: JSON.parse(localStorage.getItem(k)).timestamp }; }
+      catch { return { k, t: 0 }; }
+    });
+    comTimestamp.sort((a, b) => a.t - b.t);
+    const excesso = comTimestamp.slice(0, comTimestamp.length - COMENTARIOS_CACHE_MAX_POSTS);
+    excesso.forEach(({ k }) => localStorage.removeItem(k));
+  } catch {}
+}
+
 // ===================
 // CARREGAR COMENTÃRIOS - VERSÃO CORRIGIDA
 // ===================
 async function carregarComentarios(postId) {
   try {
-    const comentariosRef = collection(db, 'posts', postId, 'coments');
-    const comentariosSnapshot = await getDocs(comentariosRef);
+    // Busca já ordenada pelo Firestore (mais antigo primeiro)
+    const comentariosQuery = query(
+      collection(db, 'posts', postId, 'coments'),
+      orderBy('create', 'desc')
+    );
+    const comentariosSnapshot = await getDocs(comentariosQuery);
     const comentarios = [];
     
     for (const comentarioDoc of comentariosSnapshot.docs) {
@@ -408,23 +501,6 @@ async function carregarComentarios(postId) {
       });
     }
     
-    // ORDENAÇÃO CORRIGIDA - Comentários do mais antigo para o mais recente
-    // ORDENAÇÃO CORRIGIDA - Comentários do mais antigo para o mais recente
-comentarios.sort((a, b) => {
-  if (!a.create || !b.create) return 0;
-  let dataA, dataB;
-  if (typeof a.create === 'object' && a.create.seconds) {
-    dataA = a.create.seconds;
-  } else {
-    dataA = new Date(a.create).getTime() / 1000;
-  }
-  if (typeof b.create === 'object' && b.create.seconds) {
-    dataB = b.create.seconds;
-  } else {
-    dataB = new Date(b.create).getTime() / 1000;
-  }
-  return dataA - dataB; // Do mais antigo para o mais recente
-});
     
     return comentarios;
   } catch (error) {
@@ -434,45 +510,66 @@ comentarios.sort((a, b) => {
 }
 
 // ===================
-// RENDERIZAR COMENTÃRIOS
+// RENDERIZAR COMENTÁRIOS (com cache localStorage + stale-while-revalidate)
 // ===================
+
+// Renderiza uma lista de comentários num container (função pura, sem I/O)
+function renderListaComentarios(comentarios, container) {
+  container.innerHTML = '';
+  if (comentarios.length === 0) {
+    container.innerHTML = '<p class="no-comments">Nenhum comentario ainda.</p>';
+    return;
+  }
+  comentarios.forEach(comentario => {
+    const nomeParaExibir = comentario.userData?.displayname || comentario.userData?.username || comentario.senderid;
+    const usernameParaExibir = comentario.userData?.username ? `${comentario.userData.username}` : '';
+    const fotoUsuario = comentario.userData?.userphoto || obterFotoPerfil(comentario.userData, null);
+    const conteudoFormatado = formatarHashtags(comentario.content);
+    const isVerified = comentario.userData?.verified
+      ? '<i class="fas fa-check-circle" style="margin-left: 4px; font-size: 0.85em; color: var(--verified-blue)"></i>'
+      : '';
+    const comentarioEl = document.createElement('div');
+    comentarioEl.className = 'comentario-item';
+    comentarioEl.innerHTML = `
+      <div class="comentario-header">
+        <img src="${fotoUsuario}" alt="Avatar" class="comentario-avatar"
+             onerror="this.src='./src/img/default.jpg'" />
+        <div class="comentario-meta">
+          <strong class="comentario-nome" data-username="${comentario.senderid}">${usernameParaExibir}${isVerified}</strong>
+          <small class="comentario-data">${formatarDataRelativa(comentario.create)}</small>
+        </div>
+      </div>
+      <div class="comentario-conteudo">${conteudoFormatado}</div>
+    `;
+    container.appendChild(comentarioEl);
+  });
+}
+
 async function renderizarComentarios(uid, postId, container) {
-  const loadingInfo = mostrarLoading('Carregando comentários...');
+  const cached = getComentariosCache(postId);
+
+  if (cached) {
+    // Renderiza do cache instantaneamente (sem loading)
+    renderListaComentarios(cached, container);
+
+    // Se expirado, rebusca em background e atualiza silenciosamente
+    if (comentariosCacheExpirado(postId)) {
+      carregarComentarios(postId).then(novos => {
+        setComentariosCache(postId, novos);
+        renderListaComentarios(novos, container);
+      }).catch(() => {}); // falha silenciosa — cache antigo continua exibido
+    }
+    return;
+  }
+
+  // Sem cache: mostra loading e busca no Firestore
+  container.innerHTML = '<p class="no-comments" style="opacity:0.5">Carregando comentários...</p>';
   try {
     const comentarios = await carregarComentarios(postId);
-    container.innerHTML = '';
-    if (comentarios.length === 0) {
-      container.innerHTML = '<p class="no-comments">Nenhum comentario ainda.</p>';
-    } else {
-      comentarios.forEach(comentario => {
-        const nomeParaExibir = comentario.userData?.displayname || comentario.userData?.username || comentario.senderid;
-        const usernameParaExibir = comentario.userData?.username ? `@${comentario.userData.username}` : '';
-        const fotoUsuario = comentario.userData?.userphoto || obterFotoPerfil(comentario.userData, null);
-        const conteudoFormatado = formatarHashtags(comentario.content);
-        const isVerified = comentario.userData?.verified ? '<i class="fas fa-check-circle" style="margin-left: 4px; font-size: 0.85em; color: var(--verified-blue)"></i>' : '';
-        const comentarioEl = document.createElement('div');
-        comentarioEl.className = 'comentario-item';
-        comentarioEl.innerHTML = `
-          <div class="comentario-header">
-            <img src="${fotoUsuario}" alt="Avatar" class="comentario-avatar"
-                 onerror="this.src='./src/img/default.jpg'" />
-            <div class="comentario-meta">
-              <strong class="comentario-nome" data-username="${comentario.senderid}">${nomeParaExibir}${isVerified}</strong>
-              <small class="comentario-usuario">${usernameParaExibir}</small>
-              <small class="comentario-data">${formatarDataRelativa(comentario.create)}</small>
-            </div>
-          </div>
-          <div class="comentario-conteudo">${conteudoFormatado}</div>
-        `;
-        container.appendChild(comentarioEl);
-      });
-    }
-    clearInterval(loadingInfo.interval);
-    esconderLoading();
+    setComentariosCache(postId, comentarios);
+    renderListaComentarios(comentarios, container);
   } catch (error) {
     console.error("Erro ao renderizar comentarios:", error);
-    clearInterval(loadingInfo.interval);
-    esconderLoading();
     container.innerHTML = '<p class="error-comments">Erro ao carregar comentarios.</p>';
   }
 }
@@ -488,7 +585,6 @@ async function adicionarComentario(uid, postId, conteudo) {
   if (linkCheck.malicioso) {
     return false;
   }
-  const loadingInfo = mostrarLoading('Enviando comentario...');
   try {
     const comentarioId = gerarIdUnico('comentid');
     const comentarioData = {
@@ -503,13 +599,9 @@ async function adicionarComentario(uid, postId, conteudo) {
     // Salva em posts/{postid}/coments/{comentid}
     const postComentRef = doc(db, 'posts', postId, 'coments', comentarioId);
     await setDoc(postComentRef, comentarioData);
-    clearInterval(loadingInfo.interval);
-    esconderLoading();
     return true;
   } catch (error) {
     console.error("Erro ao adicionar comentario:", error);
-    clearInterval(loadingInfo.interval);
-    esconderLoading();
     return false;
   }
 }
@@ -811,20 +903,8 @@ function renderPost(postData, feed) {
           </button>
         </div>
       </div>
-                  <div class="post-footer-infos">
+      <div class="post-footer-infos">
         <p class="post-liked-by"><strong class="liked-by-username"></strong></p>
-      </div>
-      <div class="comments-section" style="display: none;">
-        <div class="comment-form">
-          <input type="text" class="comment-input" placeholder="Escreva um comentário..."
-                 data-username="${postData.creatorid}" data-post-id="${postData.postid}">
-          <button class="comment-submit" data-username="${postData.creatorid}" data-post-id="${postData.postid}">
-            <i class="fas fa-paper-plane"></i>
-          </button>
-        </div>
-        <div class="comments-area">
-          <div class="comments-list"></div>
-        </div>
       </div>
     </div>
   `;
@@ -2178,6 +2258,13 @@ async function abrirModalComentarios(postId, creatorId) {
   const commentsList = modal.querySelector('.comments-list-mobile');
   await renderizarComentarios(creatorId, postId, commentsList);
   
+const btnComment = document.querySelector(`.btn-comment[data-id="${postId}"]`);
+if (btnComment) {
+  const total = await contarComentarios(postId);
+  const span = btnComment.querySelector('span');
+  if (span) span.textContent = total;
+}
+  
   // Listener para o botão de envio
   modal.querySelector('.comment-submit-mobile').addEventListener('click', async (e) => {
     e.preventDefault();
@@ -2186,11 +2273,19 @@ async function abrirModalComentarios(postId, creatorId) {
     if (conteudo) {
       const sucesso = await adicionarComentario(creatorId, postId, conteudo);
       if (sucesso) {
+        triggerNovoComentario(postId, creatorId).catch(console.warn);
         input.value = '';
+        invalidarCacheComentarios(postId); // força rebusca no Firestore
         await renderizarComentarios(creatorId, postId, commentsList);
+        // Atualiza contador no botão do feed
+        const btnCommentFeed = document.querySelector(`.btn-comment[data-id="${postId}"]`);
+        if (btnCommentFeed) {
+          const total = await contarComentarios(postId);
+          const spanCount = btnCommentFeed.querySelector('span');
+          if (spanCount) spanCount.textContent = total;
+        }
       }
-    } else {
-    }
+    } 
   });
 
   // Listener para Enter
@@ -2202,8 +2297,16 @@ async function abrirModalComentarios(postId, creatorId) {
       if (conteudo) {
         const sucesso = await adicionarComentario(creatorId, postId, conteudo);
         if (sucesso) {
+          triggerNovoComentario(postId, creatorId).catch(console.warn);
           input.value = '';
+          invalidarCacheComentarios(postId);
           await renderizarComentarios(creatorId, postId, commentsList);
+          const btnCommentFeed = document.querySelector(`.btn-comment[data-id="${postId}"]`);
+          if (btnCommentFeed) {
+            const total = await contarComentarios(postId);
+            const spanCount = btnCommentFeed.querySelector('span');
+            if (spanCount) spanCount.textContent = total;
+          }
         }
       }
     }
@@ -2640,22 +2743,22 @@ async function enviarPost(user, texto, imageFile) {
     alert('Escreva algo ou adicione uma imagem!');
     return;
   }
-
+ 
   // Fecha o modal na hora
   const postLayer = document.getElementById('postLayer');
   if (postLayer) postLayer.classList.remove('active');
   document.body.style.overflow = '';
   limparInputsPost();
-
+ 
   // Inicia barra em 0%
   const bar = criarBarraPost();
   avancarBarra(bar, 10); // começa com 10% imediatamente
-
+ 
   try {
     const postId = gerarIdUnico('post');
     let urlImagem = '';
     let deleteUrlImagem = '';
-
+ 
     if (imageFile) {
       avancarBarra(bar, 30); // 30% — iniciando upload
       const uploadResult = await uploadImagemPost(imageFile, user.uid);
@@ -2670,7 +2773,7 @@ async function enviarPost(user, texto, imageFile) {
     } else {
       avancarBarra(bar, 60); // sem imagem, vai direto pra 60%
     }
-
+ 
     const postData = {
       content:      texto,
       img:          urlImagem,
@@ -2685,21 +2788,24 @@ async function enviarPost(user, texto, imageFile) {
       visible:      true,
       create:       serverTimestamp()
     };
-
+ 
     avancarBarra(bar, 85); // 85% — salvando
     await setDoc(doc(db, 'posts', postId), postData);
     await setDoc(doc(db, 'users', user.uid, 'posts', postId), postData);
-
+ 
+    // ✅ ATIVIDADE — novo post
+    triggerNovoPost(postId).catch(console.warn);
+ 
     avancarBarra(bar, 100); // 100% — salvo!
     setTimeout(() => removerBarra(bar), 400);
-
+ 
     feed.innerHTML   = '';
     lastPostSnapshot = null;
     hasMorePosts     = true;
     loading          = false;
     limparCacheFeed();
     await loadPosts();
-
+ 
   } catch (error) {
     console.error('Erro ao enviar post:', error);
     removerBarra(bar);
@@ -2712,20 +2818,20 @@ async function enviarBubble(user, texto) {
     alert('Escreva algo para a nota!');
     return;
   }
-
+ 
   // Fecha o modal na hora
   const postLayer = document.getElementById('postLayer');
   if (postLayer) postLayer.classList.remove('active');
   document.body.style.overflow = '';
   limparInputsPost();
-
+ 
   // Inicia barra em 0%
   const bar = criarBarraPost();
   avancarBarra(bar, 20);
-
+ 
   try {
     const bubbleId = gerarIdUnico('bubble');
-
+ 
     avancarBarra(bar, 60); // salvando
     await setDoc(doc(db, 'bubbles', bubbleId), {
       content:   texto,
@@ -2734,17 +2840,20 @@ async function enviarBubble(user, texto) {
       create:    serverTimestamp(),
       musicUrl:  ''
     });
-
+ 
+    // ✅ ATIVIDADE — novo bubble
+    triggerNovoBubble(bubbleId).catch(console.warn);
+ 
     avancarBarra(bar, 100); // pronto
     setTimeout(() => removerBarra(bar), 400);
-
+ 
     feed.innerHTML   = '';
     lastPostSnapshot = null;
     hasMorePosts     = true;
     loading          = false;
     limparCacheFeed();
     await loadPosts();
-
+ 
   } catch (error) {
     console.error('Erro ao enviar nota:', error);
     removerBarra(bar);

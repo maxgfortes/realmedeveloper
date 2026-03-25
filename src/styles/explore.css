@@ -1163,3 +1163,59 @@ body {
 }
 
 }
+
+
+
+#activities-section { padding: 0; }
+    .xact-list { display: flex; flex-direction: column;  }
+    .xact-card {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 14px;
+      position: relative; cursor: default;
+      -webkit-user-select: none; user-select: none;
+      border-bottom: 0.1px solid var(--border-primary);
+    }
+    .xact-card:active { background: var(--bg-tertiary, #1a1a1a); }
+    .xact-icon {
+      flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; font-size: 14px;
+    }
+    .xact-body { display: flex; gap: 16px; min-width: 0; align-items: center; }
+    .xact-avatars { display: flex;  }
+    .xact-av {
+      width: 60px; height: 60px; border-radius: 50%; object-fit: cover;
+      border: 2px solid var(--bg-primary); margin-right: -5px;
+    }
+    .xact-text {
+      font-size: 16px; color: var(--text-primary, #ddd);
+      line-height: 1.45; margin: 0;
+    }
+    .act-link { color: var(--accent, #fff); text-decoration: none; font-weight: bold; }
+    .xact-time { font-size: 16px; color: var(--text-secondary, #eee); display: block; }
+    .xact-del {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      background: rgba(231,76,60,.15); border: none; color: #e74c3c;
+      border-radius: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer;
+      opacity: 0; pointer-events: none; transition: opacity .2s;
+    }
+    .xact-card.show-del .xact-del { opacity: 1; pointer-events: all; }
+    .xact-empty {
+      text-align: center; color: var(--text-secondary, #666);
+      font-size: 14px; padding: 40px 16px;
+    }
+    .xact-loading {
+      display: flex; justify-content: center; padding: 32px;
+    }
+    .xact-loading::after {
+      content: ''; width: 22px; height: 22px;
+      border: 2px solid #333; border-top-color: var(--accent, #4A90E2);
+      border-radius: 50%; animation: xspin .7s linear infinite;
+    }
+    @keyframes xspin { to { transform: rotate(360deg); } }
+
+
+    .xact-empty {
+      font-size: 17px;
+      font-weight: bold;
+      color: #fff;
+    }

@@ -6,6 +6,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
+import { triggerNovaAmizade } from './activitie-creator.js';
+
 // ═══════════════════════════════════════════════════════════
 // FIREBASE CONFIG
 // ═══════════════════════════════════════════════════════════
@@ -156,7 +158,7 @@ function mostrarErro(msg) {
 
 function carregarFotoPerfil() {
   const navPic = document.getElementById('nav-pic');
-  const defaultPic = './src/icon/default.jpg';
+  const defaultPic = './src/img/default.jpg';
 
   const cachedPhoto = localStorage.getItem('user_photo_cache');
   if (cachedPhoto) {
@@ -1074,8 +1076,28 @@ async function configurarBotoes(targetUid) {
     followBtn.addEventListener('click', async () => {
       followBtn.disabled = true; followBtn.textContent = 'Seguir';
       try {
-        if (isF) { await desseguir(currentUserId, targetUid); isF = false; }
-        else     { await seguir(currentUserId, targetUid);    isF = true; }
+        if (isF) {
+          await desseguir(currentUserId, targetUid);
+          isF = false;
+        } else {
+          await seguir(currentUserId, targetUid);
+          isF = true;
+ 
+          // ✅ Verifica amizade mútua — se o alvo também me segue, dispara atividade
+          try {
+            const mutuoSnap = await getDoc(
+              doc(db, 'users', currentUserId, 'followers', targetUid)
+            );
+            if (mutuoSnap.exists()) {
+              // Pega username do alvo para o texto da atividade
+              const targetData = await getUserData(targetUid);
+              const targetUsername = targetData.username || targetUid;
+              triggerNovaAmizade(targetUid, targetUsername).catch(console.warn);
+            }
+          } catch (e) {
+            console.warn('Erro ao checar amizade mútua:', e);
+          }
+        }
       } catch (e) { console.error('follow toggle:', e); }
       atualizar();
       atualizarStats(targetUid);
@@ -1129,14 +1151,20 @@ async function carregarPosts(uid) {
     });
     postsDoUsuario = posts.map(p => ({ id: p.id, userid: uid, data: p.data }));
     c.innerHTML = '';
+    
     if (!posts.length) {
-      c.innerHTML = `<div class="about-box" style="text-align:center;padding:40px 20px;">
-        <div class="icon-area" style="margin-bottom:16px;"><i class="fa-regular fa-camera" style="font-size:42px;color:#444;"></i></div>
-        <h3 style="color:#666;margin-bottom:8px;">Nenhum post ainda</h3>
-        <p style="color:#444;font-size:14px;">Quando houver posts, eles aparecerão aqui.</p>
-      </div>`;
+      c.classList.add('empty-posts');
+      c.innerHTML = `
+      <div class="about-box" style="text-align:center;padding:30px; width: 100% !important;">
+      <div class="icon-area"><div class="icon-place"><i class="fa-regular fa-camera" style="font-size:38px;color:#fff;"></i></div></div>
+      <h3 style="color:#fff;margin-bottom:12px;">Nenhum post ainda</h3>
+      <p style="color:#555;">Este usuário ainda não fez nenhum post.</p>
+    </div>
+    `;
+
       return;
     }
+    c.classList.remove('empty-posts');
     posts.forEach(p => c.appendChild(criarPreview(p.data, p.id)));
   } catch (e) {
     console.error('carregarPosts:', e);
@@ -1155,144 +1183,10 @@ function criarPreview(postData, postId) {
     el.innerHTML = `<div class="post-preview-text-container">
       <p class="post-preview-text">${txt.length > 80 ? txt.slice(0,80)+'…' : txt}</p></div>`;
   }
-  el.onclick = () => { const i = postsDoUsuario.findIndex(p => p.id === postId); abrirFeed(i); };
+  el.onclick = () => { const i = postsDoUsuario.findIndex(p => p.id === postId); abrirFeed(i); console.log("clicado") };
   return el;
 }
 
-// ═══════════════════════════════════════════════════════════
-// MODAL FEED
-// ═══════════════════════════════════════════════════════════
-function abrirFeed(idxInicial) {
-  const modal = document.createElement('div');
-  modal.className = 'post-feed-modal';
-  modal.innerHTML = `
-    <div class="feed-header-global">
-      <button class="close-feed">
-        <svg viewBox="0 0 298 512" width="18" height="18" fill="currentColor">
-          <path d="M285.77 441c16.24 16.17 16.32 42.46.15 58.7-16.16 16.24-42.45 16.32-58.69.16L12.23 285.39c-16.24-16.16-16.32-42.45-.15-58.69L227.23 12.08c16.24-16.17 42.53-16.09 58.69.15 16.17 16.24 16.09 42.54-.15 58.7L100.27 256.08 285.77 441z"/>
-        </svg>
-      </button>
-      <span class="feed-header-username">${profileUsername}</span>
-    </div>
-    <div class="feed-scroll"></div>`;
-  document.body.appendChild(modal);
-  requestAnimationFrame(() => modal.classList.add('aberto'));
-  document.body.style.overflow = 'hidden';
-
-  const fechar = () => {
-    modal.classList.remove('aberto'); modal.classList.add('fechando');
-    setTimeout(() => { modal.remove(); document.body.style.overflow = ''; }, 350);
-  };
-  modal.querySelector('.close-feed').addEventListener('click', fechar);
-
-  const scroll = modal.querySelector('.feed-scroll');
-  postsDoUsuario.forEach(post => {
-    const div = document.createElement('div');
-    div.className = 'feed-page';
-    div.innerHTML = `
-      <div class="feed-header">
-        <img src="./src/img/default.jpg" class="feed-avatar" id="fpa-${post.id}">
-        <div class="feed-info">
-          <span class="feed-name" id="fpn-${post.id}"></span>
-          <span class="feed-username" id="fpu-${post.id}"></span>
-        </div>
-      </div>
-      <div class="feed-body">
-        ${post.data.img ? `<img src="${post.data.img}" class="feed-img" onclick="window.abrirModalImagem('${post.data.img}')">` : ''}
-        <div class="feed-text">${formatPost(post.data.content)}</div>
-      </div>
-      <div class="feed-actions">
-        <button class="action-btn like-btn" data-post-id="${post.id}">
-          <i class="fas fa-heart"></i>
-          <span class="action-count">${post.data.likes > 0 ? post.data.likes : ''}</span>
-        </button>
-        <button class="action-btn comment-btn"><i class="fas fa-comment"></i></button>
-      </div>
-      <div class="comentarios-container" style="display:none;"></div>
-      <div class="comentar-area" style="display:none;">
-        <input class="input-comentario" placeholder="Comentário..." maxlength="200">
-        <button class="btn-enviar-comentario"><i class="fas fa-paper-plane"></i></button>
-      </div>`;
-    scroll.appendChild(div);
-
-    Promise.all([getUserData(post.userid), getUserPhoto(post.userid)]).then(([u, f]) => {
-      const pa = $(`fpa-${post.id}`), pn = $(`fpn-${post.id}`), pu = $(`fpu-${post.id}`);
-      if (pa) pa.src          = f;
-      if (pn) pn.textContent  = getDisplayName(u);
-      if (pu) pu.textContent  = '' + getUsername(u);
-    });
-
-    div.querySelector('.like-btn').addEventListener('click', function() { curtirPost(post.id, this); });
-
-    const cbtn   = div.querySelector('.comment-btn');
-    const cbox   = div.querySelector('.comentarios-container');
-    const carea  = div.querySelector('.comentar-area');
-    const cinput = div.querySelector('.input-comentario');
-    const csend  = div.querySelector('.btn-enviar-comentario');
-
-    cbtn.addEventListener('click', () => {
-      const show = cbox.style.display === 'none';
-      cbox.style.display  = show ? 'block' : 'none';
-      carea.style.display = show ? 'flex'  : 'none';
-      if (show) carregarComentarios(post.id, cbox);
-    });
-    csend.addEventListener('click', () => {
-      const t = cinput.value.trim();
-      if (t) { enviarComentario(post.id, t, cbox); cinput.value = ''; }
-    });
-    cinput.addEventListener('keypress', e => { if (e.key === 'Enter') csend.click(); });
-  });
-
-  setTimeout(() => scroll.scrollTo({ top: idxInicial * window.innerHeight, behavior: 'instant' }), 60);
-}
-
-async function curtirPost(postId, btn) {
-  if (!currentUserId) return;
-  btn.classList.add('loading');
-  try {
-    await updateDoc(doc(db, 'posts', postId), { likes: increment(1) });
-    const c = btn.querySelector('.action-count');
-    c.textContent = (parseInt(c.textContent) || 0) + 1;
-    btn.classList.add('liked', 'has-likes');
-    btn.style.transform = 'scale(1.2)';
-    setTimeout(() => { btn.style.transform = ''; }, 200);
-  } catch (e) { console.error('curtir:', e); }
-  btn.classList.remove('loading');
-}
-window.curtirPost = curtirPost;
-
-async function carregarComentarios(postId, container) {
-  container.innerHTML = '<div style="padding:10px;color:#666;font-size:13px;">Carregando...</div>';
-  try {
-    const snap = await getDocs(collection(db, 'posts', postId, 'coments'));
-    container.innerHTML = '';
-    if (snap.empty) { container.innerHTML = '<div style="padding:12px;color:#555;font-size:13px;">Nenhum comentário ainda.</div>'; return; }
-    const wrap = document.createElement('div'); wrap.className = 'comentarios';
-    for (const d of snap.docs) {
-      const cd = d.data();
-      const [u, f] = await Promise.all([getUserData(cd.senderid), getUserPhoto(cd.senderid)]);
-      const item = document.createElement('div'); item.className = 'comentario-item';
-      item.innerHTML = `
-        <div class="comentario-header">
-          <img src="${f}" class="comentario-avatar" onerror="this.src='./src/img/default.jpg'">
-          <div class="comentario-meta">
-            <strong>${getUsername(u) || cd.senderid}</strong>
-            <small>${formatTs(cd.create)}</small>
-          </div>
-        </div>
-        <div class="comentario-conteudo">${formatPost(cd.content)}</div>`;
-      wrap.appendChild(item);
-    }
-    container.appendChild(wrap);
-  } catch { container.innerHTML = '<div style="padding:12px;color:#555;font-size:13px;">Erro ao carregar.</div>'; }
-}
-
-async function enviarComentario(postId, txt, container) {
-  if (!currentUserId) return;
-  const id = `c-${Date.now()}-${Math.random().toString(36).substr(2,5)}`;
-  await setDoc(doc(db, 'posts', postId, 'coments', id), { content: txt, create: new Date(), senderid: currentUserId, report: 0 });
-  carregarComentarios(postId, container);
-}
 
 // ═══════════════════════════════════════════════════════════
 // DEPOIMENTOS

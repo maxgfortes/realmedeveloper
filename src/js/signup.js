@@ -151,7 +151,7 @@ async function criarContaSegura(event) {
       lastLogin: serverTimestamp()
     });
 
-    setTimeout(() => (window.location.href = "profile.html"), 800);
+    setTimeout(() => (window.location.href = "feed.html"), 800);
 
   } catch (err) {
     console.error(err);
@@ -200,7 +200,7 @@ async function loginUser(event) {
       console.error('Login: falha ao atualizar lastLogin no Firestore', updateErr);
     }
 
-    window.location.href = "profile.html";
+    window.location.href = "feed.html";
   } catch (err) {
     console.error(err);
     let msg = "Email ou senha incorretos.";
@@ -239,13 +239,12 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists()) {
-          const username = userDoc.data().username;
-          window.location.href = `profile.html?username=${username}`;
+          window.location.href = "feed.html";
         } else {
-          window.location.href = "profile.html";
+          window.location.href = "feed.html";
         }
       } catch {
-        window.location.href = "profile.html";
+        window.location.href = "feed.html";
       }
     }
   });

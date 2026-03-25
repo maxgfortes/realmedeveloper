@@ -501,9 +501,6 @@ async function carregarNovosUsuarios() {
 
 // Evento do botão recarregar
 document.addEventListener('DOMContentLoaded', () => {
-  carregarNovosUsuarios();
-  document.querySelector('.reload-new-users').addEventListener('click', carregarNovosUsuarios);
-
   // Evento para abrir perfil ao clicar no botão
   document.querySelector('.new-people').addEventListener('click', (e) => {
   const infoDiv = e.target.closest('.new-user-info');

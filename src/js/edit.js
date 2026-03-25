@@ -7,6 +7,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 
+import {
+  triggerEdicaoPerfil,
+  triggerMudancaStatus
+} from './activitie-creator.js';
+
+
 // ═══════════════════════════════════════════
 // FIREBASE CONFIG
 // ═══════════════════════════════════════════
@@ -40,7 +46,7 @@ async function uploadToImgBB(file) {
 // ═══════════════════════════════════════════
 let currentUser = null;
 let currentData = {};
-let pendingUploads = { pfp: null, banner: null }; // arquivo pendente antes do save
+let pendingUploads = { pfp: null, banner: null };
 
 // ═══════════════════════════════════════════
 // SELETORES
@@ -53,7 +59,6 @@ const inNome        = inputs[0];
 const inUsername    = inputs[1];
 const inPronomes    = inputs[2];
 const inBio         = inputs[3];
-// inputs[4] e inputs[6] substituídos por <select> abaixo
 const inLocalizacao = inputs[5];
 const inMusica      = inputs[7];
 const inCor         = inputs[8];
@@ -88,7 +93,7 @@ function getStatusOpcoes(genero) {
     { val: 'solteiro',      label: f ? 'Solteira'       : 'Solteiro'      },
     { val: 'namorando',     label:     'Namorando'                         },
     { val: 'casado',        label: f ? 'Casada'         : 'Casado'        },
-    { val: 'em_compromisso',label:     'Em compromisso'                    },
+    { val: 'em compromisso',label:     'Em compromisso'                    },
     { val: 'viuvo',         label: f ? 'Viúva'          : 'Viúvo'         },
   ];
 }
@@ -107,7 +112,6 @@ atualizarOpcoeStatus('', '');
 selGenero.addEventListener('change', () => atualizarOpcoeStatus(selGenero.value, selRelac.value));
 _inRelacOrig.parentNode.replaceChild(selRelac, _inRelacOrig);
 
-// Aliases para o restante do código
 const inGenero = selGenero;
 const inRelac  = selRelac;
 
@@ -127,13 +131,12 @@ function showToast(msg, type = 'info') {
       border-radius: 14px; font-size: 14px; font-weight: 600;
       z-index: 999999; opacity: 0; pointer-events: none;
       transition: opacity .25s, transform .25s;
-      border: 1px solid #333; max-width: 90vw; text-align: center;
+      border: 1px solid #333; max-width: 96vw; text-align: center;
       display: flex; align-items: center; gap: 8px;`;
     document.body.appendChild(toast);
   }
   const icons = { success: '', error: '', loading: '', info: '' };
   toast.innerHTML = `<span>${icons[type] || ''}</span><span>${msg}</span>`;
-  toast.style.borderColor = type === 'error' ? '#f85149' : type === 'success' ? '#4A90E2' : '#333';
   clearTimeout(toastTimeout);
   requestAnimationFrame(() => {
     toast.style.opacity = '1';
@@ -196,7 +199,7 @@ const RULES = {
   },
   musica: {
     validate: v => {
-      if (!v) return null; // opcional
+      if (!v) return null;
       const isYT = /youtube\.com|youtu\.be/.test(v);
       if (!isYT) return 'Cole uma URL válida do YouTube.';
       return null;
@@ -253,8 +256,6 @@ inUsername.addEventListener('input', () => {
 // ═══════════════════════════════════════════
 // UPLOAD DE IMAGEM (pfp e banner)
 // ═══════════════════════════════════════════
-
-// Cria input file invisible
 function criarFileInput(accept, callback) {
   const input = document.createElement('input');
   input.type = 'file';
@@ -276,14 +277,12 @@ function validarImagem(file) {
   return null;
 }
 
-// Preview local antes de salvar
 function previewImagem(file, imgEl) {
   const reader = new FileReader();
   reader.onload = e => { imgEl.src = e.target.result; };
   reader.readAsDataURL(file);
 }
 
-// Upload via ImgBB
 async function uploadImagem(file) {
   showToast('Enviando imagem…', 'loading');
   const url = await uploadToImgBB(file);
@@ -314,11 +313,9 @@ document.querySelector('.banner-area').addEventListener('click', () => {
   fi.click();
 });
 
-// Cursor pointer nas áreas de imagem
 document.querySelector('.pfp-area').style.cursor = 'pointer';
 document.querySelector('.banner-area').style.cursor = 'pointer';
 
-// Ícone de câmera overlay nos containers
 function addCameraOverlay(containerSel) {
   const c = document.querySelector(containerSel);
   if (!c) return;
@@ -343,20 +340,22 @@ addCameraOverlay('.banner-area');
 // ═══════════════════════════════════════════
 async function carregarDadosAtuais(uid) {
   try {
-    const [userDoc, mediaDoc, moreDoc, aboutDoc] = await Promise.all([
+    const [userDoc, mediaDoc, moreDoc, aboutDoc, linksDoc] = await Promise.all([
       getDoc(doc(db, 'users', uid)),
       getDoc(doc(db, `users/${uid}/user-infos/user-media`)),
       getDoc(doc(db, `users/${uid}/user-infos/more-infos`)),
       getDoc(doc(db, `users/${uid}/user-infos/about`)),
+      getDoc(doc(db, `users/${uid}/user-infos/links`)),
     ]);
-    const u = userDoc.exists() ? userDoc.data() : {};
-    const m = mediaDoc.exists() ? mediaDoc.data() : {};
-    const mi = moreDoc.exists() ? moreDoc.data() : {};
-    const a = aboutDoc.exists() ? aboutDoc.data() : {};
+    const u  = userDoc.exists()  ? userDoc.data()  : {};
+    const m  = mediaDoc.exists() ? mediaDoc.data() : {};
+    const mi = moreDoc.exists()  ? moreDoc.data()  : {};
+    const a  = aboutDoc.exists() ? aboutDoc.data() : {};
+    const l  = linksDoc.exists() ? linksDoc.data() : {};
 
-    currentData = { ...u, media: m, moreInfos: mi, about: a };
+    currentData = { ...u, media: m, moreInfos: mi, about: a, linksData: l };
 
-    // Preenche campos — "Nome" é o displayName, não o campo name
+    // Preenche campos principais
     inNome.value       = u.displayName || u.displayname || u.name || '';
     inUsername.value   = u.username || '';
     inBio.value        = mi.bio || '';
@@ -377,6 +376,12 @@ async function carregarDadosAtuais(uid) {
     const banner = m.banner || m.headerphoto;
     if (banner) bannerImg.src = banner;
 
+    // ─── Preenche inputs de links ───────────────────────────────
+    document.querySelectorAll('[data-link]').forEach(input => {
+      const key = input.dataset.link;
+      input.value = l[key] || '';
+    });
+
   } catch (e) { console.error('carregarDados:', e); showToast('Erro ao carregar seus dados.', 'error'); }
 }
 
@@ -384,10 +389,10 @@ async function carregarDadosAtuais(uid) {
 // VERIFICAR SE USERNAME JÁ EXISTE
 // ═══════════════════════════════════════════
 async function usernameDisponivel(newUsername, currentUid) {
-  if (newUsername === (currentData.username || '')) return true; // não mudou
+  if (newUsername === (currentData.username || '')) return true;
   const snap = await getDoc(doc(db, 'usernames', newUsername));
   if (!snap.exists()) return true;
-  return snap.data().uid === currentUid; // é do próprio user
+  return snap.data().uid === currentUid;
 }
 
 // ═══════════════════════════════════════════
@@ -396,17 +401,17 @@ async function usernameDisponivel(newUsername, currentUid) {
 saveBtn.addEventListener('click', async () => {
   if (!currentUser) { showToast('Você precisa estar logado.', 'error'); return; }
   const uid = currentUser.uid;
-
+ 
   // ── Validar todos os campos ──────────────────────
   const validations = [
-    { input: inNome,       key: 'nome',           val: inNome.value.trim() },
-    { input: inUsername,   key: 'username',        val: inUsername.value },
-    { input: inPronomes,   key: 'pronomes',        val: inPronomes.value },
-    { input: inBio,        key: 'bio',             val: inBio.value },
-    { input: inLocalizacao,key: 'localizacao',     val: inLocalizacao.value },
-    { input: inMusica,     key: 'musica',          val: inMusica.value },
+    { input: inNome,        key: 'nome',       val: inNome.value.trim() },
+    { input: inUsername,    key: 'username',   val: inUsername.value },
+    { input: inPronomes,    key: 'pronomes',   val: inPronomes.value },
+    { input: inBio,         key: 'bio',        val: inBio.value },
+    { input: inLocalizacao, key: 'localizacao',val: inLocalizacao.value },
+    { input: inMusica,      key: 'musica',     val: inMusica.value },
   ];
-
+ 
   let hasError = false;
   for (const { input, key, val } of validations) {
     clearFieldError(input);
@@ -414,7 +419,7 @@ saveBtn.addEventListener('click', async () => {
     if (err) { setFieldError(input, err); hasError = true; }
   }
   if (hasError) { showToast('Corrija os campos em vermelho.', 'error'); return; }
-
+ 
   // ── Verificar disponibilidade do username ────────
   const newUsername = inUsername.value;
   showToast('Verificando username…', 'loading');
@@ -422,14 +427,29 @@ saveBtn.addEventListener('click', async () => {
   try { disponivel = await usernameDisponivel(newUsername, uid); }
   catch { showToast('Erro ao verificar username.', 'error'); return; }
   if (!disponivel) { setFieldError(inUsername, 'Este username já está em uso.'); showToast('Username já está em uso.', 'error'); return; }
-
+ 
   // ── Upload de imagens (se houver) ────────────────
   saveBtn.disabled = true;
   showToast('Salvando…', 'loading');
-
-  let pfpUrl   = currentData.media?.pfp || currentData.media?.userphoto || null;
+ 
+  let pfpUrl    = currentData.media?.pfp    || currentData.media?.userphoto   || null;
   let bannerUrl = currentData.media?.banner || currentData.media?.headerphoto || null;
-
+ 
+  // Captura o que vai mudar antes dos uploads
+  const mudouFoto    = !!pendingUploads.pfp;
+  const mudouBanner  = !!pendingUploads.banner;
+  const mudouNome    = inNome.value.trim() !== (currentData.displayName || currentData.displayname || currentData.name || '');
+  const mudouBio     = inBio.value.trim() !== (currentData.moreInfos?.bio || '');
+  const mudouStatus  = inRelac.value && inRelac.value !== (currentData.about?.maritalStatus || '');
+  const mudouGenero  = inGenero.value !== (currentData.about?.gender || currentData.gender || '');
+  const mudouLocal   = inLocalizacao.value.trim() !== (currentData.about?.location || currentData.location || '');
+  const mudouMusica  = inMusica.value.trim() !== (currentData.media?.musicTheme || '');
+  const mudouPronomes = inPronomes.value.trim() !== (() => {
+    const p1 = currentData.about?.pronom1 || '';
+    const p2 = currentData.about?.pronom2 || '';
+    return p2 ? `${p1}/${p2}` : p1;
+  })();
+ 
   try {
     if (pendingUploads.pfp) {
       showToast('Enviando foto de perfil…', 'loading');
@@ -447,30 +467,28 @@ saveBtn.addEventListener('click', async () => {
     saveBtn.disabled = false;
     return;
   }
-
-  // ── Parsear pronomes (aceita "ele/dele", "ela", etc.) ────
+ 
+  // ── Parsear pronomes ─────────────────────────────
   const pronoSplit = inPronomes.value.trim().split('/');
   const pronom1 = pronoSplit[0]?.trim() || '';
   const pronom2 = pronoSplit[1]?.trim() || '';
-
+ 
   // ── Escrever no Firestore ────────────────────────
   try {
     const oldUsername = currentData.username || '';
-
+ 
     // 1. Documento principal /users/{uid}
-    // "Nome" no edit é o displayName — não sobrescreve o campo 'name' (nome real/cadastro)
     await setDoc(doc(db, 'users', uid), {
       displayName: inNome.value.trim(),
       displayname: inNome.value.trim(),
       username:    newUsername,
     }, { merge: true });
-
-    // 2. /usernames — atualiza entrada (cria nova, apaga antiga se mudou)
+ 
+    // 2. /usernames
     if (newUsername !== oldUsername) {
       await setDoc(doc(db, 'usernames', newUsername), { uid, username: newUsername });
-      // Não apagamos o antigo para evitar race condition — regra de negócio: usernames não são reutilizados
     }
-
+ 
     // 3. user-infos/user-media
     const mediaPayload = {
       musicTheme:   inMusica.value.trim(),
@@ -479,12 +497,12 @@ saveBtn.addEventListener('click', async () => {
     if (pfpUrl)    mediaPayload.pfp = pfpUrl;
     if (bannerUrl) mediaPayload.banner = bannerUrl;
     await setDoc(doc(db, `users/${uid}/user-infos/user-media`), mediaPayload, { merge: true });
-
+ 
     // 4. user-infos/more-infos
     await setDoc(doc(db, `users/${uid}/user-infos/more-infos`), {
       bio: inBio.value.trim(),
     }, { merge: true });
-
+ 
     // 5. user-infos/about
     await setDoc(doc(db, `users/${uid}/user-infos/about`), {
       gender:        inGenero.value.trim(),
@@ -493,21 +511,44 @@ saveBtn.addEventListener('click', async () => {
       pronom1,
       pronom2,
     }, { merge: true });
-
-    // 6. Limpa cache local do perfil para forçar reload fresco
+ 
+    // 6. user-infos/links
+    const linksPayload = {};
+    document.querySelectorAll('[data-link]').forEach(input => {
+      const key = input.dataset.link;
+      linksPayload[key] = input.value.trim();
+    });
+    await setDoc(doc(db, `users/${uid}/user-infos/links`), linksPayload, { merge: true });
+ 
+    // 7. Limpa cache local do perfil
     try {
       Object.keys(localStorage)
         .filter(k => k.startsWith('profile_cache_'))
         .forEach(k => localStorage.removeItem(k));
     } catch {}
+ 
+    // ✅ ATIVIDADES — coleta todos os campos alterados e dispara UMA única atividade
+    const camposAlterados = [];
+    if (mudouFoto)     camposAlterados.push('foto');
+    if (mudouBanner)   camposAlterados.push('banner');
+    if (mudouNome)     camposAlterados.push('nome');
+    if (mudouBio)      camposAlterados.push('bio');
+    if (mudouPronomes) camposAlterados.push('pronomes');
+    if (mudouGenero)   camposAlterados.push('genero');
+    if (mudouLocal)    camposAlterados.push('localizacao');
+    if (mudouMusica)   camposAlterados.push('musica');
 
+    if (camposAlterados.length > 0) {
+      triggerEdicaoPerfil(camposAlterados).catch(console.warn);
+    }
+    if (mudouStatus) triggerMudancaStatus(inRelac.value).catch(console.warn);
+ 
     showToast('Perfil salvo com sucesso!', 'success');
-
-    // Redireciona após 1.5s
+ 
     setTimeout(() => {
       window.location.href = `profile.html?username=${newUsername}`;
     }, 1500);
-
+ 
   } catch (e) {
     console.error('save:', e);
     showToast('Erro ao salvar. Tente novamente.', 'error');
@@ -535,4 +576,16 @@ onAuthStateChanged(auth, async user => {
   }
   currentUser = user;
   await carregarDadosAtuais(user.uid);
+});
+
+// ═══════════════════════════════════════════
+// TOGGLE LINKS
+// ═══════════════════════════════════════════
+const toggle = document.getElementById('links-toggle');
+const linksList = document.querySelector('.links-list');
+const arrow = toggle.querySelector('.toggle-arrow');
+
+toggle.addEventListener('click', () => {
+  linksList.classList.toggle('open');
+  arrow.classList.toggle('rotated');
 });
