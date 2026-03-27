@@ -1542,48 +1542,6 @@ if (document.readyState === 'loading') {
   setupViewMoreModal();
 }
 
-// ═══════════════════════════════════════════════════════════
-// STICKY MENU
-// ═══════════════════════════════════════════════════════════
-function setupStickyMenu() {
-  const menuArea   = $q('.profile-menu-area');
-  if (!menuArea) return;
-
-  // Cria placeholder se não existir
-  let placeholder = $q('.menu-placeholder');
-  if (!placeholder) {
-    placeholder = document.createElement('div');
-    placeholder.className = 'menu-placeholder';
-    menuArea.parentNode.insertBefore(placeholder, menuArea.nextSibling);
-  }
-
-  const navbarTop = $q('.navbar-top');
-  const navH = navbarTop ? navbarTop.offsetHeight : 60;
-
-  // Atualiza top do sticky caso navbar tenha altura diferente de 60px
-  menuArea.style.setProperty('--sticky-top', navH + 'px');
-
-  const observer = new IntersectionObserver(
-    ([entry]) => {
-      const isSticky = !entry.isIntersecting;
-      menuArea.classList.toggle('sticky', isSticky);
-      placeholder.classList.toggle('active', isSticky);
-      if (isSticky) {
-        // Garante largura correta dentro de containers centrados
-        menuArea.style.maxWidth = document.body.offsetWidth + 'px';
-      } else {
-        menuArea.style.maxWidth = '';
-      }
-    },
-    {
-      // Dispara quando o topo do menuArea passa por baixo da navbar
-      rootMargin: `-${navH}px 0px 0px 0px`,
-      threshold: 0,
-    }
-  );
-
-  observer.observe(menuArea);
-}
 
 onAuthStateChanged(auth, async user => {
   currentUser   = user;
