@@ -36,68 +36,126 @@ let profileUsername    = '';
 let currentProfileData = null;
 let postsDoUsuario     = [];
 
-// ── Music Player ────────────────────────────────────────────
-let _ytPlayer        = null;
-let _ytReady         = false;
-let _ytPendingId     = null;
-let _musicPlaying    = false;
-// Expose callback for YT API script
+// ── Music Player (Sistema 2 — compatível com iOS) ───────────
+let musicPlayer     = null;
+let musicPlaying    = false;
+let musicCurrentUrl = null;
+let _ytApiReady     = false;
+let _ytPendingId    = null;
+
 window.onYouTubeIframeAPIReady = function () {
-  _ytReady = true;
-  if (_ytPendingId) _createYTPlayer(_ytPendingId);
+  _ytApiReady = true;
+  if (_ytPendingId) {
+    createMusicPlayer(_ytPendingId);
+    _ytPendingId = null;
+  }
 };
-function _extractYTId(url) {
+
+function extractYouTubeId(url) {
   if (!url) return null;
   const m = String(url).match(/(?:v=|\/v\/|youtu\.be\/|\/embed\/|\/shorts\/)([A-Za-z0-9_-]{11})/);
   return m ? m[1] : (String(url).match(/^[A-Za-z0-9_-]{11}$/) ? url : null);
 }
-function _createYTPlayer(videoId) {
-  // Remove any existing hidden iframe container
-  let container = document.getElementById('_yt_bg_player');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = '_yt_bg_player';
-    container.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;top:-9999px;left:-9999px;';
-    document.body.appendChild(container);
+
+function createMusicPlayer(videoId) {
+  // Destroi player anterior se existir
+  if (musicPlayer && typeof musicPlayer.destroy === 'function') {
+    try { musicPlayer.destroy(); } catch {}
+    musicPlayer = null;
+    musicPlaying = false;
   }
-  _ytPlayer = new YT.Player('_yt_bg_player', {
-    height: '1', width: '1',
+  const old = document.getElementById('music-player');
+  if (old) old.remove();
+
+  const div = document.createElement('div');
+  div.id = 'music-player';
+  div.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;top:-9999px;left:-9999px;';
+  document.body.appendChild(div);
+
+  musicPlayer = new YT.Player('music-player', {
+    height: '1',
+    width: '1',
     videoId,
-    playerVars: { autoplay: 0, controls: 0, disablekb: 1, fs: 0,
-                  modestbranding: 1, rel: 0, iv_load_policy: 3, playsinline: 1, enablejsapi: 1 },
+    playerVars: {
+      autoplay: 1,
+      controls: 0,
+      disablekb: 1,
+      fs: 0,
+      modestbranding: 1,
+      rel: 0,
+      iv_load_policy: 3,
+      playsinline: 1,   // CRÍTICO no iOS — impede fullscreen forçado
+      enablejsapi: 1,
+      loop: 1,
+      playlist: videoId,
+    },
     events: {
+      onReady(e) {
+        e.target.setVolume(60);
+        e.target.playVideo();
+        musicPlaying = true;
+        updateMusicUI(true);
+        // Busca título via oEmbed
+        fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
+          .then(r => r.json())
+          .then(d => setMusicTitle(d.title))
+          .catch(() => {});
+      },
       onStateChange(e) {
+        // Loop manual como fallback — mais confiável no iOS
         if (e.data === YT.PlayerState.ENDED) {
-          _musicPlaying = false;
-          _setMusicBtnState(false);
+          e.target.seekTo(0);
+          e.target.playVideo();
         }
       }
     }
   });
 }
-function _setMusicBtnState(playing) {
-  _musicPlaying = playing;
-  const btn = document.getElementById('btnPauseMusic');
-  if (!btn) return;
-  if (playing) {
-    btn.classList.add('playing');
+
+function toggleMusic() {
+  if (!musicPlayer || typeof musicPlayer.playVideo !== 'function') return;
+  if (musicPlaying) {
+    musicPlayer.pauseVideo();
+    musicPlaying = false;
   } else {
-    btn.classList.remove('playing');
+    musicPlayer.playVideo();
+    musicPlaying = true;
   }
+  updateMusicUI(musicPlaying);
 }
+
+function updateMusicUI(isPlaying) {
+  // Suporta tanto #btnPauseMusic quanto #music-toggle-btn no HTML
+  const btn1 = document.getElementById('btnPauseMusic');
+  const btn2 = document.getElementById('music-toggle-btn');
+  if (btn1) btn1.classList.toggle('playing', isPlaying);
+  if (btn2) btn2.textContent = isPlaying ? '⏸' : '▶';
+}
+
+function setMusicTitle(title) {
+  const el1 = document.getElementById('musicTitle');
+  const el2 = document.getElementById('music-title');
+  if (el1) el1.textContent = title;
+  if (el2) el2.textContent = title;
+}
+
 function initMusicPlayer(musicThemeUrl, musicThemeName) {
-  const videoId = _extractYTId(musicThemeUrl);
+  const videoId = extractYouTubeId(musicThemeUrl);
   const musicSection = document.querySelector('.music');
-  const titleEl = document.getElementById('musicTitle');
 
   if (!videoId) {
     if (musicSection) musicSection.style.display = 'none';
     return;
   }
-  if (musicSection) musicSection.style.display = '';
-  if (titleEl) titleEl.textContent = musicThemeName || 'Música do perfil';
 
-  // Load YT API if not already loaded
+  // Mesma música já tocando — não reinicia
+  if (musicThemeUrl === musicCurrentUrl) return;
+  musicCurrentUrl = musicThemeUrl;
+
+  if (musicSection) musicSection.style.display = '';
+  if (musicThemeName) setMusicTitle(musicThemeName);
+
+  // Carrega a API do YouTube se ainda não foi carregada
   if (!document.getElementById('_yt_api_script')) {
     const s = document.createElement('script');
     s.id  = '_yt_api_script';
@@ -105,26 +163,19 @@ function initMusicPlayer(musicThemeUrl, musicThemeName) {
     document.head.appendChild(s);
   }
 
-  if (_ytReady) {
-    _createYTPlayer(videoId);
+  if (_ytApiReady) {
+    createMusicPlayer(videoId);
   } else {
     _ytPendingId = videoId;
   }
 
-  // Wire up play button (clone to remove old listeners)
-  const oldBtn = document.getElementById('btnPauseMusic');
-  if (!oldBtn) return;
-  const btn = oldBtn.cloneNode(true);
-  oldBtn.parentNode.replaceChild(btn, oldBtn);
-  btn.addEventListener('click', () => {
-    if (!_ytPlayer || typeof _ytPlayer.playVideo !== 'function') return;
-    if (_musicPlaying) {
-      _ytPlayer.pauseVideo();
-      _setMusicBtnState(false);
-    } else {
-      _ytPlayer.playVideo();
-      _setMusicBtnState(true);
-    }
+  // Conecta botões play/pause (clona para limpar listeners antigos)
+  ['btnPauseMusic', 'music-toggle-btn'].forEach(id => {
+    const old = document.getElementById(id);
+    if (!old) return;
+    const btn = old.cloneNode(true);
+    old.parentNode.replaceChild(btn, old);
+    btn.addEventListener('click', toggleMusic);
   });
 }
 
@@ -730,7 +781,6 @@ function preencherPerfil(dados) {
 
   const moreMenu = $('moreMenu') || $q('.more-menu');
   if (moreMenu) moreMenu.style.display = isOwnProfile ? '' : 'none';
-
 }
 
 // ═══════════════════════════════════════════════════════════
