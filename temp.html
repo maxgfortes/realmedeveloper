@@ -51,7 +51,7 @@
 <body>
 
 <div class="box">
-  <input id="url" placeholder="Cole link do YouTube">
+  <input id="url" placeholder="Cole link ou ID do YouTube">
   <button onclick="toggle()">Tocar</button>
   <div id="title">—</div>
 </div>
@@ -64,9 +64,24 @@ let player;
 let videoId = '';
 let playing = false;
 
+// ✅ Conversor melhorado
 function extractId(url) {
-  const match = url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
-  return match ? match[1] : null;
+  url = url.trim();
+
+  const patterns = [
+    /v=([A-Za-z0-9_-]{11})/,
+    /youtu\.be\/([A-Za-z0-9_-]{11})/,
+    /embed\/([A-Za-z0-9_-]{11})/,
+    /shorts\/([A-Za-z0-9_-]{11})/,
+    /^([A-Za-z0-9_-]{11})$/ // só ID
+  ];
+
+  for (let p of patterns) {
+    const match = url.match(p);
+    if (match) return match[1];
+  }
+
+  return null;
 }
 
 function createPlayer(id) {
@@ -80,7 +95,10 @@ function createPlayer(id) {
         fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`)
           .then(r => r.json())
           .then(d => {
-            document.getElementById('title').textContent = d.title;
+            document.getElementById('title').textContent = d.title || 'YouTube';
+          })
+          .catch(() => {
+            document.getElementById('title').textContent = 'YouTube';
           });
       }
     }
@@ -90,12 +108,14 @@ function createPlayer(id) {
 function toggle() {
   const url = document.getElementById('url').value;
 
+  // primeira vez
   if (!player) {
     const id = extractId(url);
     if (!id) return alert('URL inválida');
 
     videoId = id;
     createPlayer(id);
+
     setTimeout(() => player.playVideo(), 500);
     playing = true;
     return;
@@ -109,6 +129,11 @@ function toggle() {
 
   playing = !playing;
 }
+
+// enter também funciona
+document.getElementById('url').addEventListener('keydown', e => {
+  if (e.key === 'Enter') toggle();
+});
 </script>
 
 </body>
