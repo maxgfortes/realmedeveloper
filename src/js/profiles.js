@@ -730,8 +730,6 @@ function preencherPerfil(dados) {
 
   const moreMenu = $('moreMenu') || $q('.more-menu');
   if (moreMenu) moreMenu.style.display = isOwnProfile ? '' : 'none';
-
-  carregarMusicTheme(dados.uid)
 }
 
 // ═══════════════════════════════════════════════════════════
