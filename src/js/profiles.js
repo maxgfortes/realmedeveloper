@@ -727,10 +727,11 @@ function preencherPerfil(dados) {
   renderGostos(dados.likes || {});
   renderReposts();
   aplicarBordaNeon(dados);
-  carregarMusicTheme(dados.uid);
 
   const moreMenu = $('moreMenu') || $q('.more-menu');
   if (moreMenu) moreMenu.style.display = isOwnProfile ? '' : 'none';
+
+  carregarMusicTheme(dados.uid)
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1100,6 +1101,118 @@ async function adicionarLinhaUsuario(uid, profileUid, tipo, container) {
 
   container.appendChild(row);
 }
+
+
+// ===========================================================
+// MUSICA
+// ===========================================================
+
+
+
+// ═══════════════════════════════════════════════════════════
+// MUSIC THEME PLAYER
+// ═══════════════════════════════════════════════════════════
+let musicPlayer = null;
+let musicPlaying = false;
+let musicCurrentUrl = null;
+
+function extractYouTubeId(url) {
+  if (!url) return null;
+  const match = url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  return match ? match[1] : null;
+}
+
+function createMusicPlayer(videoId) {
+  // Garante que o elemento #music-player existe no DOM
+  if (!document.getElementById('music-player')) {
+    const div = document.createElement('div');
+    div.id = 'music-player';
+    document.body.appendChild(div);
+  }
+
+  musicPlayer = new YT.Player('music-player', {
+    height: '0',
+    width: '0',
+    videoId,
+    playerVars: { autoplay: 1, controls: 0, loop: 1, playlist: videoId },
+    events: {
+      onReady: (e) => {
+        e.target.setVolume(60);
+        e.target.playVideo();
+        musicPlaying = true;
+        updateMusicUI(true);
+
+        // Busca título via oEmbed para exibir no widget
+        fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
+          .then(r => r.json())
+          .then(d => setMusicTitle(d.title))
+          .catch(() => {});
+      },
+      onStateChange: (e) => {
+        // YT.PlayerState.ENDED = 0 — recomeça (loop manual caso playlist falhe)
+        if (e.data === 0) e.target.playVideo();
+      }
+    }
+  });
+}
+
+function toggleMusic() {
+  if (!musicPlayer) return;
+  if (musicPlaying) {
+    musicPlayer.pauseVideo();
+  } else {
+    musicPlayer.playVideo();
+  }
+  musicPlaying = !musicPlaying;
+  updateMusicUI(musicPlaying);
+}
+
+function updateMusicUI(isPlaying) {
+  const btn = document.getElementById('music-toggle-btn');
+  if (btn) btn.textContent = isPlaying ? '⏸' : '▶';
+}
+
+function setMusicTitle(title) {
+  const el = document.getElementById('music-title');
+  if (el) el.textContent = title;
+}
+
+// ───────────────────────────────────────────────
+// Chamada principal — integre ao preencherPerfil
+// ───────────────────────────────────────────────
+function carregarMusicTheme(uid) {
+  const url = currentProfileData?.media?.musicTheme;
+  if (!url || url === musicCurrentUrl) return;
+  musicCurrentUrl = url;
+
+  const videoId = extractYouTubeId(url);
+  if (!videoId) return;
+
+  if (musicPlayer) {
+    musicPlayer.destroy();
+    musicPlayer = null;
+    musicPlaying = false;
+  }
+
+  if (typeof YT !== 'undefined' && YT.Player) {
+    createMusicPlayer(videoId);
+  } else {
+    window._pendingMusicId = videoId;
+  }
+}
+
+// Callback padrão da YouTube IFrame API
+// Se já existir um onYouTubeIframeAPIReady, encadeia
+(function () {
+  const prev = window.onYouTubeIframeAPIReady;
+  window.onYouTubeIframeAPIReady = function () {
+    if (prev) prev();
+    if (window._pendingMusicId) {
+      createMusicPlayer(window._pendingMusicId);
+      window._pendingMusicId = null;
+    }
+  };
+})();
 
 // ═══════════════════════════════════════════════════════════
 // BOTÕES DINÂMICOS DO PERFIL
@@ -1541,118 +1654,3 @@ onAuthStateChanged(auth, async user => {
   }
 });
 
-
-
-// ═══════════════════════════════════════════════════════════
-// MUSIC THEME PLAYER
-// ═══════════════════════════════════════════════════════════
-let musicPlayer = null;
-let musicPlaying = false;
-let musicCurrentUrl = null;
-
-function extractYouTubeId(url) {
-  if (!url) return null;
-  const match = url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
-  return match ? match[1] : null;
-}
-
-function createMusicPlayer(videoId) {
-  // Garante que o elemento #music-player existe no DOM
-  if (!document.getElementById('music-player')) {
-    const div = document.createElement('div');
-    div.id = 'music-player';
-    document.body.appendChild(div);
-  }
-
-  musicPlayer = new YT.Player('music-player', {
-    height: '0',
-    width: '0',
-    videoId,
-    playerVars: { autoplay: 1, controls: 0, loop: 1, playlist: videoId },
-    events: {
-      onReady: (e) => {
-        e.target.setVolume(60);
-        e.target.playVideo();
-        musicPlaying = true;
-        updateMusicUI(true);
-
-        // Busca título via oEmbed para exibir no widget
-        fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
-          .then(r => r.json())
-          .then(d => setMusicTitle(d.title))
-          .catch(() => {});
-      },
-      onStateChange: (e) => {
-        // YT.PlayerState.ENDED = 0 — recomeça (loop manual caso playlist falhe)
-        if (e.data === 0) e.target.playVideo();
-      }
-    }
-  });
-}
-
-function toggleMusic() {
-  if (!musicPlayer) return;
-  if (musicPlaying) {
-    musicPlayer.pauseVideo();
-  } else {
-    musicPlayer.playVideo();
-  }
-  musicPlaying = !musicPlaying;
-  updateMusicUI(musicPlaying);
-}
-
-function updateMusicUI(isPlaying) {
-  const btn = document.getElementById('music-toggle-btn');
-  if (btn) btn.textContent = isPlaying ? '⏸' : '▶';
-}
-
-function setMusicTitle(title) {
-  const el = document.getElementById('music-title');
-  if (el) el.textContent = title;
-}
-
-// ───────────────────────────────────────────────
-// Chamada principal — integre ao preencherPerfil
-// ───────────────────────────────────────────────
-function carregarMusicTheme(uid) {
-  const ref = firebase.database().ref(`users/${uid}/user-infos/user-media/musicTheme`);
-
-  ref.once('value').then(snap => {
-    const url = snap.val(); // espera string de URL
-
-    // Mesma URL já tocando? Não recria o player
-    if (!url || url === musicCurrentUrl) return;
-    musicCurrentUrl = url;
-
-    const videoId = extractYouTubeId(url);
-    if (!videoId) return; // URL salva não é YouTube válido
-
-    // Destrói player anterior se existir
-    if (musicPlayer) {
-      musicPlayer.destroy();
-      musicPlayer = null;
-      musicPlaying = false;
-    }
-
-    // Cria novo player com o vídeo do perfil visitado
-    if (typeof YT !== 'undefined' && YT.Player) {
-      createMusicPlayer(videoId);
-    } else {
-      // API ainda não carregou — aguarda callback global
-      window._pendingMusicId = videoId;
-    }
-  });
-}
-
-// Callback padrão da YouTube IFrame API
-// Se já existir um onYouTubeIframeAPIReady, encadeia
-(function () {
-  const prev = window.onYouTubeIframeAPIReady;
-  window.onYouTubeIframeAPIReady = function () {
-    if (prev) prev();
-    if (window._pendingMusicId) {
-      createMusicPlayer(window._pendingMusicId);
-      window._pendingMusicId = null;
-    }
-  };
-})();
