@@ -727,6 +727,7 @@ function preencherPerfil(dados) {
   renderGostos(dados.likes || {});
   renderReposts();
   aplicarBordaNeon(dados);
+  carregarMusicTheme(dados.uid);
 
   const moreMenu = $('moreMenu') || $q('.more-menu');
   if (moreMenu) moreMenu.style.display = isOwnProfile ? '' : 'none';
