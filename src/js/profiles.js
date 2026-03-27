@@ -77,14 +77,14 @@ function createMusicPlayer(videoId) {
     width: '1',
     videoId,
     playerVars: {
-      autoplay: 1,
+      autoplay: 0,
       controls: 0,
       disablekb: 1,
       fs: 0,
       modestbranding: 1,
       rel: 0,
       iv_load_policy: 3,
-      playsinline: 1,   // CRÍTICO no iOS — impede fullscreen forçado
+      playsinline: 1,
       enablejsapi: 1,
       loop: 1,
       playlist: videoId,
@@ -92,9 +92,7 @@ function createMusicPlayer(videoId) {
     events: {
       onReady(e) {
         e.target.setVolume(60);
-        e.target.playVideo();
-        musicPlaying = true;
-        updateMusicUI(true);
+        // Não toca automaticamente — aguarda clique do usuário
         // Busca título via oEmbed
         fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
           .then(r => r.json())
@@ -125,11 +123,17 @@ function toggleMusic() {
 }
 
 function updateMusicUI(isPlaying) {
-  // Suporta tanto #btnPauseMusic quanto #music-toggle-btn no HTML
-  const btn1 = document.getElementById('btnPauseMusic');
-  const btn2 = document.getElementById('music-toggle-btn');
-  if (btn1) btn1.classList.toggle('playing', isPlaying);
-  if (btn2) btn2.textContent = isPlaying ? '⏸' : '▶';
+  const btn   = document.getElementById('btnPauseMusic');
+  const play  = document.getElementById('play');
+  const pause = document.getElementById('pause');
+  const bars  = document.querySelector('.music-bars');
+  const title = document.getElementById('musicTitle');
+
+  if (btn)   btn.classList.toggle('playing', isPlaying);
+  if (play)  play.classList.toggle('active', !isPlaying);
+  if (pause) pause.classList.toggle('active', isPlaying);
+  if (bars)  bars.classList.toggle('visible', isPlaying);
+  if (title) title.classList.toggle('shifted', isPlaying);
 }
 
 function setMusicTitle(title) {
@@ -144,16 +148,19 @@ function initMusicPlayer(musicThemeUrl, musicThemeName) {
   const musicSection = document.querySelector('.music');
 
   if (!videoId) {
-    if (musicSection) musicSection.style.display = 'none';
+    // Sem música — garante que a seção fica oculta
+    if (musicSection) musicSection.classList.remove('has-music');
     return;
   }
 
-  // Mesma música já tocando — não reinicia
-  if (musicThemeUrl === musicCurrentUrl) return;
-  musicCurrentUrl = musicThemeUrl;
+  // Mostra a seção de música
+  if (musicSection) musicSection.classList.add('has-music');
 
-  if (musicSection) musicSection.style.display = '';
-  if (musicThemeName) setMusicTitle(musicThemeName);
+  // Já está carregada essa URL — não reinicia
+  if (musicThemeUrl === musicCurrentUrl) return;
+
+  // Estado inicial: parado, play visível, bars ocultas
+  updateMusicUI(false);
 
   // Carrega a API do YouTube se ainda não foi carregada
   if (!document.getElementById('_yt_api_script')) {
@@ -162,6 +169,9 @@ function initMusicPlayer(musicThemeUrl, musicThemeName) {
     s.src = 'https://www.youtube.com/iframe_api';
     document.head.appendChild(s);
   }
+
+  // Trava a URL só depois de confirmar que vamos criar o player
+  musicCurrentUrl = musicThemeUrl;
 
   if (_ytApiReady) {
     createMusicPlayer(videoId);
@@ -1532,6 +1542,49 @@ if (document.readyState === 'loading') {
   setupViewMoreModal();
 }
 
+// ═══════════════════════════════════════════════════════════
+// STICKY MENU
+// ═══════════════════════════════════════════════════════════
+function setupStickyMenu() {
+  const menuArea   = $q('.profile-menu-area');
+  if (!menuArea) return;
+
+  // Cria placeholder se não existir
+  let placeholder = $q('.menu-placeholder');
+  if (!placeholder) {
+    placeholder = document.createElement('div');
+    placeholder.className = 'menu-placeholder';
+    menuArea.parentNode.insertBefore(placeholder, menuArea.nextSibling);
+  }
+
+  const navbarTop = $q('.navbar-top');
+  const navH = navbarTop ? navbarTop.offsetHeight : 60;
+
+  // Atualiza top do sticky caso navbar tenha altura diferente de 60px
+  menuArea.style.setProperty('--sticky-top', navH + 'px');
+
+  const observer = new IntersectionObserver(
+    ([entry]) => {
+      const isSticky = !entry.isIntersecting;
+      menuArea.classList.toggle('sticky', isSticky);
+      placeholder.classList.toggle('active', isSticky);
+      if (isSticky) {
+        // Garante largura correta dentro de containers centrados
+        menuArea.style.maxWidth = document.body.offsetWidth + 'px';
+      } else {
+        menuArea.style.maxWidth = '';
+      }
+    },
+    {
+      // Dispara quando o topo do menuArea passa por baixo da navbar
+      rootMargin: `-${navH}px 0px 0px 0px`,
+      threshold: 0,
+    }
+  );
+
+  observer.observe(menuArea);
+}
+
 onAuthStateChanged(auth, async user => {
   currentUser   = user;
   currentUserId = user?.uid || null;
@@ -1544,6 +1597,7 @@ onAuthStateChanged(auth, async user => {
     await carregarPosts(uid);
     configurarTabs(uid);
     setupNudge();
+    setupStickyMenu();
     // Re-registra o modal após configurarBotoes (que pode clonar elementos próximos)
     setupViewMoreModal();
     if (user) monitorarNudges();
