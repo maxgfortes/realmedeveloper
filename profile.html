@@ -786,6 +786,14 @@
       </div>
     </div>
 
+    <div id="music-player"></div>
+
+<!-- Widget visível opcional -->
+<div id="music-widget" style="position:fixed; bottom:16px; right:16px; background:#1a1a2e; border-radius:12px; padding:10px 14px; display:flex; align-items:center; gap:10px; z-index:999;">
+  <button id="music-toggle-btn" onclick="toggleMusic()" style="background:none; border:none; color:#e8ff47; font-size:20px; cursor:pointer;">⏸</button>
+  <span id="music-title" style="font-size:12px; color:#aaa; max-width:160px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">Carregando...</span>
+</div>
+
     <!-- Profile Menu -->
 <!-- Profile Menu -->
  <div class="main-profile">
@@ -1155,5 +1163,6 @@ document.addEventListener('DOMContentLoaded', () => {
 }); // DOMContentLoaded
 </script>
 <script type="module" src="./src/js/profiles.js"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
 </body>
 </html>
