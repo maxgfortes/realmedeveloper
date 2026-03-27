@@ -2,586 +2,114 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Music Player</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Player Simples</title>
+
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:ital,wght@0,300;0,400;1,300&display=swap');
-
-  :root {
-    --bg: #0a0a0f;
-    --surface: #13131a;
-    --border: rgba(255,255,255,0.07);
-    --accent: #e8ff47;
-    --accent-dim: rgba(232,255,71,0.15);
-    --text: #f0f0f0;
-    --muted: #555;
-    --radius: 20px;
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
   body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    min-height: 100vh;
+    background: #0a0a0f;
+    color: #fff;
+    font-family: sans-serif;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 24px;
-    overflow-x: hidden;
+    height: 100vh;
   }
 
-  /* Grain texture overlay */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-    opacity: 0.4;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .wrap {
-    position: relative;
-    z-index: 1;
+  .box {
     width: 100%;
-    max-width: 380px;
-    display: flex;
-    flex-direction: column;
-    gap: 28px;
-  }
-
-  /* Header */
-  .header {
-    text-align: center;
-  }
-  .header h1 {
-    font-family: 'Syne', sans-serif;
-    font-size: 28px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-    line-height: 1;
-  }
-  .header h1 span { color: var(--accent); }
-  .header p {
-    margin-top: 8px;
-    font-size: 13px;
-    color: var(--muted);
-    font-style: italic;
-  }
-
-  /* Input area */
-  .input-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 20px;
+    max-width: 320px;
     display: flex;
     flex-direction: column;
     gap: 12px;
   }
-  .input-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    color: var(--muted);
-  }
-  .input-row {
-    display: flex;
-    gap: 10px;
-  }
-  input[type="text"] {
-    flex: 1;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    padding: 12px 16px;
-    outline: none;
-    transition: border-color 0.2s;
-    -webkit-appearance: none;
-  }
-  input[type="text"]::placeholder { color: var(--muted); }
-  input[type="text"]:focus { border-color: var(--accent); }
 
-  .btn-load {
-    background: var(--accent);
-    color: #0a0a0f;
+  input {
+    padding: 12px;
+    border-radius: 8px;
     border: none;
-    border-radius: 12px;
-    padding: 12px 18px;
-    font-family: 'Syne', sans-serif;
-    font-size: 13px;
-    font-weight: 700;
+    outline: none;
+  }
+
+  button {
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: #e8ff47;
+    font-weight: bold;
     cursor: pointer;
-    white-space: nowrap;
-    transition: opacity 0.2s, transform 0.1s;
-  }
-  .btn-load:active { opacity: 0.8; transform: scale(0.97); }
-
-  /* Player card */
-  .player-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 20px;
-    display: none;
-    flex-direction: column;
-    gap: 16px;
-    animation: fadeUp 0.4s ease forwards;
-  }
-  .player-card.visible { display: flex; }
-
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(16px); }
-    to   { opacity: 1; transform: translateY(0); }
   }
 
-  /* Thumbnail + info row */
-  .track-row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
-  .thumb-wrap {
-    position: relative;
-    width: 56px;
-    height: 56px;
-    flex-shrink: 0;
-    border-radius: 12px;
-    overflow: hidden;
-    background: #1a1a24;
-  }
-  .thumb-wrap img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  /* spinning disc ring on thumb when playing */
-  .thumb-wrap::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 12px;
-    border: 2px solid var(--accent);
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
-  .playing .thumb-wrap::after { opacity: 1; animation: pulse-border 2s ease-in-out infinite; }
-  @keyframes pulse-border {
-    0%,100% { border-color: var(--accent); }
-    50% { border-color: rgba(232,255,71,0.4); }
-  }
-
-  .track-info { flex: 1; min-width: 0; }
-  .track-title {
-    font-family: 'Syne', sans-serif;
+  #title {
     font-size: 14px;
-    font-weight: 700;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .track-sub {
-    font-size: 12px;
-    color: var(--muted);
-    margin-top: 3px;
-    font-style: italic;
-  }
-
-  /* Big play button — Instagram style */
-  .play-btn {
-    width: 100%;
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    cursor: pointer;
-    transition: background 0.2s, border-color 0.2s, transform 0.1s;
-    -webkit-appearance: none;
-  }
-  .play-btn:active { transform: scale(0.98); }
-  .play-btn.playing {
-    background: var(--accent-dim);
-    border-color: var(--accent);
-  }
-
-  .play-icon {
-    width: 40px;
-    height: 40px;
-    background: var(--accent);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: transform 0.2s;
-  }
-  .play-btn:active .play-icon { transform: scale(0.9); }
-  .play-icon svg { fill: #0a0a0f; }
-
-  .play-label {
-    font-family: 'Syne', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    flex: 1;
-    text-align: left;
-  }
-
-  /* Sound bars animation */
-  .bars {
-    display: flex;
-    align-items: flex-end;
-    gap: 3px;
-    height: 20px;
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
-  .playing .bars { opacity: 1; }
-  .bar {
-    width: 3px;
-    background: var(--accent);
-    border-radius: 2px;
-    animation: bounce 0.8s ease-in-out infinite;
-  }
-  .bar:nth-child(1) { animation-delay: 0s;    height: 60%; }
-  .bar:nth-child(2) { animation-delay: 0.15s; height: 100%; }
-  .bar:nth-child(3) { animation-delay: 0.3s;  height: 45%; }
-  .bar:nth-child(4) { animation-delay: 0.45s; height: 80%; }
-  @keyframes bounce {
-    0%,100% { transform: scaleY(1); }
-    50%      { transform: scaleY(0.3); }
-  }
-
-  /* Progress bar */
-  .progress-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .progress-track {
-    height: 3px;
-    background: rgba(255,255,255,0.08);
-    border-radius: 2px;
-    overflow: hidden;
-    cursor: pointer;
-  }
-  .progress-fill {
-    height: 100%;
-    background: var(--accent);
-    border-radius: 2px;
-    width: 0%;
-    transition: width 1s linear;
-  }
-  .progress-times {
-    display: flex;
-    justify-content: space-between;
-    font-size: 11px;
-    color: var(--muted);
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* iOS warning */
-  .ios-note {
-    background: rgba(232,255,71,0.05);
-    border: 1px solid rgba(232,255,71,0.15);
-    border-radius: 12px;
-    padding: 12px 16px;
-    font-size: 12px;
-    color: rgba(232,255,71,0.7);
-    line-height: 1.5;
-    display: none;
-  }
-  .ios-note.show { display: block; }
-
-  /* Status */
-  .status {
-    font-size: 12px;
-    color: var(--muted);
+    opacity: 0.8;
     text-align: center;
-    font-style: italic;
-    min-height: 16px;
   }
-  .status.err { color: #ff5f57; }
-
-  /* Hidden YT iframe */
-  #yt-player { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; top: -9999px; left: -9999px; }
 </style>
 </head>
+
 <body>
 
-<!-- Hidden YT player container -->
-<div id="yt-player"></div>
-
-<div class="wrap">
-
-  <div class="header">
-    <h1>Music<span>.</span></h1>
-    <p>Cole o link do YouTube e toque em background</p>
-  </div>
-
-  <div class="ios-note" id="ios-note">
-    ⚠️ <strong>iOS:</strong> Toque em <em>Carregar</em> e depois em <em>Tocar</em> dentro do mesmo gesto de toque para o áudio funcionar em segundo plano no Safari.
-  </div>
-
-  <div class="input-card">
-    <span class="input-label">Link do YouTube</span>
-    <div class="input-row">
-      <input type="text" id="url-input" placeholder="https://youtube.com/watch?v=..." autocomplete="off" autocorrect="off" spellcheck="false">
-      <button class="btn-load" onclick="loadVideo()">Carregar</button>
-    </div>
-    <div class="status" id="status"></div>
-  </div>
-
-  <div class="player-card" id="player-card">
-    <div class="track-row">
-      <div class="thumb-wrap">
-        <img id="thumb" src="" alt="">
-      </div>
-      <div class="track-info">
-        <div class="track-title" id="track-title">—</div>
-        <div class="track-sub">YouTube Audio</div>
-      </div>
-    </div>
-
-    <button class="play-btn" id="play-btn" onclick="togglePlay()">
-      <div class="play-icon" id="play-icon">
-        <svg id="icon-svg" width="16" height="16" viewBox="0 0 16 16">
-          <!-- play triangle -->
-          <polygon id="icon-play" points="3,1 15,8 3,15"/>
-          <!-- pause bars -->
-          <g id="icon-pause" style="display:none">
-            <rect x="2" y="1" width="4" height="14" rx="1"/>
-            <rect x="10" y="1" width="4" height="14" rx="1"/>
-          </g>
-        </svg>
-      </div>
-      <span class="play-label" id="play-label">Tocar música</span>
-      <div class="bars">
-        <div class="bar"></div>
-        <div class="bar"></div>
-        <div class="bar"></div>
-        <div class="bar"></div>
-      </div>
-    </button>
-
-    <div class="progress-wrap">
-      <div class="progress-track" id="progress-track" onclick="seekTo(event)">
-        <div class="progress-fill" id="progress-fill"></div>
-      </div>
-      <div class="progress-times">
-        <span id="time-cur">0:00</span>
-        <span id="time-dur">0:00</span>
-      </div>
-    </div>
-  </div>
-
+<div class="box">
+  <input id="url" placeholder="Cole link do YouTube">
+  <button onclick="toggle()">Tocar</button>
+  <div id="title">—</div>
 </div>
 
-<!-- YouTube IFrame API -->
+<div id="player"></div>
+
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
-  let player = null;
-  let videoId = '';
-  let isPlaying = false;
-  let progressTimer = null;
+let player;
+let videoId = '';
+let playing = false;
 
-  // Detect iOS
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  if (isIOS) document.getElementById('ios-note').classList.add('show');
+function extractId(url) {
+  const match = url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  return match ? match[1] : null;
+}
 
-  // Extract video ID from various YT URL formats
-  function extractId(url) {
-    url = url.trim();
-    const patterns = [
-      /(?:v=|\/v\/|youtu\.be\/|\/embed\/|\/shorts\/)([A-Za-z0-9_-]{11})/,
-      /^([A-Za-z0-9_-]{11})$/
-    ];
-    for (const p of patterns) {
-      const m = url.match(p);
-      if (m) return m[1];
+function createPlayer(id) {
+  player = new YT.Player('player', {
+    height: '0',
+    width: '0',
+    videoId: id,
+    playerVars: { autoplay: 0, controls: 0 },
+    events: {
+      onReady: () => {
+        fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`)
+          .then(r => r.json())
+          .then(d => {
+            document.getElementById('title').textContent = d.title;
+          });
+      }
     }
-    return null;
-  }
+  });
+}
 
-  function setStatus(msg, err) {
-    const el = document.getElementById('status');
-    el.textContent = msg;
-    el.className = 'status' + (err ? ' err' : '');
-  }
+function toggle() {
+  const url = document.getElementById('url').value;
 
-  function loadVideo() {
-    const url = document.getElementById('url-input').value;
+  if (!player) {
     const id = extractId(url);
-
-    if (!id) { setStatus('URL inválida. Cole um link válido do YouTube.', true); return; }
+    if (!id) return alert('URL inválida');
 
     videoId = id;
-    setStatus('Carregando…');
-
-    // Thumbnail
-    document.getElementById('thumb').src = `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
-    document.getElementById('track-title').textContent = 'Carregando…';
-
-    if (player) {
-      player.loadVideoById(id);
-      player.stopVideo();
-      resetUI();
-      setStatus('Pronto. Toque em Tocar.');
-      document.getElementById('player-card').classList.add('visible');
-    } else {
-      // Player will be created by onYouTubeIframeAPIReady or re-init
-      initPlayer(id);
-    }
+    createPlayer(id);
+    setTimeout(() => player.playVideo(), 500);
+    playing = true;
+    return;
   }
 
-  function initPlayer(id) {
-    player = new YT.Player('yt-player', {
-      height: '1',
-      width: '1',
-      videoId: id,
-      playerVars: {
-        autoplay: 0,
-        controls: 0,
-        disablekb: 1,
-        fs: 0,
-        modestbranding: 1,
-        rel: 0,
-        iv_load_policy: 3,
-        playsinline: 1,   // critical for iOS inline audio
-        enablejsapi: 1,
-      },
-      events: {
-        onReady: onPlayerReady,
-        onStateChange: onPlayerStateChange,
-        onError: onPlayerError,
-      }
-    });
+  if (playing) {
+    player.pauseVideo();
+  } else {
+    player.playVideo();
   }
 
-  function onYouTubeIframeAPIReady() {
-    // API ready — player is created on demand in loadVideo
-  }
-
-  function onPlayerReady(e) {
-    // Try to get title via oEmbed
-    fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
-      .then(r => r.json())
-      .then(d => { document.getElementById('track-title').textContent = d.title || 'YouTube Music'; })
-      .catch(() => { document.getElementById('track-title').textContent = 'YouTube Music'; });
-
-    setStatus('Pronto. Toque em Tocar.');
-    document.getElementById('player-card').classList.add('visible');
-  }
-
-  function onPlayerStateChange(e) {
-    const YTS = YT.PlayerState;
-    if (e.data === YTS.PLAYING) {
-      setPlayingState(true);
-      startProgress();
-    } else if (e.data === YTS.PAUSED || e.data === YTS.ENDED) {
-      setPlayingState(false);
-      stopProgress();
-      if (e.data === YTS.ENDED) {
-        setStatus('Música finalizada.');
-        document.getElementById('progress-fill').style.width = '100%';
-      }
-    } else if (e.data === YTS.BUFFERING) {
-      setStatus('Carregando áudio…');
-    }
-  }
-
-  function onPlayerError(e) {
-    const msgs = { 2:'ID inválido.', 5:'Erro HTML5.', 100:'Vídeo não encontrado.', 101:'Incorporação não permitida.', 150:'Incorporação não permitida.' };
-    setStatus(msgs[e.data] || `Erro ${e.data}.`, true);
-  }
-
-  function togglePlay() {
-    if (!player) return;
-    if (isPlaying) {
-      player.pauseVideo();
-    } else {
-      player.playVideo();
-    }
-  }
-
-  function setPlayingState(playing) {
-    isPlaying = playing;
-    const card = document.getElementById('player-card');
-    const btn  = document.getElementById('play-btn');
-    const lbl  = document.getElementById('play-label');
-    const iconPlay  = document.getElementById('icon-play');
-    const iconPause = document.getElementById('icon-pause');
-
-    if (playing) {
-      card.classList.add('playing');
-      btn.classList.add('playing');
-      lbl.textContent = 'Tocando…';
-      iconPlay.style.display  = 'none';
-      iconPause.style.display = '';
-      setStatus('');
-    } else {
-      card.classList.remove('playing');
-      btn.classList.remove('playing');
-      lbl.textContent = 'Tocar música';
-      iconPlay.style.display  = '';
-      iconPause.style.display = 'none';
-    }
-  }
-
-  function startProgress() {
-    stopProgress();
-    progressTimer = setInterval(updateProgress, 1000);
-    updateProgress();
-  }
-  function stopProgress() {
-    if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
-  }
-  function updateProgress() {
-    if (!player || typeof player.getCurrentTime !== 'function') return;
-    try {
-      const cur = player.getCurrentTime() || 0;
-      const dur = player.getDuration() || 0;
-      if (dur > 0) {
-        document.getElementById('progress-fill').style.width = ((cur/dur)*100) + '%';
-      }
-      document.getElementById('time-cur').textContent = fmt(cur);
-      document.getElementById('time-dur').textContent = fmt(dur);
-    } catch(_) {}
-  }
-  function fmt(s) {
-    s = Math.floor(s);
-    const m = Math.floor(s/60), sec = s % 60;
-    return `${m}:${sec.toString().padStart(2,'0')}`;
-  }
-  function seekTo(e) {
-    if (!player || typeof player.getDuration !== 'function') return;
-    const track = document.getElementById('progress-track');
-    const rect  = track.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    player.seekTo(player.getDuration() * ratio, true);
-  }
-  function resetUI() {
-    setPlayingState(false);
-    stopProgress();
-    document.getElementById('progress-fill').style.width = '0%';
-    document.getElementById('time-cur').textContent = '0:00';
-    document.getElementById('time-dur').textContent = '0:00';
-  }
-
-  // Allow Enter key on input
-  document.getElementById('url-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') loadVideo();
-  });
+  playing = !playing;
+}
 </script>
+
 </body>
 </html>
