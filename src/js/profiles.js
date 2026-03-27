@@ -36,7 +36,97 @@ let profileUsername    = '';
 let currentProfileData = null;
 let postsDoUsuario     = [];
 
+// ── Music Player ────────────────────────────────────────────
+let _ytPlayer        = null;
+let _ytReady         = false;
+let _ytPendingId     = null;
+let _musicPlaying    = false;
+// Expose callback for YT API script
+window.onYouTubeIframeAPIReady = function () {
+  _ytReady = true;
+  if (_ytPendingId) _createYTPlayer(_ytPendingId);
+};
+function _extractYTId(url) {
+  if (!url) return null;
+  const m = String(url).match(/(?:v=|\/v\/|youtu\.be\/|\/embed\/|\/shorts\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : (String(url).match(/^[A-Za-z0-9_-]{11}$/) ? url : null);
+}
+function _createYTPlayer(videoId) {
+  // Remove any existing hidden iframe container
+  let container = document.getElementById('_yt_bg_player');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = '_yt_bg_player';
+    container.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;top:-9999px;left:-9999px;';
+    document.body.appendChild(container);
+  }
+  _ytPlayer = new YT.Player('_yt_bg_player', {
+    height: '1', width: '1',
+    videoId,
+    playerVars: { autoplay: 0, controls: 0, disablekb: 1, fs: 0,
+                  modestbranding: 1, rel: 0, iv_load_policy: 3, playsinline: 1, enablejsapi: 1 },
+    events: {
+      onStateChange(e) {
+        if (e.data === YT.PlayerState.ENDED) {
+          _musicPlaying = false;
+          _setMusicBtnState(false);
+        }
+      }
+    }
+  });
+}
+function _setMusicBtnState(playing) {
+  _musicPlaying = playing;
+  const btn = document.getElementById('btnPauseMusic');
+  if (!btn) return;
+  if (playing) {
+    btn.classList.add('playing');
+  } else {
+    btn.classList.remove('playing');
+  }
+}
+function initMusicPlayer(musicThemeUrl, musicThemeName) {
+  const videoId = _extractYTId(musicThemeUrl);
+  const musicSection = document.querySelector('.music');
+  const titleEl = document.getElementById('musicTitle');
 
+  if (!videoId) {
+    if (musicSection) musicSection.style.display = 'none';
+    return;
+  }
+  if (musicSection) musicSection.style.display = '';
+  if (titleEl) titleEl.textContent = musicThemeName || 'Música do perfil';
+
+  // Load YT API if not already loaded
+  if (!document.getElementById('_yt_api_script')) {
+    const s = document.createElement('script');
+    s.id  = '_yt_api_script';
+    s.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(s);
+  }
+
+  if (_ytReady) {
+    _createYTPlayer(videoId);
+  } else {
+    _ytPendingId = videoId;
+  }
+
+  // Wire up play button (clone to remove old listeners)
+  const oldBtn = document.getElementById('btnPauseMusic');
+  if (!oldBtn) return;
+  const btn = oldBtn.cloneNode(true);
+  oldBtn.parentNode.replaceChild(btn, oldBtn);
+  btn.addEventListener('click', () => {
+    if (!_ytPlayer || typeof _ytPlayer.playVideo !== 'function') return;
+    if (_musicPlaying) {
+      _ytPlayer.pauseVideo();
+      _setMusicBtnState(false);
+    } else {
+      _ytPlayer.playVideo();
+      _setMusicBtnState(true);
+    }
+  });
+}
 
 // ═══════════════════════════════════════════════════════════
 // CACHE
@@ -338,7 +428,7 @@ function renderMidia(media) {
   }
   if (media.background) $q('.glass-overlay')?.style.setProperty('display','none');
   if (media.musicTheme) {
-    carregarMusicTheme(media.musicTheme);
+    initMusicPlayer(media.musicTheme, media.musicThemeName || null);
   } else {
     const musicSection = document.querySelector('.music');
     if (musicSection) musicSection.style.display = 'none';
@@ -640,6 +730,8 @@ function preencherPerfil(dados) {
 
   const moreMenu = $('moreMenu') || $q('.more-menu');
   if (moreMenu) moreMenu.style.display = isOwnProfile ? '' : 'none';
+
+  carregarMusicTheme(dados.uid);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1088,24 +1180,34 @@ function setMusicTitle(title) {
 // ───────────────────────────────────────────────
 // Chamada principal — integre ao preencherPerfil
 // ───────────────────────────────────────────────
-function carregarMusicTheme(url) {
-  if (!url || url === musicCurrentUrl) return;
-  musicCurrentUrl = url;
+function carregarMusicTheme(uid) {
+  const ref = firebase.database().ref(`users/${uid}/user-infos/user-media/musicTheme`);
 
-  const videoId = extractYouTubeId(url);
-  if (!videoId) return;
+  ref.once('value').then(snap => {
+    const url = snap.val(); // espera string de URL
 
-  if (musicPlayer) {
-    musicPlayer.destroy();
-    musicPlayer = null;
-    musicPlaying = false;
-  }
+    // Mesma URL já tocando? Não recria o player
+    if (!url || url === musicCurrentUrl) return;
+    musicCurrentUrl = url;
 
-  if (typeof YT !== 'undefined' && YT.Player) {
-    createMusicPlayer(videoId);
-  } else {
-    window._pendingMusicId = videoId;
-  }
+    const videoId = extractYouTubeId(url);
+    if (!videoId) return; // URL salva não é YouTube válido
+
+    // Destrói player anterior se existir
+    if (musicPlayer) {
+      musicPlayer.destroy();
+      musicPlayer = null;
+      musicPlaying = false;
+    }
+
+    // Cria novo player com o vídeo do perfil visitado
+    if (typeof YT !== 'undefined' && YT.Player) {
+      createMusicPlayer(videoId);
+    } else {
+      // API ainda não carregou — aguarda callback global
+      window._pendingMusicId = videoId;
+    }
+  });
 }
 
 // Callback padrão da YouTube IFrame API
@@ -1560,3 +1662,4 @@ onAuthStateChanged(auth, async user => {
     mostrarErro('Faça login para acessar esta página.');
   }
 });
+
