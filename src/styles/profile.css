@@ -1030,7 +1030,6 @@
     }
 
     .music {
-      display: none;
       padding: 4px;
       padding-top: 8px;
       padding-left: 10px;
@@ -1391,12 +1390,16 @@ background: #fff;
   width: 100%;
   align-items: center;
   text-align: center;
+  height: 100%;
   font-size: 20px;
   font-weight: bold;
-  padding: 4px 0 12px 0;
+  padding: 0;
   color: #b6b8bc;
 }
 
+.more-info-header p {
+  align-items: center;
+}
 .basic-info-container {
   padding: 22px 0;
 }
@@ -2992,7 +2995,6 @@ background: #fff;
     }
 
     .music {
-      display: none !important;
       padding: 4px;
       padding-top: 8px;
       padding-left: 10px;
@@ -3348,11 +3350,12 @@ background: #fff;
 
 .more-info-header {
   width: 100%;
+  height: 100%;
   align-items: center;
   text-align: center;
   font-size: 20px;
   font-weight: bold;
-  padding: 4px 0 12px 0;
+  padding: 0;
   color: #b6b8bc;
 }
 
@@ -3403,6 +3406,9 @@ background: #fff;
   height: 120px;
 }
 
+.safe-area-top {
+  height: 16px;
+}
 .scroll-content {
   overflow-y: auto;
   overflow-x: hidden;
@@ -3881,4 +3887,75 @@ background: #fff;
   justify-content: center;
   align-items: center;
 }
+
+.header-libs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
 }
+
+
+.btn-cancel i{
+  font-size: 24px;
+}
+
+
+.edit-mode {
+  display: none;
+}
+
+.edit-input {
+  font-size: 18px;
+  background-color: transparent;
+  color: #aaa;
+  width: 100%;
+  border: none;
+  resize: none;
+  height: 70px;
+  font-family: inherit;
+}
+
+
+.edit-input:focus {
+  outline: none;
+}
+.view-mode {
+}
+}
+
+
+.btn-edit-area.hidden{
+  display: none;
+  pointer-events: none;
+} 
+
+
+
+.header-libs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px;
+}
+
+.btn-edit-header {
+  height: 100%;
+  width: 30px;
+}
+
+.btn-edit-header button {
+  background-color: transparent;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  color: #b6b8bc;
+  font-size: 22px;
+  border: none;
+  align-items: center;
+  justify-content: center;
+}
+
+
+
+
