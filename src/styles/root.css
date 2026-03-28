@@ -1,24 +1,21 @@
 :root {
   /* ========== CORES PRINCIPAIS ========== */
-  --primary-color:   #4A90E2;
-  --primary-btn:   #4a59e2;
+  --primary-color: #4A90E2;
   --primary-hover: #357ABD;
   --primary-light: #63a9fa;
   --primary-dark: #3578c9;
-  --text-color: #6269a4;
   --primary-gradient: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
   
   /* ========== CORES DE FUNDO ========== */
   --bg-primary: #0f0f0f;
-  --bg-ig: #0b0d14;
   --bg-secondary: #1C1C1C;
   --bg-tertiary: #141414;
   --bg-card: #121212;
   --bg-card-solid: #1f1f1f;
-  --bg-section: #06080c;
+  --bg-section: #1b1b1b;
   --bg-input: #474747;
   --bg-hover: #3b3b3b;
-  --bg-modal: rgba(15, 15, 15, 0.70);
+  --bg-modal: rgba(0, 0, 0, 0.85);
   
   /* ========== CORES DE BORDA ========== */
   --border-primary: #2a2a2a;
@@ -116,7 +113,7 @@
   
   /* ========== NAVBAR/HEADER ========== */
   --navbar-height: 60px;
-  --navbar-bg: #0b0e15;
+  --navbar-bg: #0f0f0f;
   --navbar-border: #ffffff1a;
   
   /* ========== SIDEBAR ========== */
@@ -126,19 +123,8 @@
   /* ========== SCROLLBAR ========== */
   --scrollbar-width: 12px;
   --scrollbar-track: linear-gradient(0deg, #000000 0%, #161616 100%);
-  --scrollbar-thumb: linear-gradient(
-    142deg,
-    rgba(162, 0, 255, 0.600),
-    rgba(255, 64, 172, 0.600),
-    rgba(255, 174, 0, 0.600)
-  );
-  --scrollbar-thumb-hover: linear-gradient(
-    142deg,
-    rgba(162, 0, 255, 1),
-    rgba(255, 64, 172, 1),
-    rgba(255, 174, 0, 1)
-  );
-  
+  --scrollbar-thumb: rgba(74, 144, 226, 0.6);
+  --scrollbar-thumb-hover: rgba(74, 144, 226, 0.9);
   
   /* ========== GRADIENTES ========== */
   --gradient-primary: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
@@ -189,7 +175,6 @@
 /* ========== SCROLLBAR GLOBAL ========== */
 ::-webkit-scrollbar {
   width: var(--scrollbar-width);
-  display: none;
 }
 
 ::-webkit-scrollbar-track {

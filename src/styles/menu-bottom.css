@@ -4,6 +4,17 @@
 
 @media (max-width: 768px) {
     /* ========== OVERLAY ========== */
+    .menu-bottom-layer.active::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: transparent;
+        z-index: 999;
+    }
+
     /* ========== CONTAINER PRINCIPAL ========== */
     .menu-bottom-layer {
         position: fixed;
@@ -14,7 +25,6 @@
         left: 0;
         right: 0;
         z-index: 999999 !important;
-        background-color: var(--bg-modal);
     }
 
     .menu-bottom-layer.active {
@@ -22,7 +32,6 @@
         flex-direction: column;
         justify-content: flex-end;
         z-index: 99999;
-        background-color: var(--bg-modal);
     }
 
     .menu-bottom-container {

@@ -1,4 +1,4 @@
-@media (max-width: 900px)  {
+@media (max-width: 768px)  {
 .welcome-container {
   margin-left: 0px !important;
   padding: 0px !important;
@@ -16,7 +16,7 @@ body {
   background-color: var(--bg-primary) ;
   background-image: none;
   color: #ffffff;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   overflow-x: hidden; /* Evita scroll horizontal */
   overflow-y: hidden;
   touch-action: none;
@@ -120,46 +120,39 @@ body.modal-open {
       left: 0;
       width: 100%;
       height: 100%;
-      background: transparent;
+      background: rgba(0, 0, 0, 0.336);
       z-index: 10000;
-      /* Usa visibility+opacity em vez de display:none para permitir animação */
-      visibility: hidden;
-      opacity: 0;
-      pointer-events: none;
+      display: none; /* Começa oculto */
       overflow: hidden;
-      transition: background 0.3s ease, opacity 0.3s ease, visibility 0s linear 0.3s;
+    }
+    .mobile-comments-modal.active {
+      display: block;
     }
     .mobile-comments-content {
       position: absolute;
       bottom: 0;
       left: 0;
       width: 100%;
-      height: 60vh;
+      height: 60vh; /* Sobe até a metade da tela */
       max-height: 80vh;
-      background: #272727;
-      border-radius: 22px 22px 0 0;
+      background: #272727; /* Fundo do modal, ajuste para seu tema */
+      border-top-left-radius: 20px;
+      border-top-right-radius: 20px;
       padding: 0px;
       box-sizing: border-box;
       transform: translateY(100%);
-      transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+      transition: transform 0.3s ease-out;
       display: flex;
       flex-direction: column;
     }
     .mobile-comments-modal.active .mobile-comments-content {
-      transform: translateY(0); /* corrigido: era translateY(10%) por erro de duplicata */
-    }
-
-    .mobile-comments-modal.active {
-      visibility: visible;
-      opacity: 1;
-      pointer-events: auto;
-      background: var(--bg-modal);
-      transition: background 0.3s ease, opacity 0.3s ease, visibility 0s linear 0s;
+      transform: translateY(0);
     }
     .modal-comments-header {
       display: flex;
       align-items: center;
       margin-bottom: 0px !important;
+      padding-bottom: 5px;
     }
     .modal-comments-header h3 {
       margin: 0;
@@ -189,7 +182,51 @@ body.modal-open {
         display: none !important;
       }
     }
+    /* Estilos para o Modal de Comentários Mobile (Bottom Sheet) */
+    .mobile-comments-modal {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0); /* Começa transparente */
+      z-index: 10000;
+      display: none; 
+      overflow: hidden;
+      
+      /* 1. ANIMAÇÃO DE FADE PARA O BACKGROUND */
+      transition: background 0.3s ease-out;
+    }
+    .mobile-comments-modal.active {
+      display: block; /* O display:block é instantâneo, a animação vem depois */
+      background: rgba(0, 0, 0, 0.7); /* Background escurece */
+    }
+    
+    .mobile-comments-content {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 86vh; 
+      background: #1c1c1c; 
+      border-top-left-radius: 20px;
+      border-top-right-radius: 20px;
+      padding: 0px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
 
+      /* 2. ESTADO INICIAL: Fora da tela */
+      transform: translateY(100%);
+      
+      /* 3. ANIMAÇÃO DE SLIDE PARA O CONTEÚDO */
+      transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94); /* Curva de animação mais dinâmica */
+    }
+    
+    .mobile-comments-modal.active .mobile-comments-content {
+      /* 4. ESTADO FINAL: Sobe para a tela */
+      transform: translateY(0);
+    }
     
     /* ... (outros estilos) ... */
     
@@ -217,11 +254,11 @@ body.modal-open {
 }
 
 .modal-grab {
-  background-color: #444;
+  background-color: #333;
   border-radius: 50px;
-  width: 50px;
-  height: 5px;
-  margin: 8px 20px 5px 20px;
+  width: 60px;
+  height: 4px;
+  margin: 8px 20px;
 }
 
 .modal-comments-header {
@@ -269,6 +306,12 @@ body.modal-open {
 
 
     
+    .comment-form:focus-within {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 10px rgba(74, 144, 226, 0.6);
+  outline: none;
+  color: white;
+    }
 
 
 
@@ -298,26 +341,27 @@ body.modal-open {
     /* Estilos para comentários */
     .comentario-item {
       margin-bottom: 12px;
-      padding: 10px 14px;
+      padding: 10px;
       font-size: 14px;
+      background-color: transparent !important;
       border: none !important;
+      border-bottom: 1px solid #2e2e2e !important;
       border-radius: 0px !important;
       margin: 0px;
-      backdrop-filter: blur(0px) !important;
+       backdrop-filter: blur(0px) !important;
     }
 
 
     .comentario-header {
       display: flex !important;
       flex-direction: row !important;
-      align-items: center;
       gap: 8px;
-      padding-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .comentario-avatar {
-      width: 42px;
-      height: 42px;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
     }
 
@@ -328,27 +372,30 @@ body.modal-open {
     }
 
     .comentario-nome {
-      font-size: 14px;
+      font-size: 13px;
       cursor: pointer;
     }
 
+    .comentario-nome:hover {
+      color: var(--primary-color);
+    }
 
+    .comentario-usuario,
     .comentario-data {
-      font-size: 13px;
-      color: #bbb;
+      font-size: 11px;
+      color: #666;
     }
 
     .comentario-conteudo {
       font-size: 16px;
       line-height: 1.4;
-      padding: 0 6px;
-      color: #ddd;
     }
 
     .no-comments,
     .error-comments {
       text-align: center;
       color: #666;
+      font-style: italic;
       padding: 15px;
     }
 
@@ -372,10 +419,9 @@ body.modal-open {
       border: 1px solid #ddd;
       border-radius: 200px !important;
       background-color: #444;
-      border: none;
+border: none;
     box-shadow: none !important;
     color: #fff;
-    outline: none;
     }
 
     .comment-form input {
@@ -384,7 +430,6 @@ body.modal-open {
       border: none;
       flex: 1;
       color: #fff;
-      outline: none;
     }
 
 
@@ -392,18 +437,13 @@ body.modal-open {
       padding: 10px 20px;
       border-radius: 60px;
       background-color: var(--primary-color);
-      border: none !important;
+      border: none;
       color: #fff;
-    }
-
-    .comment-form:focus {
-      outline: none;
     }
 
     .comment-input-mobile:focus {
-      outline: none !important;
+      outline: none;
       color: #fff;
-      border: none;
     }
 
     .comment-submit-mobile svg {
@@ -511,6 +551,9 @@ body.modal-open {
   border-radius: 10px;
   border: 1px solid #2a2a2a;
   margin-bottom: 30px;
+  box-shadow: 0 0 8px rgba(0,0,0,0.4);
+          background-color: #1f1f1f;
+        border: 1px solid #333333;
 }
 
 .post-card {
@@ -518,12 +561,13 @@ body.modal-open {
   backdrop-filter: blur(none);
   border-radius: 12px !important;
   margin-bottom: 0px !important;
+  border: 0.1px solid var(--border-primary);
   box-shadow: none !important;
   padding: 14px 14px 14px 14px !important;
   border-left: none;
   border: none !important;
   background: transparent !important;
-  border-bottom: 0px solid var(--border-primary) !important;
+  border-bottom: 0.1px solid var(--border-primary) !important;
   border-radius: 0px !important;
 }
 
@@ -1474,8 +1518,6 @@ textarea#postText:focus {
       z-index: 9999;
     }
 
-
-
       .navbar-top svg {
       margin-top: 8px;
   width: 24px;  /* ou o tamanho que você usa nos outros ícones */
@@ -1521,10 +1563,11 @@ textarea#postText:focus {
   background-color: var(--bg-primary);
   width: 100vw;
   display: flex;
-  flex-direction: column ;
+  flex-direction: column !important;
   height: 100vh;
-  z-index: 999999999999 !important;
-  justify-content: space-between;
+  z-index: 999999999;
+  align-items: center;
+  align-content: center;
 }
 
 .header-layer h1 {
@@ -1537,8 +1580,6 @@ textarea#postText:focus {
   display: flex;
   align-items: center;
   align-content: center;
-  background-color: #1f1f1f;
-  border-radius: 12px 12px 0 0;
   padding: 1.8vh 2.8vh;
   width: 100%;
 
@@ -1570,11 +1611,11 @@ textarea#postText:focus {
 
 .content-area {
   width: 100%;
-  position: fixed;
-  height: 92%;
+  height: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: column !important;
   justify-content: space-between;
+  padding: 12px;
   padding-bottom: 30px;
 }
 
@@ -1582,24 +1623,20 @@ textarea#postText:focus {
   padding: 0 12px 24px 12px;
 }
 
-.feedpage {
-   transform: translateX(0px);
-}
-
 .file-area {
   padding: 0 12px 12px 12px;
 }
 
 .file-box {
-  background-color: #141414;
+  background-color: #1a1a1a;
   min-height: 100px;
   border-radius: 12px;
-  padding: 0 0 0px 0;
+  padding: 0 0 12px 0;
 }
 
 .text-input-area {
   border-radius: 12px;
-  background-color: #141414;
+  background-color: #1a1a1a;
   height: 16vh;
 }
 
@@ -1611,14 +1648,12 @@ textarea#postText:focus {
 }
 
 
-
-
 .img-btn {
   font-weight: bold;
   font-size: 16px;
   padding: 12px 22px;
   color: var(--text-muted);
-  background-color: transparent;
+  background-color: #1a1a1a;
   border-radius: 12px 12px 0 0;
   border-bottom: 0.1px solid #333;
 }
@@ -1626,7 +1661,7 @@ textarea#postText:focus {
 
 .file-input-area {
   border-radius: 12px;
-  background-color: #141414;
+  background-color: #1a1a1a;
   height: 4vh;
   display: flex;
   align-items: center;
@@ -1665,18 +1700,7 @@ textarea#postText:focus {
 
 .post-options {
   display: flex;
-  padding-top: 12px;
 }
-
-
-.post-content-type {
-  background-color: #1f1f1f;
-  padding: 12px;
-  height: 100%;
-  border-radius: 0 0 12px 12px;
-}
-
-
 
 .file-icon {
   align-items: center;
@@ -1728,9 +1752,8 @@ textarea#postText:focus {
 .sections-btn {
   padding: 8px;
   width: 100%;
-  display: flex;
+  position: relative;
 }
-
 
 .inactive-btn p{
   color: #444;
@@ -1745,41 +1768,26 @@ textarea#postText:focus {
 
 
 .send-post-btn {
-  background-color: var(--primary-btn);
+  background-color: var(--primary-color);
   color: #fff;
   padding: 12px 16px;
-  font-weight: bold;
   font-size: 16px;
   border-radius: 12px;
   border: none;
+  border-top: 1px solid var(--primary-light);
   margin-right: 6px;
   width: 100%;
   bottom: 0;
 }
 
-.send-bubble-btn {
-  background-color: transparent;
-  color: #fff;
-  padding: 12px 16px;
-  font-size: 16px;
-  font-weight: bold;
-  border-radius: 12px;
-  border: none;
-  margin-right: 6px;
-  width: 100%;
-  bottom: 0;
-}
 
 .np-text-input {
   background-color: transparent;
   padding: 1vh 1.8vh;
   font-size: 16px;
-  padding: 12px;
-  width: 100% !important;
-  height: 100% !important;
+  width: 100%;
   border: none;
   color: #fff;
-  resize: none;
 }
 
 .np-text-input::placeholder {
@@ -2042,456 +2050,3 @@ footer {
 
 
 
-
-
-
-
-
-    /* Estilos para imagens nos posts */
-    .post-image {
-      border-radius: 8px;
-      overflow: hidden;
-      max-height: 400px;
-    }
-
-    .post-image img {
-      width: 100%;
-      height: auto;
-      display: block;
-    }
-
-    .comments-section {
-      margin-top: 10px;
-      padding-top: 10px;
-    }
-
-  
-
-    /* Estilos para seção de comentários */
-    .comments-area {
-  max-height: 300px; /* Altura máxima da área de comentários */
-  overflow-y: auto; /* Adiciona barra de rolagem vertical */
-  padding: 10px;
-  border-radius: 8px;
-}
-
-.comments-area::-webkit-scrollbar {
-  width: 8px; /* Largura da barra de rolagem */
-}
-
-.comments-area::-webkit-scrollbar-thumb {
-  background: #4A90E2; /* Cor da barra de rolagem */
-  border-radius: 4px;
-}
-
-.comments-area::-webkit-scrollbar-thumb:hover {
-  background: #0056b3; /* Cor ao passar o mouse */
-}
-
-.comments-area::-webkit-scrollbar-track {
-  background: transparent; /* Cor do fundo da barra de rolagem */
-}
-
-    .comment-form {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 15px;
-      border: 1px solid #ddd;
-      border-radius: 20px;
-      background: #474747; /* Quase preto, mas não absoluto */
-    border: none; /* Cinza quase preto pra separar do fundo */
-    box-shadow: inset 0 8px 8px -7px rgba(0, 0, 0, 0.644); /* Sombra interna clara no modo dark */
-    }
-
-    .comment-input {
-      flex: 1;
-      padding: 8px 12px;
-      border: 1px solid #ddd;
-      border-radius: 20px;
-      font-size: 14px;
-      border:none;
-      background-color: transparent;
-    }
-
-    .comment-input:focus-within {
-      border-color: #4A90E2;
-      border: 1px solid #4A90E2;
-      outline: none;
-      border: none; /* garante que não crie outra borda */
-    }
-    
-    .comment-form:focus-within {
-      border-color: #4A90E2;
-      box-shadow: 0 0 10px rgba(74, 144, 226, 0.6);
-    }
-
-
-    .comment-submit {
-      background: #4A90E2;
-      color: white;
-      border: none;
-      border-top-right-radius: 20px;
-      border-bottom-right-radius: 20px;
-      width: 36px;
-      height: 36px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding-left:5px;
-      padding-right: 5px;
-    }
-
-    .comment-submit:hover {
-      background: #0056b3;
-    }
-
-
-
-
-
-    .no-comments,
-    .error-comments {
-      text-align: center;
-      color: #666;
-      padding: 15px;
-    }
-
-    /* Estilos para nomes clicáveis */
-    .user-name-link {
-      cursor: pointer;
-    }
-
-    .user-name-link:hover {
-      color: #4A90E2;
-    }
-
-    /* Loading melhorado */
-    .loading-bar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 4px;
-      background: rgba(0, 123, 255, 0.1);
-      z-index: 9999;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-    }
-
-    .loading-bar.active {
-      opacity: 1;
-    }
-
-    .loading-progress {
-      height: 100%;
-      background: linear-gradient(90deg, #007bff, #0056b3);
-      width: 0%;
-      transition: width 0.3s ease;
-    }
-
-    .loading-text {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 12px;
-      z-index: 10000;
-      display:none;
-    }
-
-    .post-actions {
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  padding-top: 15px;
-  border: none;
-  max-width: 400px;
-  margin: 0 auto;
-}
-
-
-  .image-input-container {
-    margin-top: 10px;
-    opacity: 0;
-    max-height: 0;
-    overflow: hidden;
-    transition: all 0.3s ease;
-  }
-  
-  .image-input-container.aberta {
-    opacity: 1;
-    max-height: 400px;
-  }
-  
-  .upload-area {
-    border: 2px dashed #4A90E2;
-    border-radius: 12px;
-    padding: 20px;
-    background: rgba(74, 144, 226, 0.05);
-    transition: all 0.3s ease;
-  }
-  
-  .upload-label {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    padding: 30px;
-    transition: all 0.3s ease;
-  }
-  
-  .upload-label:hover {
-    background: rgba(74, 144, 226, 0.1);
-    border-radius: 8px;
-  }
-  
-  .upload-label.dragover {
-    background: rgba(74, 144, 226, 0.2);
-    border-color: #0056b3;
-    transform: scale(1.02);
-  }
-  
-  .upload-label i {
-    font-size: 48px;
-    color: #4A90E2;
-  }
-  
-  .upload-label span {
-    font-size: 16px;
-    font-weight: 500;
-    color: #fff;
-  }
-  
-  .upload-label small {
-    font-size: 12px;
-    color: #999;
-  }
-  
-  .image-preview {
-    position: relative;
-    text-align: center;
-  }
-  
-  .image-preview img {
-    max-width: 100%;
-    max-height: 300px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  }
-  
-  .remove-image-btn {
-    margin-top: 15px;
-    padding: 10px 20px;
-    background: #373737;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-  
-
-  
-  @media (max-width: 768px) {
-    .upload-label {
-      padding: 20px;
-    }
-    
-    .upload-label i {
-      font-size: 36px;
-    }
-    
-    .upload-label span {
-      font-size: 14px;
-    }
-  }
-
-  /* ========== SKELETON LOADER ANIMATION ========== */
-  @keyframes shimmer {
-    0% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-  }
-
-  .skeleton-post-card {
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 16px;
-    border: 1px solid #333;
-    background: linear-gradient(90deg, #1a1a1a 25%, #2a2a2a 50%, #1a1a1a 75%);
-    background-size: 400% 100%;
-    animation: shimmer 1.4s ease-in-out infinite;
-  }
-
-  .skeleton-header {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-
-  .skeleton-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
-    background-size: 400% 100%;
-    animation: shimmer 1.4s ease-in-out infinite;
-    flex-shrink: 0;
-  }
-
-  .skeleton-user-info {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .skeleton-name {
-    width: 120px;
-    height: 16px;
-    border-radius: 4px;
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
-    background-size: 400% 100%;
-    animation: shimmer 1.4s ease-in-out infinite;
-  }
-
-  .skeleton-date {
-    width: 80px;
-    height: 12px;
-    border-radius: 4px;
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
-    background-size: 400% 100%;
-    animation: shimmer 1.4s ease-in-out infinite;
-  }
-
-  .skeleton-content {
-    margin-bottom: 16px;
-  }
-
-  .skeleton-text {
-    height: 14px;
-    border-radius: 4px;
-    margin-bottom: 8px;
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
-    background-size: 400% 100%;
-    animation: shimmer 1.4s ease-in-out infinite;
-  }
-
-  .skeleton-text-1 {
-    width: 100%;
-  }
-
-  .skeleton-text-2 {
-    width: 85%;
-  }
-
-  .skeleton-image {
-    width: 100%;
-    height: 250px;
-    border-radius: 8px;
-    margin-top: 12px;
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
-    background-size: 400% 100%;
-    animation: shimmer 1.4s ease-in-out infinite;
-  }
-
-  .skeleton-actions {
-    display: flex;
-    gap: 12px;
-    padding-top: 12px;
-    border-top: 1px solid #333;
-  }
-
-  .skeleton-action {
-    flex: 1;
-    height: 12px;
-    border-radius: 4px;
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
-    background-size: 400% 100%;
-    animation: shimmer 1.4s ease-in-out infinite;
-  }
-
-    /* Post layer — tela cheia em mobile, modal em desktop */
-    #postLayer {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 9000;
-      background: var(--bg-primary);
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    #postLayer.active { display: block; }
-
-    /* Área de upload com drag & drop */
-    .file-box.drag-over .file-input-area {
-      border-color: #4A90E2 !important;
-      background: rgba(74,144,226,0.12);
-      transform: scale(1.01);
-    }
-    .file-input-area {
-      border: 2px dashed #444;
-      border-radius: 12px;
-      padding: 24px 16px;
-      text-align: center;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      background: #1a1a1a;
-    }
-    .file-input-area:hover {
-      border-color: #4A90E2;
-      background: rgba(74,144,226,0.07);
-    }
-    /* Preview da imagem no post-layer */
-    .image-preview-post {
-      position: relative;
-      border-radius: 12px;
-      overflow: hidden;
-      max-height: 400px;
-      margin-top: 10px;
-    }
-    .image-preview-post img {
-      width: 100%;
-      height: auto;
-      max-height: 400px;
-      object-fit: cover;
-      display: block;
-      border-radius: 12px;
-    }
-    .remove-image-post {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background-color: #cacacabb;
-      border: none;
-      color: #fff;
-      border-radius: 50%;
-      width: 32px;
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 14px;
-      transition: background 0.2s;
-      z-index: 2;
-    }
-    .remove-image-post:hover { background: #c0392b; }
-
-    /* Arquivo aceito badge */
-    .file-tipos-aceitos {
-      font-size: 11px;
-      color: #666;
-      margin-top: 6px;
-    }

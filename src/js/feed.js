@@ -7,13 +7,10 @@ import {
   getDoc,
   updateDoc,
   setDoc,
+  increment,
   serverTimestamp,
   where,
-  deleteDoc,
-  query,
-  orderBy,
-  limit,
-  startAfter
+  deleteDoc
   
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
@@ -21,22 +18,28 @@ import {
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
+import {
+  getMessaging,
+  getToken,
+  onMessage
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
+
+import {
+  query,
+  orderBy,
+  limit,
+  startAfter
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
 import { 
   toggleSalvarPost, 
   verificarSeEstaSalvo 
 } from './save-posts.js';
 
-import {
-  triggerNovoPost,
-  triggerNovoBubble,
-  triggerNovoComentario
-} from './activitie-creator.js';
-
-
 let lastPostSnapshot = null; 
 let allItems = []; 
 
-// Configuração do Firebase
+// ConfiguraÃ§Ã£o do Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyB2N41DiH0-Wjdos19dizlWSKOlkpPuOWs",
   authDomain: "ifriendmatch.firebaseapp.com",
@@ -52,17 +55,78 @@ const IMGBB_API_KEY = 'fc8497dcdf559dc9cbff97378c82344c';
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+// Messaging (push)
+let messaging;
 
+// PUBLIC_VAPID_KEY: prefer reading from `window.PUBLIC_VAPID_KEY` (set by `src/js/config.js`),
+// fallback to the in-file key below if not provided.
+const PUBLIC_VAPID_KEY = (typeof window !== 'undefined' && window.PUBLIC_VAPID_KEY) ? window.PUBLIC_VAPID_KEY : 'BMo3jh0D8qPPpaLywdvKZNiJfhi0RGtpvNkzSVsWD5ivJDvdjuvD4eGeRlRkyb59VcUG-PVhT2qSdrRcRO4qivg';
 
+/**
+ * Pede permissão de notificações, obtém token FCM (web) e salva em Firestore
+ * Usa Firebase Messaging (getToken) com a VAPID public key.
+ */
+async function registerForPushNotifications(uid) {
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+
+    // inicializa messaging se necessário
+    if (!messaging) messaging = getMessaging(app);
+
+    const token = await getToken(messaging, { vapidKey: PUBLIC_VAPID_KEY });
+    if (!token) return;
+
+    // salva token no documento do usuário (pushTokens array)
+    const userRef = doc(db, 'users', uid);
+    const userSnap = await getDoc(userRef);
+    const data = userSnap.exists() ? userSnap.data() : {};
+    const tokens = Array.isArray(data.pushTokens) ? data.pushTokens : [];
+    if (!tokens.includes(token)) {
+      tokens.push(token);
+      await setDoc(userRef, { pushTokens: tokens }, { merge: true });
+    }
+
+    // Escuta mensagens em foreground
+    onMessage(messaging, (payload) => {
+      console.log('Mensagem recebida em foreground:', payload);
+      // Opcional: mostrar toast no app
+      if (payload && payload.notification) {
+        const title = payload.notification.title || '';
+        const body = payload.notification.body || '';
+        // mostrar notificação local (apenas UI) para o usuário
+        try {
+          new Notification(title, { body });
+        } catch (e) {}
+      }
+    });
+
+  } catch (err) {
+    console.error('Erro ao registrar push:', err);
+  }
+}
+
+// Elementos DOM
 const feed = document.getElementById('feed');
 const loadMoreBtn = document.getElementById('load-more-btn');
 const postInput = document.querySelector('.post-box input[type="text"]');
 const postButton = document.querySelector('.post-button');
 
+// Verificar se elementos críticos existem
+if (!feed) {
+  console.error('❌ Elemento #feed não encontrado no DOM');
+}
+if (!loadMoreBtn) {
+  console.warn('⚠️ Elemento #load-more-btn não encontrado');
+}
 
 // ConfiguraÃ§Ãµes
 const POSTS_LIMIT = 10;
+let lastVisible = null;
 let loading = false;
+let allPosts = [];
+let currentPage = 0;
 let hasMorePosts = true;
 
 // Lista de domÃ­nios maliciosos conhecidos
@@ -96,10 +160,12 @@ function getPostsCache() {
     
     // Verificar expiração
     if (now - data.timestamp > CACHE_CONFIG.POSTS_TTL) {
-          localStorage.removeItem('feed_posts_cache');
+      console.log('♻️ Cache de posts expirado');
+      localStorage.removeItem('feed_posts_cache');
       return null;
     }
     
+    console.log(`✅ Cache de posts válido (${data.posts.length} posts)`);
     return data.posts;
   } catch (e) {
     console.warn('Erro ao recuperar cache de posts:', e);
@@ -117,7 +183,8 @@ function setPostsCache(posts) {
       timestamp: Date.now(),
       posts: postsParaCache
     }));
-    } catch (e) {
+    console.log(`💾 ${postsParaCache.length} posts salvos em cache`);
+  } catch (e) {
     console.warn('Erro ao salvar cache de posts:', e);
   }
 }
@@ -132,7 +199,8 @@ function getBubblesCache() {
     const now = Date.now();
     
     if (now - data.timestamp > CACHE_CONFIG.BUBBLES_TTL) {
-          localStorage.removeItem('feed_bubbles_cache');
+      console.log('♻️ Cache de bubbles expirado');
+      localStorage.removeItem('feed_bubbles_cache');
       return null;
     }
     
@@ -148,6 +216,7 @@ function getBubblesCache() {
       return diferencaHoras < 24;
     });
     
+    console.log(`✅ Cache de bubbles válido (${bubblesValidos.length} bubbles válidos)`);
     return bubblesValidos;
   } catch (e) {
     console.warn('Erro ao recuperar cache de bubbles:', e);
@@ -164,7 +233,8 @@ function setBubblesCache(bubbles) {
       timestamp: Date.now(),
       bubbles: bubblesParaCache
     }));
-    } catch (e) {
+    console.log(`💾 ${bubblesParaCache.length} bubbles salvos em cache`);
+  } catch (e) {
     console.warn('Erro ao salvar cache de bubbles:', e);
   }
 }
@@ -174,7 +244,8 @@ function limparCacheFeed() {
   try {
     localStorage.removeItem('feed_posts_cache');
     localStorage.removeItem('feed_bubbles_cache');
-    } catch (e) {
+    console.log('🗑️ Cache do feed limpo');
+  } catch (e) {
     console.warn('Erro ao limpar cache:', e);
   }
 }
@@ -184,6 +255,7 @@ function iniciarSincronizacaoBackground() {
   if (cacheCheckTimer) clearInterval(cacheCheckTimer);
   
   cacheCheckTimer = setInterval(async () => {
+    console.log('🔄 Verificando atualizações de posts em background...');
     
     try {
       // Buscar apenas os 5 posts mais recentes para verificar se há novidades
@@ -209,6 +281,7 @@ function iniciarSincronizacaoBackground() {
         const ultimoPostEmCacheId = postsNoCache[0].postid;
         
         if (novoPostId !== ultimoPostEmCacheId) {
+          console.log('📬 Novos posts detectados! Atualizando cache...');
           // Buscar todos os posts novos e atualizar cache
           const todosOsPostsQuery = query(
             collection(db, 'posts'),
@@ -237,9 +310,350 @@ function pararSincronizacaoBackground() {
   if (cacheCheckTimer) {
     clearInterval(cacheCheckTimer);
     cacheCheckTimer = null;
+    console.log('⏸️ Sincronização em background parada');
   }
 }
 
+// ==============================
+// SKELETON LOADER (Animação de carregamento)
+// ==============================
+function mostrarSkeletonLoaders(quantidade = 3) {
+  const feed = document.getElementById('feed');
+  if (!feed) return;
+  
+  // Limpar feed se estiver vazio
+  if (feed.children.length === 0) {
+    for (let i = 0; i < quantidade; i++) {
+      const skeleton = document.createElement('div');
+      skeleton.className = 'skeleton-post-card';
+      skeleton.innerHTML = `
+        <div class="skeleton-header">
+          <div class="skeleton-avatar"></div>
+          <div class="skeleton-user-info">
+            <div class="skeleton-name"></div>
+            <div class="skeleton-date"></div>
+          </div>
+        </div>
+        <div class="skeleton-content">
+          <div class="skeleton-text skeleton-text-1"></div>
+          <div class="skeleton-text skeleton-text-2"></div>
+          <div class="skeleton-image"></div>
+        </div>
+        <div class="skeleton-actions">
+          <div class="skeleton-action"></div>
+          <div class="skeleton-action"></div>
+          <div class="skeleton-action"></div>
+        </div>
+      `;
+      feed.appendChild(skeleton);
+    }
+  }
+  
+  console.log('⏳ Skeleton loaders mostrados');
+}
+
+function removerSkeletonLoaders() {
+  const feed = document.getElementById('feed');
+  if (!feed) return;
+  
+  const skeletons = feed.querySelectorAll('.skeleton-post-card');
+  skeletons.forEach(skeleton => skeleton.remove());
+  
+  console.log('🗑️ Skeleton loaders removidos');
+}
+
+
+
+
+// ===================
+// SISTEMA DE POP-UPS
+// ===================
+function criarPopup(titulo, mensagem, tipo = 'info') {
+  const popupExistente = document.querySelector('.custom-popup');
+  if (popupExistente) {
+    popupExistente.remove();
+  }
+  const popup = document.createElement('div');
+  popup.className = `custom-popup ${tipo}`;
+  const iconMap = {
+    'success': 'fas fa-check-circle',
+    'error': 'fas fa-exclamation-circle',
+    'warning': 'fas fa-exclamation-triangle',
+    'info': 'fas fa-info-circle'
+  };
+  popup.innerHTML = `
+    <div class="popup-content">
+      <div class="popup-header">
+        <i class="${iconMap[tipo] || iconMap.info}"></i>
+        <h3>${titulo}</h3>
+      </div>
+      <div class="popup-body">
+        <p>${mensagem}</p>
+      </div>
+      <div class="popup-footer">
+        <button class="popup-btn popup-btn-primary" onclick="this.closest('.custom-popup').remove()">
+          OK
+        </button>
+      </div>
+    </div>
+    <div class="popup-overlay" onclick="this.closest('.custom-popup').remove()"></div>
+  `;
+  document.body.appendChild(popup);
+  if (tipo === 'success') {
+    setTimeout(() => {
+      if (popup.parentNode) {
+        popup.remove();
+      }
+    }, 5000);
+  }
+  return popup;
+}
+
+function mostrarPopupConfirmacao(titulo, mensagem, callback) {
+  const popup = document.createElement('div');
+  popup.className = 'custom-popup warning';
+  popup.innerHTML = `
+    <div class="popup-content">
+      <div class="popup-header">
+        <i class="fas fa-question-circle"></i>
+        <h3>${titulo}</h3>
+      </div>
+      <div class="popup-body">
+        <p>${mensagem}</p>
+      </div>
+      <div class="popup-footer">
+        <button class="popup-btn popup-btn-secondary" onclick="this.closest('.custom-popup').remove()">
+          Cancelar
+        </button>
+        <button class="popup-btn popup-btn-primary" id="popup-confirm-btn">
+          Confirmar
+        </button>
+      </div>
+    </div>
+    <div class="popup-overlay" onclick="this.closest('.custom-popup').remove()"></div>
+  `;
+  document.body.appendChild(popup);
+  const confirmBtn = popup.querySelector('#popup-confirm-btn');
+  confirmBtn.addEventListener('click', () => {
+    popup.remove();
+    if (callback) callback();
+  });
+  return popup;
+}
+
+
+function criarModalDenuncia({targetType, targetId, targetPath, targetOwnerId, targetOwnerUsername}) {
+  const modalExistente = document.querySelector('.modal-denuncia');
+  if (modalExistente) modalExistente.remove();
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-denuncia';
+  modal.innerHTML = `
+    <div class="modal-content">
+      <h2>Denunciar conteúdo</h2>
+      <form id="formDenuncia">
+        <label>Categoria:</label>
+        <select name="category" required>
+          <option value="inappropriate_content">Conteúdo impróprio</option>
+        </select>
+        <label>Subcategoria:</label>
+        <select name="subcategory" required>
+          <option value="nudity">Nudez</option>
+          <option value="violence">Violência</option>
+          <option value="hate_speech">Discurso de ódio</option>
+          <option value="spam">Spam</option>
+          <option value="other">Outro</option>
+        </select>
+        <label>Motivo (opcional):</label>
+        <input type="text" name="reason" maxlength="120" placeholder="Descreva o motivo (opcional)">
+        <label>Descrição detalhada (opcional):</label>
+        <textarea name="description" rows="3" maxlength="500" placeholder="Descreva o problema (opcional)"></textarea>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel">Cancelar</button>
+          <button type="submit" class="btn-submit">Enviar denúncia</button>
+        </div>
+      </form>
+    </div>
+    <div class="modal-overlay"></div>
+  `;
+  document.body.appendChild(modal);
+
+  modal.querySelector('.btn-cancel').onclick = () => modal.remove();
+  modal.querySelector('.modal-overlay').onclick = () => modal.remove();
+
+  modal.querySelector('#formDenuncia').onsubmit = async (e) => {
+    e.preventDefault();
+    const usuarioLogado = auth.currentUser;
+    if (!usuarioLogado) {
+      criarPopup('Erro', 'Você precisa estar logado para denunciar.', 'warning');
+      modal.remove();
+      return;
+    }
+    const form = e.target;
+    const category = form.category.value;
+    const subcategory = form.subcategory.value;
+    const reason = form.reason.value.trim();
+    const description = form.description.value.trim();
+
+    // Só permite uma denúncia por usuário por post
+    const reportsRef = collection(db, 'reports');
+    const q = query(
+      reportsRef,
+      where('targetType', '==', targetType),
+      where('targetId', '==', targetId),
+      where('reporterId', '==', usuarioLogado.uid)
+    );
+    const existing = await getDocs(q);
+    if (!existing.empty) {
+      criarPopup('Atenção', 'Você já denunciou este conteúdo.', 'warning');
+      modal.remove();
+      return;
+    }
+
+    // Dados do denunciante
+    let reporterUsername = "cache";
+    let reporterEmail = "cache";
+    try {
+      const userData = await buscarDadosUsuarioPorUid(usuarioLogado.uid);
+      reporterUsername = userData?.username || usuarioLogado.displayName || usuarioLogado.email || "cache";
+      reporterEmail = usuarioLogado.email || "cache";
+    } catch {}
+
+    // Monta o objeto de denúncia
+    const reportId = gerarIdUnico('rep');
+    const reportData = {
+      reportId,
+      createdAt: serverTimestamp(),
+      targetType,
+      targetId,
+      targetPath,
+      targetOwnerId,
+      targetOwnerUsername,
+      reporterId: usuarioLogado.uid,
+      reporterUsername,
+      reporterEmail,
+      isAnonymous: false,
+      category,
+      subcategory,
+      reason,
+      description,
+      evidence: [],
+      status: "open",
+      priority: "medium",
+      severity: 2
+    };
+
+    try {
+      const reportRef = doc(db, 'reports', reportId);
+      await setDoc(reportRef, reportData);
+
+      // Checa se já existem 8 denúncias para este post
+      const q2 = query(
+  reportsRef,
+  where('targetType', '==', targetType),
+  where('targetId', '==', targetId)
+);
+const snap = await getDocs(q2);
+// Use o ID do documento do post, não o campo postid
+const postRef = doc(db, 'posts', targetId);
+if ((await getDoc(postRef)).exists() && snap.size >= 8) {
+  await updateDoc(postRef, { visible: false });
+}
+
+      modal.querySelector('.modal-content').innerHTML = `
+        <h2>Denúncia enviada</h2>
+        <p>Sua denúncia foi registrada e será analisada pela equipe.</p>
+        <div style="text-align:center;margin-top:20px;">
+          <button class="btn-ok" style="padding:8px 24px;border-radius:6px;background:#4A90E2;color:#fff;border:none;font-size:1em;cursor:pointer;">OK</button>
+        </div>
+      `;
+      modal.querySelector('.btn-ok').onclick = () => modal.remove();
+    } catch (error) {
+      criarPopup('Erro', 'Não foi possível enviar a denúncia.', 'error');
+      modal.remove();
+    }
+  };
+}
+
+// CSS do modal de denúncia
+(function adicionarEstiloModalDenuncia() {
+  if (document.getElementById('modal-denuncia-css')) return;
+  const style = document.createElement('style');
+  style.id = 'modal-denuncia-css';
+  style.textContent = `
+    .modal-denuncia {
+      position: fixed; z-index: 100000000001; top: 0; left: 0; width: 100vw; height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .modal-denuncia .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.5);
+    }
+    .modal-denuncia .modal-content {
+      background: #232323; color: #fff; border-radius: 12px; padding: 28px 24px 18px 24px;
+      min-width: 320px; max-width: 95vw; box-shadow: 0 8px 32px #000a;
+      position: relative; z-index: 2;
+    }
+    .modal-denuncia h2 { margin-top: 0; font-size: 1.3em; }
+    .modal-denuncia label { display: block; margin: 12px 0 4px 0; font-size: 0.98em; }
+    .modal-denuncia select, .modal-denuncia input[type="text"], .modal-denuncia textarea {
+      width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid #444; background: #181818; color: #fff;
+      margin-bottom: 6px; font-size: 1em;
+    }
+    .modal-denuncia textarea { resize: none;
+      height: 100px;
+    .modal-denuncia .modal-actions {
+      display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px;
+    }
+    .modal-denuncia .btn-cancel, .modal-denuncia .btn-submit {
+      padding: 7px 18px; border-radius: 6px; border: none; font-size: 1em; cursor: pointer;
+    }
+    .modal-denuncia .btn-cancel { background: #444; color: #fff; }
+    .modal-denuncia .btn-submit { background: #e74c3c; color: #fff; }
+    .modal-denuncia .btn-submit:hover { background: #c0392b; }
+  `;
+  document.head.appendChild(style);
+})();
+
+
+// ===================
+// ANIMAÃ‡ÃƒO DO AVIÃƒO DE PAPEL
+// ===================
+function criarAnimacaoAviaoPapel() {
+  const aviao = document.createElement('div');
+  aviao.className = 'aviao-papel';
+  aviao.innerHTML = '<i class="fas fa-paper-plane"></i>';
+  aviao.style.cssText = `
+    position: fixed;
+    left: -50px;
+    top: 50%;
+    z-index: 10000;
+    font-size: 196px;
+    color: #ffffffff;
+    animation: voarAviao 1s ease-in-out forwards;
+    pointer-events: none;
+  `;
+  if (!document.querySelector('#aviao-animation-style')) {
+    const style = document.createElement('style');
+    style.id = 'aviao-animation-style';
+    style.textContent = `
+      @keyframes voarAviao {
+        0% { left: -50px; transform: rotate(0deg) translateY(0px); opacity: 1; }
+        25% { transform: rotate(5deg) translateY(-10px); }
+        50% { transform: rotate(-3deg) translateY(5px); }
+        75% { transform: rotate(2deg) translateY(-5px); }
+        100% { left: calc(100% + 50px); transform: rotate(0deg) translateY(0px); opacity: 0; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  document.body.appendChild(aviao);
+  setTimeout(() => {
+    if (aviao.parentNode) {
+      aviao.remove();
+    }
+  }, 2000);
+}
 
 // ===================
 // DETECTAR E FORMATAR HASHTAGS
@@ -276,6 +690,83 @@ function detectarLinksMaliciosos(texto) {
   return { malicioso: false };
 }
 
+
+// ===================
+// SISTEMA DE LOADING
+// ===================
+function mostrarLoading(texto = 'Carregando...') {
+  let loadingBar = document.querySelector('.loading-bar');
+  if (!loadingBar) {
+    loadingBar = document.createElement('div');
+    loadingBar.className = 'loading-bar';
+    loadingBar.innerHTML = `
+      <div class="loading-progress"></div>
+      <div class="loading-text">${texto}</div>
+    `;
+    document.body.appendChild(loadingBar);
+  } else {
+    loadingBar.querySelector('.loading-text').textContent = texto;
+  }
+  loadingBar.classList.add('active');
+  const progress = loadingBar.querySelector('.loading-progress');
+  progress.style.width = '0%';
+  let width = 0;
+  const interval = setInterval(() => {
+    width += Math.random() * 15;
+    if (width > 90) width = 90;
+    progress.style.width = width + '%';
+  }, 100);
+  return { loadingBar, interval };
+}
+
+function esconderLoading() {
+  const loadingBar = document.querySelector('.loading-bar');
+  if (loadingBar) {
+    const progress = loadingBar.querySelector('.loading-progress');
+    progress.style.width = '100%';
+    setTimeout(() => {
+      loadingBar.classList.remove('active');
+    }, 300);
+  }
+}
+
+function atualizarTextoLoading(texto) {
+  const loadingText = document.querySelector('.loading-text');
+  if (loadingText) {
+    loadingText.textContent = texto;
+  }
+}
+
+// ===================
+// TOCAR SOM DE ENVIO
+// ===================
+function tocarSomEnvio() {
+  try {
+    const audio = new Audio('./src/audio/send.mp3');
+    audio.volume = 0.5;
+    audio.play().catch(error => {
+      console.warn("Não foi possível reproduzir o som de envio:", error);
+    });
+  } catch (error) {
+    console.warn("Erro ao criar/tocar áudio:", error);
+  }
+}
+
+
+// JS
+//document.addEventListener("DOMContentLoaded", () => {
+//  const searchBar = document.getElementById("mobileSearchBar");
+//  let shown = false;
+
+//  window.addEventListener("scroll", () => {
+//    if (!shown && window.scrollY > 50) { 
+      // ao rolar 50px para cima, mostra
+//      searchBar.classList.add("visible");
+//      shown = true; // garante que fique para sempre
+//    }
+//  });
+//});
+
 // ===================
 // VERIFICAR LOGIN COM AUTH
 // ===================
@@ -283,6 +774,7 @@ function verificarLogin() {
   return new Promise((resolve) => {
     onAuthStateChanged(auth, (user) => {
       if (!user) {
+        criarPopup('Acesso Negado', 'Você precisa estar logado para acessar esta página.', 'warning');
         setTimeout(() => {
           window.location.href = 'login.html';
         }, 2000);
@@ -324,6 +816,7 @@ async function buscarDadosUsuarioPorUid(uid) {
       const photoSnap = await getDoc(photoRef);
       if (photoSnap.exists()) {
         userphoto = photoSnap.data().userphoto || '';
+        console.log(`📸 Foto encontrada: ${userphoto?.substring(0, 50)}...`);
       }
     } catch (e) {
       console.warn('⚠️ Erro ao buscar foto:', e.message);
@@ -337,7 +830,12 @@ async function buscarDadosUsuarioPorUid(uid) {
       verified: userData.verified || false
     };
     
-
+    console.log(`✅ Dados do usuário carregados:`, { 
+      displayname: resultado.displayname,
+      name: resultado.name,
+      username: resultado.username,
+      temFoto: !!userphoto
+    });
     
     return resultado;
   } catch (error) {
@@ -380,6 +878,7 @@ function configurarScrollInfinito() {
       // Lógica para o Feed do Firebase (ID: feed)
       if (divFirebase && window.getComputedStyle(divFirebase).display !== 'none') {
         if (!loading && hasMorePosts) {
+          console.log("A carregar mais posts do Firebase...");
           await loadPosts();
         }
       }
@@ -387,6 +886,7 @@ function configurarScrollInfinito() {
       // Lógica para o Feed do Mastodon (ID: feed2)
       if (divMastodon && window.getComputedStyle(divMastodon).display !== 'none') {
         if (!loadingMastodon) {
+          console.log("A carregar mais posts do Mastodon...");
           await carregarFeedMastodon(true); 
         }
       }
@@ -394,101 +894,13 @@ function configurarScrollInfinito() {
   }, true); // true = captura eventos de scroll de todos os elementos
 }
 
-// ==============================
-// CACHE DE COMENTÁRIOS (localStorage + stale-while-revalidate)
-// ==============================
-const COMENTARIOS_CACHE_TTL = 2 * 60 * 1000; // 2 minutos
-const COMENTARIOS_CACHE_PREFIX = 'coments_cache_';
-const COMENTARIOS_CACHE_MAX_POSTS = 30; // máximo de posts em cache
-
-function _coments_getKey(postId) {
-  return COMENTARIOS_CACHE_PREFIX + postId;
-}
-
-// Retorna os comentários do cache (mesmo que expirado — stale)
-function getComentariosCache(postId) {
-  try {
-    const raw = localStorage.getItem(_coments_getKey(postId));
-    if (!raw) return null;
-    const entry = JSON.parse(raw);
-    return entry.comentarios;
-  } catch {
-    return null;
-  }
-}
-
-// Verifica se o cache expirou (mas ainda existe)
-function comentariosCacheExpirado(postId) {
-  try {
-    const raw = localStorage.getItem(_coments_getKey(postId));
-    if (!raw) return true;
-    const entry = JSON.parse(raw);
-    return Date.now() - entry.timestamp > COMENTARIOS_CACHE_TTL;
-  } catch {
-    return true;
-  }
-}
-
-// Salva comentários no cache
-function setComentariosCache(postId, comentarios) {
-  try {
-    // Serializa timestamps do Firestore (objeto {seconds, nanoseconds}) para número
-    const serializados = comentarios.map(c => ({
-      ...c,
-      create: (c.create && c.create.seconds) ? c.create.seconds * 1000 : c.create
-    }));
-
-    localStorage.setItem(_coments_getKey(postId), JSON.stringify({
-      timestamp: Date.now(),
-      comentarios: serializados
-    }));
-
-    // Limpar entradas antigas se passou do limite
-    _coments_limparExcesso();
-  } catch (e) {
-    console.warn('Erro ao salvar cache de comentários:', e);
-  }
-}
-
-// Invalida o cache de um post (após enviar novo comentário)
-function invalidarCacheComentarios(postId) {
-  try {
-    localStorage.removeItem(_coments_getKey(postId));
-  } catch {}
-}
-
-// Evita lotar o localStorage — remove entradas mais antigas
-function _coments_limparExcesso() {
-  try {
-    const keys = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(COMENTARIOS_CACHE_PREFIX)) keys.push(k);
-    }
-    if (keys.length <= COMENTARIOS_CACHE_MAX_POSTS) return;
-
-    // Ordena por timestamp e remove os mais velhos
-    const comTimestamp = keys.map(k => {
-      try { return { k, t: JSON.parse(localStorage.getItem(k)).timestamp }; }
-      catch { return { k, t: 0 }; }
-    });
-    comTimestamp.sort((a, b) => a.t - b.t);
-    const excesso = comTimestamp.slice(0, comTimestamp.length - COMENTARIOS_CACHE_MAX_POSTS);
-    excesso.forEach(({ k }) => localStorage.removeItem(k));
-  } catch {}
-}
-
 // ===================
 // CARREGAR COMENTÃRIOS - VERSÃO CORRIGIDA
 // ===================
 async function carregarComentarios(postId) {
   try {
-    // Busca já ordenada pelo Firestore (mais antigo primeiro)
-    const comentariosQuery = query(
-      collection(db, 'posts', postId, 'coments'),
-      orderBy('create', 'desc')
-    );
-    const comentariosSnapshot = await getDocs(comentariosQuery);
+    const comentariosRef = collection(db, 'posts', postId, 'coments');
+    const comentariosSnapshot = await getDocs(comentariosRef);
     const comentarios = [];
     
     for (const comentarioDoc of comentariosSnapshot.docs) {
@@ -501,6 +913,23 @@ async function carregarComentarios(postId) {
       });
     }
     
+    // ORDENAÇÃO CORRIGIDA - Comentários do mais antigo para o mais recente
+    // ORDENAÇÃO CORRIGIDA - Comentários do mais antigo para o mais recente
+comentarios.sort((a, b) => {
+  if (!a.create || !b.create) return 0;
+  let dataA, dataB;
+  if (typeof a.create === 'object' && a.create.seconds) {
+    dataA = a.create.seconds;
+  } else {
+    dataA = new Date(a.create).getTime() / 1000;
+  }
+  if (typeof b.create === 'object' && b.create.seconds) {
+    dataB = b.create.seconds;
+  } else {
+    dataB = new Date(b.create).getTime() / 1000;
+  }
+  return dataA - dataB; // Do mais antigo para o mais recente
+});
     
     return comentarios;
   } catch (error) {
@@ -510,66 +939,45 @@ async function carregarComentarios(postId) {
 }
 
 // ===================
-// RENDERIZAR COMENTÁRIOS (com cache localStorage + stale-while-revalidate)
+// RENDERIZAR COMENTÃRIOS
 // ===================
-
-// Renderiza uma lista de comentários num container (função pura, sem I/O)
-function renderListaComentarios(comentarios, container) {
-  container.innerHTML = '';
-  if (comentarios.length === 0) {
-    container.innerHTML = '<p class="no-comments">Nenhum comentario ainda.</p>';
-    return;
-  }
-  comentarios.forEach(comentario => {
-    const nomeParaExibir = comentario.userData?.displayname || comentario.userData?.username || comentario.senderid;
-    const usernameParaExibir = comentario.userData?.username ? `${comentario.userData.username}` : '';
-    const fotoUsuario = comentario.userData?.userphoto || obterFotoPerfil(comentario.userData, null);
-    const conteudoFormatado = formatarHashtags(comentario.content);
-    const isVerified = comentario.userData?.verified
-      ? '<i class="fas fa-check-circle" style="margin-left: 4px; font-size: 0.85em; color: var(--verified-blue)"></i>'
-      : '';
-    const comentarioEl = document.createElement('div');
-    comentarioEl.className = 'comentario-item';
-    comentarioEl.innerHTML = `
-      <div class="comentario-header">
-        <img src="${fotoUsuario}" alt="Avatar" class="comentario-avatar"
-             onerror="this.src='./src/img/default.jpg'" />
-        <div class="comentario-meta">
-          <strong class="comentario-nome" data-username="${comentario.senderid}">${usernameParaExibir}${isVerified}</strong>
-          <small class="comentario-data">${formatarDataRelativa(comentario.create)}</small>
-        </div>
-      </div>
-      <div class="comentario-conteudo">${conteudoFormatado}</div>
-    `;
-    container.appendChild(comentarioEl);
-  });
-}
-
 async function renderizarComentarios(uid, postId, container) {
-  const cached = getComentariosCache(postId);
-
-  if (cached) {
-    // Renderiza do cache instantaneamente (sem loading)
-    renderListaComentarios(cached, container);
-
-    // Se expirado, rebusca em background e atualiza silenciosamente
-    if (comentariosCacheExpirado(postId)) {
-      carregarComentarios(postId).then(novos => {
-        setComentariosCache(postId, novos);
-        renderListaComentarios(novos, container);
-      }).catch(() => {}); // falha silenciosa — cache antigo continua exibido
-    }
-    return;
-  }
-
-  // Sem cache: mostra loading e busca no Firestore
-  container.innerHTML = '<p class="no-comments" style="opacity:0.5">Carregando comentários...</p>';
+  const loadingInfo = mostrarLoading('Carregando comentários...');
   try {
     const comentarios = await carregarComentarios(postId);
-    setComentariosCache(postId, comentarios);
-    renderListaComentarios(comentarios, container);
+    container.innerHTML = '';
+    if (comentarios.length === 0) {
+      container.innerHTML = '<p class="no-comments">Nenhum comentario ainda.</p>';
+    } else {
+      comentarios.forEach(comentario => {
+        const nomeParaExibir = comentario.userData?.displayname || comentario.userData?.username || comentario.senderid;
+        const usernameParaExibir = comentario.userData?.username ? `@${comentario.userData.username}` : '';
+        const fotoUsuario = comentario.userData?.userphoto || obterFotoPerfil(comentario.userData, null);
+        const conteudoFormatado = formatarHashtags(comentario.content);
+        const isVerified = comentario.userData?.verified ? '<i class="fas fa-check-circle" style="margin-left: 4px; font-size: 0.85em; color: var(--verified-blue)"></i>' : '';
+        const comentarioEl = document.createElement('div');
+        comentarioEl.className = 'comentario-item';
+        comentarioEl.innerHTML = `
+          <div class="comentario-header">
+            <img src="${fotoUsuario}" alt="Avatar" class="comentario-avatar"
+                 onerror="this.src='./src/icon/default.jpg'" />
+            <div class="comentario-meta">
+              <strong class="comentario-nome" data-username="${comentario.senderid}">${nomeParaExibir}${isVerified}</strong>
+              <small class="comentario-usuario">${usernameParaExibir}</small>
+              <small class="comentario-data">${formatarDataRelativa(comentario.create)}</small>
+            </div>
+          </div>
+          <div class="comentario-conteudo">${conteudoFormatado}</div>
+        `;
+        container.appendChild(comentarioEl);
+      });
+    }
+    clearInterval(loadingInfo.interval);
+    esconderLoading();
   } catch (error) {
     console.error("Erro ao renderizar comentarios:", error);
+    clearInterval(loadingInfo.interval);
+    esconderLoading();
     container.innerHTML = '<p class="error-comments">Erro ao carregar comentarios.</p>';
   }
 }
@@ -583,8 +991,10 @@ async function adicionarComentario(uid, postId, conteudo) {
   if (!usuarioLogado) return;
   const linkCheck = detectarLinksMaliciosos(conteudo);
   if (linkCheck.malicioso) {
+    criarPopup('Link Bloqueado', `O link "${linkCheck.url}" foi identificado como potencialmente malicioso e não pode ser postado.`, 'warning');
     return false;
   }
+  const loadingInfo = mostrarLoading('Enviando comentario...');
   try {
     const comentarioId = gerarIdUnico('comentid');
     const comentarioData = {
@@ -599,9 +1009,14 @@ async function adicionarComentario(uid, postId, conteudo) {
     // Salva em posts/{postid}/coments/{comentid}
     const postComentRef = doc(db, 'posts', postId, 'coments', comentarioId);
     await setDoc(postComentRef, comentarioData);
+    clearInterval(loadingInfo.interval);
+    esconderLoading();
     return true;
   } catch (error) {
     console.error("Erro ao adicionar comentario:", error);
+    clearInterval(loadingInfo.interval);
+    esconderLoading();
+    criarPopup('Erro', 'Erro ao enviar comentario', 'error');
     return false;
   }
 }
@@ -702,8 +1117,8 @@ function renderizarBubble(bubbleData, feed) {
   bubbleEl.innerHTML = `
     <div class="bubble-header">
       <div class="user-info-bubble">
-        <img src="./src/img/default.jpg" alt="Avatar do usuário" class="avatar"
-             onerror="this.src='./src/img/default.jpg'" />
+        <img src="./src/icon/default.jpg" alt="Avatar do usuário" class="avatar"
+             onerror="this.src='./src/icon/default.jpg'" />
         <div class="user-meta-bubble">
           <strong class="user-name-link" data-username="${bubbleData.creatorid}"></strong>
           <small class="bullet">•</small>
@@ -736,13 +1151,13 @@ function renderizarBubble(bubbleData, feed) {
   
   feed.appendChild(bubbleEl);
   
-  // Buscar dados do usuário via cache
-  buscarUsuarioCached(bubbleData.creatorid).then(userData => {
+  // Buscar dados do usuário
+  buscarDadosUsuarioPorUid(bubbleData.creatorid).then(userData => {
     if (userData) {
       const avatar = bubbleEl.querySelector('.avatar');
       const nome = bubbleEl.querySelector('.user-name-link');
       
-      if (avatar) avatar.src = userData.userphoto || './src/img/default.jpg';
+      if (avatar) avatar.src = userData.userphoto || './src/icon/default.jpg';
       if (nome) {
         nome.textContent = userData.displayname || userData.username || bubbleData.creatorid;
         if (userData.verified) {
@@ -798,6 +1213,7 @@ async function contarLikesBubble(bubbleId) {
 async function toggleLikeBubble(bubbleId, btnElement) {
   const usuarioLogado = auth.currentUser;
   if (!usuarioLogado) {
+    criarPopup('Erro', 'Você precisa estar logado para curtir.', 'error');
     return;
   }
   
@@ -828,20 +1244,32 @@ async function toggleLikeBubble(bubbleId, btnElement) {
     
   } catch (error) {
     console.error("Erro ao curtir bubble:", error);
+    criarPopup('Erro', 'Não foi possível curtir este bubble.', 'error');
   }
 }
 
 function renderPost(postData, feed) {
-  if (postData.visible === false) return;
+  // OCULTA DO FEED NORMAL SE visible: false
+  if (postData.visible === false) {
+    const avisoEl = document.createElement('div');
+    avisoEl.className = 'post-card post-oculto-aviso';
+    avisoEl.innerHTML = `
+      <div class="post-oculto-msg">
+        <p>Este conteúdo foi denunciado por muitos usuários.<br>Você ainda quer ver?</p>
+        <button class="btn-ver-post" data-id="${postData.postid}">Ver assim mesmo</button>
+      </div>
+    `;
+    feed.appendChild(avisoEl);
+    return;
+  }
 
   const postEl = document.createElement('div');
   postEl.className = 'post-card';
-  postEl.dataset.postId = postData.postid;
   postEl.innerHTML = `
     <div class="post-header">
       <div class="user-info">
-        <img src="./src/img/default.jpg" alt="Avatar do usuário" class="avatar"
-             onerror="this.src='./src/img/default.jpg'" />
+        <img src="./src/icon/default.jpg" alt="Avatar do usuário" class="avatar"
+             onerror="this.src='./src/icon/default.jpg'" />
         <div class="user-meta">
           <strong class="user-name-link" data-username="${postData.creatorid}"></strong>
           <small class="post-date-mobile">${formatarDataRelativa(postData.create)}</small>
@@ -853,6 +1281,11 @@ function renderPost(postData, feed) {
             <i class="fas fa-ellipsis-h"></i>
           </button>
         </div>
+        <div class="more-menu" style="display:none">
+          <button class="btn-delete-post" data-id="${postData.postid}" data-owner="${postData.creatorid}">
+            Apagar post
+          </button>
+        </div>
       </div>
     </div>
     <div class="post-content">
@@ -861,17 +1294,18 @@ function renderPost(postData, feed) {
         (postData.img && postData.img.trim() !== "")
           ? `
             <div class="post-image">
-              <img src="${postData.img}" loading="lazy" decoding="async" onclick="abrirModalImagem('${postData.img}')" style="width:100%;height:auto;display:block;">
+              <img src="${postData.img}" loading="lazy" onclick="abrirModalImagem('${postData.img}')">
             </div>
           `
           : (postData.urlVideo && postData.urlVideo.trim() !== "")
           ? `
             <div class="post-video">
               <video src="${postData.urlVideo}"
+                     autoplay
                      muted
                      playsinline
                      controls
-                     preload="metadata"></video>
+                     loop></video>
             </div>
           `
           : ''
@@ -892,6 +1326,9 @@ function renderPost(postData, feed) {
             <svg width="252" height="253" viewBox="0 0 252 253"  xmlns="http://www.w3.org/2000/svg"><path d="M207.821 9.02051C228.731 3.33416 247.898 22.5349 242.175 43.4346L192.671 224.216C186.201 247.842 154.655 252.357 141.818 231.494L100.558 164.439L97.285 159.121L101.649 154.656L167.753 87.0137L165.087 84.2861L99.2411 151.665L94.6532 156.358L89.1542 152.777L20.7343 108.225C0.472592 95.0309 5.33388 64.0873 28.6649 57.7422L207.821 9.02051Z" stroke="#D9D9D9" stroke-width="20"/></svg>
             <p>Compartilhar</p>
           </button>
+          <button class="btn-report" data-username="${postData.creatorid}" data-id="${postData.postid}">
+            <i class="fas fa-flag"></i> <p>Denunciar</p>
+          </button>
         </div>
         <div class="post-actions-rigth">
           <button class="btn-save" data-post-id="${postData.postid}" data-post-owner="${postData.creatorid}">
@@ -900,8 +1337,20 @@ function renderPost(postData, feed) {
           </button>
         </div>
       </div>
-      <div class="post-footer-infos">
+                  <div class="post-footer-infos">
         <p class="post-liked-by"><strong class="liked-by-username"></strong></p>
+      </div>
+      <div class="comments-section" style="display: none;">
+        <div class="comment-form">
+          <input type="text" class="comment-input" placeholder="Escreva um comentário..."
+                 data-username="${postData.creatorid}" data-post-id="${postData.postid}">
+          <button class="comment-submit" data-username="${postData.creatorid}" data-post-id="${postData.postid}">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+        <div class="comments-area">
+          <div class="comments-list"></div>
+        </div>
       </div>
     </div>
   `;
@@ -980,15 +1429,17 @@ function renderPost(postData, feed) {
       e.stopPropagation();
       await toggleSalvarPost(postData.postid, postData.creatorid, btnSave);
     });
+    configurarAutoPauseVideos();
+    configurarLimiteRepeticoes();
   }
 
-// Atualiza nome e foto do usuário via cache (evita cascata de requisições)
-  buscarUsuarioCached(postData.creatorid).then(userData => {
+// Atualiza nome e foto do usuário assim que possível (não trava o loading)
+  buscarDadosUsuarioPorUid(postData.creatorid).then(userData => {
     if (userData) {
       const avatar = postEl.querySelector('.avatar');
       const nome = postEl.querySelector('.user-name-link');
       const username = postEl.querySelector('.post-username');
-      if (avatar) avatar.src = userData.userphoto || './src/img/default.jpg';
+      if (avatar) avatar.src = userData.userphoto || './src/icon/default.jpg';
       if (nome) {
         // Mostra apenas o username no topo
         nome.textContent = userData.username || postData.creatorid;
@@ -1039,13 +1490,15 @@ async function loadPosts() {
   const isFirstLoad = !feed || feed.children.length === 0;
   
   if (isFirstLoad) {
-      
+    console.log('📥 Primeira carga - tentando cache...');
+    
     // Tentar carregar do cache imediatamente
     const postsEmCache = getPostsCache();
     const bubblesEmCache = getBubblesCache();
     
     if (postsEmCache || bubblesEmCache) {
-          
+      console.log('⚡ Usando cache para carregamento instantâneo!');
+      
       allItems = [];
       
       if (bubblesEmCache) {
@@ -1079,18 +1532,26 @@ async function loadPosts() {
           renderPost(item, feed);
         }
       }
-        } else {
-      // NÃO há cache - feed fica vazio enquanto carrega
+      console.log('✅ Feed renderizado do cache em <100ms!');
+    } else {
+      // NÃO há cache - mostrar skeleton loaders enquanto carrega
+      console.log('⏳ Sem cache - mostrando skeleton loaders...');
+      mostrarSkeletonLoaders(3);
     }
   }
   
-  // Indicador de carregamento para scroll infinito (só mostra após primeira carga)
+  // Indicador de carregamento suave
   let loadingIndicator = document.getElementById('scroll-loading-indicator');
-  if (!isFirstLoad && !loadingIndicator) {
+  if (!loadingIndicator && feed && feed.children.length > 0) {
     loadingIndicator = document.createElement('div');
     loadingIndicator.id = 'scroll-loading-indicator';
-    loadingIndicator.style.cssText = 'text-align:center;padding:20px;color:#888;font-size:14px;';
-    loadingIndicator.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Carregando mais...';
+    loadingIndicator.style.cssText = `
+      text-align: center;
+      padding: 20px;
+      color: #888;
+      font-size: 14px;
+    `;
+    loadingIndicator.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sincronizando...';
     feed.appendChild(loadingIndicator);
   }
   
@@ -1100,11 +1561,13 @@ async function loadPosts() {
   }
 
   try {
-      
+    console.log('🔄 Buscando dados atualizados do servidor...');
+    
     // PRIMEIRA CARGA: carrega bubbles do servidor
     if (!lastPostSnapshot) {
       const bubbles = await carregarBubbles();
-          
+      console.log('🫧 Bubbles atualizados:', bubbles.length);
+      
       // Salvar bubbles em cache
       setBubblesCache(bubbles);
       
@@ -1133,8 +1596,10 @@ async function loadPosts() {
     }
     
     const postsSnapshot = await getDocs(postsQuery);
+    console.log('📨 Posts do servidor:', postsSnapshot.size);
 
     if (postsSnapshot.empty) {
+      console.log('❌ Nenhum post encontrado');
       hasMorePosts = false;
       if (loadMoreBtn) {
         loadMoreBtn.textContent = "Não há mais posts";
@@ -1170,14 +1635,16 @@ async function loadPosts() {
 
     // PRIMEIRA CARGA: renderiza tudo
     if (isFirstLoad) {
-          
+      console.log('🎨 Renderizando com dados atualizados do servidor...');
+      
       // Limpar allItems e recarregar com dados do servidor
       allItems = [];
-
-      // Reusar bubbles já carregados (evita segunda query ao Firestore)
-      const bubblesAtuais = await carregarBubbles();
-      setBubblesCache(bubblesAtuais);
-      bubblesAtuais.forEach(bubble => allItems.push(bubble));
+      
+      // Carregar bubbles novamente
+      const bubbles = await carregarBubbles();
+      bubbles.forEach(bubble => {
+        allItems.push(bubble);
+      });
       
       // Salvar todos os posts em cache
       postsParaAdicionar.forEach(post => {
@@ -1199,6 +1666,9 @@ async function loadPosts() {
       // Limpar feed e renderizar de novo (garante dados atualizados)
       feed.innerHTML = '';
       
+      // Remover skeleton loaders se existirem
+      removerSkeletonLoaders();
+      
       for (const item of allItems) {
         if (item.tipo === 'bubble') {
           renderizarBubble(item, feed);
@@ -1206,17 +1676,15 @@ async function loadPosts() {
           renderPost(item, feed);
         }
       }
-          
-      // Configurar auto-pause e limites de vídeo após renderização completa
-      configurarAutoPauseVideos();
-      configurarLimiteRepeticoes();
+      console.log('✅ Feed atualizado com dados do servidor');
       
       // Iniciar sincronização em background
       iniciarSincronizacaoBackground();
     } 
     // SCROLL INFINITO: adiciona apenas os novos posts
     else {
-          
+      console.log('🔄 Adicionando novos posts via scroll infinito...');
+      
       // Salvar novos posts em cache (append)
       const cacheAtual = getPostsCache() || [];
       const postsComCache = [...cacheAtual, ...postsParaAdicionar];
@@ -1225,10 +1693,8 @@ async function loadPosts() {
       for (const post of postsParaAdicionar) {
         renderPost(post, feed);
       }
-      // Re-registrar vídeos novos no IntersectionObserver
-      configurarAutoPauseVideos();
-      configurarLimiteRepeticoes();
-        }
+      console.log('✅ Posts adicionados');
+    }
 
     if (postsSnapshot.size < POSTS_LIMIT) {
       hasMorePosts = false;
@@ -1244,68 +1710,243 @@ async function loadPosts() {
     }
     
     if (loadingIndicator) loadingIndicator.remove();
-    } catch (error) {
+    console.log('✨ Posts sincronizados com sucesso!');
+  } catch (error) {
     console.error("❌ Erro ao carregar posts:", error);
     if (loadMoreBtn) {
       loadMoreBtn.textContent = "Erro ao carregar";
     }
     const loadingIndicator = document.getElementById('scroll-loading-indicator');
     if (loadingIndicator) loadingIndicator.remove();
+    criarPopup('Erro', 'Não foi possível carregar posts: ' + error.message, 'error');
   }
   loading = false;
 }
 
 
 
+
+
+// --- Variáveis de Controlo do ActivityPub (AP) ---
+let lastMastodonId = null;
+let loadingMastodon = false;
+
+// Seleção de Elementos (Certifica-te que estes IDs existem no HTML)
+const btnFirebase = document.getElementById('p1');
+const btnAP = document.getElementById('p2');
+const divFirebase = document.getElementById('feed');
+const divMastodon = document.getElementById('feed2');
+
+// Configuração do Algoritmo "Global Jovem"
+const INSTANCIAS_ALVO = ['mastodon.social', 'mstdn.jp', 'mastodon.org.uk', 'mstdn.ca'];
+const IDIOMAS_BLOQUEADOS = ['ar', 'es'];
+const TERMOS_JOVENS = ['gaming', 'tech', 'anime', 'music', 'streaming', 'ai', 'art', 'fashion', 'cod', 'kpop', 'meme'];
+
+// --- Alternância de Abas ---
+function alternarAbas(ativa) {
+    if (ativa === 'ap') {
+        divFirebase.style.display = 'none';
+        divMastodon.style.display = 'block';
+        btnAP.classList.add('active');
+        btnFirebase.classList.remove('active');
+        if (divMastodon.innerHTML.trim() === "") carregarFeedMastodon();
+    } else {
+        divMastodon.style.display = 'none';
+        divFirebase.style.display = 'block';
+        btnFirebase.classList.add('active');
+        btnAP.classList.remove('active');
+    }
+}
+
+if(btnFirebase && btnAP) {
+    btnFirebase.addEventListener('click', () => alternarAbas('firebase'));
+    btnAP.addEventListener('click', () => alternarAbas('ap'));
+}
+
+// --- Algoritmo de Curadoria AP ---
+async function carregarFeedMastodon(isNextPage = false) {
+    if (loadingMastodon) return;
+    loadingMastodon = true;
+
+    const container = document.getElementById('feed2');
+    
+    if (!isNextPage) {
+        container.innerHTML = '<div style="text-align:center; padding:40px; color:#888;"><i class="fas fa-sync fa-spin"></i> A curar feed internacional...</div>';
+        lastMastodonId = null;
+    }
+
+    try {
+        // Seleciona uma instância da lista para diversificar
+        const instancia = INSTANCIAS_ALVO[Math.floor(Math.random() * INSTANCIAS_ALVO.length)];
+        let url = `https://${instancia}/api/v1/timelines/public?limit=40`;
+        if (isNextPage && lastMastodonId) url += `&max_id=${lastMastodonId}`;
+
+        const response = await fetch(url);
+        const posts = await response.json();
+
+        if (posts.length > 0) {
+            if (!isNextPage) container.innerHTML = '';
+
+            posts.forEach(post => {
+                // 1. FILTROS RÍGIDOS (Bots e Idiomas Bloqueados)
+                if (post.account.bot) return;
+                if (IDIOMAS_BLOQUEADOS.includes(post.language)) return;
+
+                // 2. FILTRO DE CONTEÚDO (Remove caracteres Árabes ou Espanhóis via Regex)
+                const regexBloqueio = /[\u0600-\u06FF]|¿|¡/i;
+                if (regexBloqueio.test(post.content)) return;
+
+                // 3. LOGICA DO ALGORITMO JOVEM/ALTA
+                const texto = post.content.toLowerCase();
+                const eJovem = TERMOS_JOVENS.some(t => texto.includes(t));
+                const temMedia = post.media_attachments.length > 0;
+                
+                // Só mostra se for conteúdo "Jovem", se tiver media, ou se for muito popular
+                if (!eJovem && !temMedia && post.reblogs_count < 3) return;
+
+                const card = document.createElement('div');
+                card.className = 'post-card';
+
+                // Processamento de Media
+                // --- No loop posts.forEach dentro de carregarFeedMastodon ---
+
+let mediaHtml = '';
+if (temMedia) {
+    // Usamos a classe 'post-image' que você estilizou
+    mediaHtml = '<div class="post-image">'; 
+    
+    post.media_attachments.forEach(media => {
+        if (media.type === 'image') {
+            // Adicionamos a tag img que o seu CSS vai estilizar
+            mediaHtml += `
+                <img src="${media.preview_url || media.url}" 
+                     loading="lazy" 
+                     alt="Post media">`;
+        } else if (media.type === 'video' || media.type === 'gifv') {
+            // Para vídeos, mantemos a lógica, mas dentro do container estilizado
+            mediaHtml += `
+                <video controls playsinline loop muted 
+                       style="max-width: 100%; max-height: 500px; border-radius: 8px;">
+                    <source src="${media.url}" type="video/mp4">
+                </video>`;
+        }
+    });
+    mediaHtml += '</div>';
+}
+
+                card.innerHTML = `
+                    <div class="post-header" style="display:flex; align-items:center; gap:12px;">
+                        <img src="${post.account.avatar}" class="avatar" style="width:45px; height:45px; border-radius:50%;" onerror="this.src='./src/icon/default.jpg'">
+                        <div class="user-meta">
+                            <div style="display:flex; align-items:center; gap:5px;">
+                                <strong style="color:#fff;">${post.account.display_name || post.account.username}</strong>
+                                <span style="font-size:9px; background:#1d9bf0; color:white; padding:1px 5px; border-radius:3px;">${instancia.toUpperCase()}</span>
+                            </div>
+                            <small style="color:#71767b;">@${post.account.username} • Global Feed</small>
+                        </div>
+                    </div>
+                    <div class="post-content" style="margin-top:12px;">
+                        <div class="post-text" style="color:#e7e9ea; line-height:1.5; font-size:15px;">${post.content}</div>
+                        ${mediaHtml}
+                    </div>
+                    <div class="post-footer" style="margin-top:15px; display:flex; justify-content:space-between; color:#71767b; max-width:400px;">
+                        <span><i class="far fa-comment"></i> ${post.replies_count}</span>
+                        <span><i class="fas fa-retweet"></i> ${post.reblogs_count}</span>
+                        <span><i class="far fa-heart"></i> ${post.favourites_count}</span>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            lastMastodonId = posts[posts.length - 1].id;
+            
+            // Ativa o Auto-Pause que já tens no feed.js
+            if (typeof configurarAutoPauseVideos === 'function') configurarAutoPauseVideos();
+        }
+    } catch (error) {
+        console.error("Erro na curadoria:", error);
+    } finally {
+        loadingMastodon = false;
+    }
+}
+
+// Integração com o teu listener de Scroll existente
+window.addEventListener("scroll", () => {
+    const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+    if (scrollTop + clientHeight >= scrollHeight - 400) {
+        if (divMastodon.style.display === 'block' && !loadingMastodon) {
+            carregarFeedMastodon(true);
+        }
+    }
+});
+// ...existing code...
 // ===================
 // ENVIAR POST - VERSÃO OTIMIZADA
 // ===================
 async function sendPost() {
   const usuarioLogado = auth.currentUser;
   if (!usuarioLogado) {
+    criarPopup('Erro', 'Você precisa estar logado.', 'warning');
     return;
   }
   
   const texto = postInput.value.trim();
   if (!texto) {
+    criarPopup('Campo Vazio', 'Digite algo para postar!', 'warning');
     return;
   }
   
   const linkCheck = detectarLinksMaliciosos(texto);
   if (linkCheck.malicioso) {
+    criarPopup('Link Bloqueado', `O link "${linkCheck.url}" foi identificado como potencialmente malicioso.`, 'warning');
     return;
   }
-
-  const loadingInfo = mostrarLoading('Enviando post...');
-   
+  
+  tocarSomEnvio();
+  criarAnimacaoAviaoPapel();
+  
+  const loadingInfo = mostrarLoading('Preparando post...');
+  
   try {
     const postId = gerarIdUnico('post');
     let urlImagem = '';
     let deleteUrlImagem = '';
     
+    // Verifica se há arquivo de imagem para upload
     const fileInput = document.querySelector('#image-file-input');
     
     if (fileInput && fileInput.files.length > 0) {
       atualizarTextoLoading('Fazendo upload da imagem...');
+      
       const uploadResult = await uploadImagemPost(fileInput.files[0], usuarioLogado.uid);
       
       if (!uploadResult.success) {
         clearInterval(loadingInfo.interval);
         esconderLoading();
+        criarPopup('Erro no Upload', uploadResult.error, 'error');
         return;
       }
       
       urlImagem = uploadResult.url;
       deleteUrlImagem = uploadResult.deleteUrl;
+      
+      console.log('✅ Upload realizado com sucesso!');
+      console.log('URL da imagem:', urlImagem);
+    }
+    
+    const videoInput = document.querySelector('.video-url-input');
+    let urlVideo = '';
+    if (videoInput) {
+      urlVideo = videoInput.value.trim();
     }
     
     atualizarTextoLoading('Salvando post...');
-
+    
     const postData = {
       content: texto,
       img: urlImagem,
       imgDeleteUrl: deleteUrlImagem,
-      urlVideo: '',
+      urlVideo: urlVideo || '',
       likes: 0,
       saves: 0,
       comentarios: 0,
@@ -1316,25 +1957,48 @@ async function sendPost() {
       create: serverTimestamp()
     };
     
-    await setDoc(doc(db, 'users', usuarioLogado.uid, 'posts', postId), postData);
-    await setDoc(doc(db, 'posts', postId), postData);
+    const userPostRef = doc(db, 'users', usuarioLogado.uid, 'posts', postId);
+    await setDoc(userPostRef, postData);
+    
+    const globalPostRef = doc(db, 'posts', postId);
+    await setDoc(globalPostRef, postData);
     
     postInput.value = '';
     
-    clearInterval(loadingInfo.interval);
-    esconderLoading();
-
+    if (fileInput) {
+      fileInput.value = '';
+      const uploadLabel = document.querySelector('.upload-label');
+      const imagePreview = document.querySelector('.image-preview');
+      if (uploadLabel) uploadLabel.style.display = 'flex';
+      if (imagePreview) imagePreview.style.display = 'none';
+    }
+    
+    if (videoInput) {
+      videoInput.value = '';
+    }
+    
     feed.innerHTML = '';
+    allPosts = [];
+    currentPage = 0;
     hasMorePosts = true;
     loading = false;
     lastPostSnapshot = null;
+    
+    // Limpar cache para mostrar novo post imediatamente
+    console.log('🗑️ Limpando cache para atualizar feed...');
     limparCacheFeed();
+    
     await loadPosts();
+    
+    clearInterval(loadingInfo.interval);
+    esconderLoading();
+    criarPopup('Sucesso!', 'Post enviado com sucesso!', 'success');
     
   } catch (error) {
     console.error("Erro ao enviar post:", error);
     clearInterval(loadingInfo.interval);
     esconderLoading();
+    criarPopup('Erro', 'Erro ao enviar post: ' + error.message, 'error');
   }
 }
 
@@ -1401,11 +2065,25 @@ async function toggleLikePost(uid, postId, element) {
 
   } catch (error) {
     console.error("Erro ao curtir/descurtir:", error);
+    criarPopup("Erro", "Não foi possível curtir o post.", "error");
   }
 }
 
 
-// [REMOVIDO] Listener de like duplicado - consolidado em configurarEventListeners()
+feed.addEventListener('click', async (e) => {
+  const btnLike = e.target.closest('.btn-like');
+  if (!btnLike) return;
+
+  const uid = auth.currentUser?.uid;
+  const postId = btnLike.dataset.id;
+
+  if (!uid || !postId) {
+    criarPopup('Erro', 'Você precisa estar logado para curtir posts.', 'warning');
+    return;
+  }
+
+  await toggleLikePost(uid, postId, btnLike);
+});
 
 async function atualizarCurtidoPorDepoisDoLike(btn, postId) {
   const usuarioLogado = auth.currentUser;
@@ -1501,7 +2179,7 @@ async function gerarTextoCurtidoPor(postId, usuarioLogadoUid) {
     return {
       usernames: ["você"],
       total,
-      fotos: [minhaFoto || './src/img/default.jpg']
+      fotos: [minhaFoto || './src/icon/default.jpg']
     };
   }
 
@@ -1561,7 +2239,7 @@ async function gerarTextoCurtidoPor(postId, usuarioLogadoUid) {
       }
     } catch {}
     
-    fotos.push(userphoto || './src/img/default.jpg');
+    fotos.push(userphoto || './src/icon/default.jpg');
   }
 
   return { usernames, total, fotos };
@@ -1589,7 +2267,7 @@ function obterFotoPerfil(userData, usuarioLogado) {
       }
     }
   }
-  return './src/img/default.jpg';
+  return './src/icon/default.jpg';
 }
 
 
@@ -1648,97 +2326,196 @@ async function buscarUsuarioCached(uid) {
   return dados;
 }
 
-//Saudação
 
+// ==============================
+// NEVE ❄️ (SIMPLES)
+// ==============================
+let neveAtiva = false;
+
+function iniciarNeve() {
+  if (neveAtiva) return;
+  neveAtiva = true;
+
+  let container = document.getElementById('snow-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'snow-container';
+    document.body.appendChild(container);
+
+    container.style.position = 'fixed';
+    container.style.top = '0';
+    container.style.left = '0';
+    container.style.width = '100%';
+    container.style.height = '100%';
+    container.style.pointerEvents = 'none';
+    container.style.zIndex = '9999999999';
+  }
+
+  if (!document.getElementById('snow-style')) {
+    const style = document.createElement('style');
+    style.id = 'snow-style';
+    style.innerHTML = `
+      .snowflake {
+        position: absolute;
+        top: -20px;
+        color: white;
+        opacity: 0.8;
+        animation-name: snow-fall, snow-sway;
+        animation-timing-function: linear, ease-in-out;
+        animation-iteration-count: infinite, infinite;
+      }
+
+      @keyframes snow-fall {
+        to {
+          transform: translateY(110vh);
+        }
+      }
+
+      @keyframes snow-sway {
+        0%   { margin-left: 0px; }
+        50%  { margin-left: 30px; }
+        100% { margin-left: 0px; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  setInterval(() => {
+    const floco = document.createElement('div');
+    floco.className = 'snowflake';
+    floco.textContent = '❄';
+
+    const size = 8 + Math.random() * 14;
+    const fallDuration = 10 + Math.random() * 8; // queda lenta
+    const swayDuration = 4 + Math.random() * 6;   // balanço suave
+
+    floco.style.left = Math.random() * 100 + 'vw';
+    floco.style.fontSize = size + 'px';
+    floco.style.animationDuration = `${fallDuration}s, ${swayDuration}s`;
+
+    container.appendChild(floco);
+
+    setTimeout(() => floco.remove(), (fallDuration + 2) * 1000);
+  }, 650);
+}
+
+
+// ==============================
+// GREETING COM CACHE + NATAL
+// ==============================
 async function atualizarGreeting() {
-  const user = auth.currentUser;
-  if (!user) return;
+  const usuarioLogado = auth.currentUser;
+  if (!usuarioLogado) return;
 
-  const uid = user.uid;
-
-  // Cache
-  const cacheKey = `user_cache_${uid}`;
-  const photoKey = `user_photo_${uid}`;
-
-  let userData = getCache(cacheKey);
-  const cachedPhoto = getCache(photoKey);
-
+  // ⚡ RENDERIZAR INSTANTANEAMENTE COM DADOS EM CACHE
+  console.log('⚡ Renderizando greeting instantaneamente...');
+  
+  // Usar dados em cache primeiro (sem loading)
+  let userData = getCache(`user_cache_${usuarioLogado.uid}`);
+  let cachedPhoto = getCache(`user_photo_${usuarioLogado.uid}`);
+  
+  // Se houver cache, usa ele. Senão, não usa fallback - vai buscar do Firebase
+  let temCache = !!userData;
+  
   if (!userData) {
-    userData = { displayname: '', userphoto: cachedPhoto || null };
+    // Sem cache: usar dados mínimos do auth enquanto busca no Firebase
+    userData = {
+      displayname: '' , // vazio para saber que precisa buscar
+      userphoto: cachedPhoto || null
+    };
+  }
+  
+  // Aplicar saudação imediatamente
+  const hora = new Date().getHours();
+  let saudacao;
+
+  if (hora >= 5 && hora < 12) saudacao = "Bom dia";
+  else if (hora >= 12 && hora < 18) saudacao = "Boa tarde";
+  else saudacao = "Boa noite";
+
+  // 🎄 Verificar Natal
+  const agora = new Date();
+  const mes = agora.getMonth();
+  const dia = agora.getDate();
+  const ehNatal = mes === 11 && dia >= 23 && dia <= 29;
+
+  if (ehNatal && Math.random() <= 0.3) {
+    const natalGreetings = ["Feliz Natal ", "Ho ho ho ", "Boas festas "];
+    saudacao = natalGreetings[Math.floor(Math.random() * natalGreetings.length)];
   }
 
-  // Saudação
-  const saudacao = getSaudacao();
+  // Prioridade: displayname > nome > username > "Usuário"
+  let nomeExibicao = userData?.displayname || userData?.name || userData?.username || 'Usuário';
 
-  // Nome
-  const nome = getNome(userData);
+  // Atualizar DOM imediatamente
+  const greetingElement = document.getElementById('greeting');
+  const usernameElement = document.getElementById('username');
 
-  updateUI({ saudacao, nome, userData, user, cachedPhoto });
+  if (greetingElement) greetingElement.textContent = saudacao;
+  if (usernameElement && nomeExibicao) usernameElement.textContent = nomeExibicao;
 
-  // Atualização em background
-  if (!userData.displayname) {
-    atualizarDados(uid, cacheKey, photoKey);
-  }
-}
-
-// ==============================
-// HELPERS
-// ==============================
-
-function getSaudacao() {
-  const h = new Date().getHours();
-  if (h < 12) return "Bom dia";
-  if (h < 18) return "Boa tarde";
-  return "Boa noite";
-}
-
-function getNome(data) {
-  return data?.displayname || data?.name || data?.username || 'Usuário';
-}
-
-function updateUI({ saudacao, nome, userData, user, cachedPhoto }) {
-  const greetingEl = document.getElementById('greeting');
-  const usernameEl = document.getElementById('username');
-
-  if (greetingEl) greetingEl.textContent = saudacao;
-  if (usernameEl) usernameEl.textContent = nome;
-
-  const fotoEl =
+  // Foto com fallback imediato (prioriza cache)
+  const urlFotoPerfil = cachedPhoto || obterFotoPerfil(userData, usuarioLogado);
+  const fotoPerfilWelcome =
     document.querySelector('.user-welcome img') ||
     document.querySelector('.welcome-box img') ||
     document.querySelector('section.welcome-box .user-welcome img');
 
-  const foto = cachedPhoto || obterFotoPerfil(userData, user);
+  if (fotoPerfilWelcome && urlFotoPerfil && urlFotoPerfil !== './src/icon/default.jpg') {
+    fotoPerfilWelcome.src = urlFotoPerfil;
+    fotoPerfilWelcome.onerror = function () {
+      this.src = './src/icon/default.jpg';
+    };
+  }
 
-  if (fotoEl && foto && foto !== './src/img/default.jpg') {
-    fotoEl.src = foto;
-    fotoEl.onerror = () => (fotoEl.src = './src/img/default.jpg');
+  console.log('✅ Greeting renderizado em <50ms!', { temCache, nomeExibicao });
+
+  // 🔄 BUSCAR DADOS ATUALIZADOS EM BACKGROUND (sem bloquear UI)
+  // SEMPRE busca se não tiver cache OU se não tiver displayname
+  if (!temCache || !userData?.displayname) {
+    console.log('🔄 Buscando dados atualizados em background...');
+    try {
+      const dadosNovos = await buscarDadosUsuarioPorUid(usuarioLogado.uid);
+      
+      if (dadosNovos) {
+        // Salvar no cache (incluindo foto)
+        setCache(`user_cache_${usuarioLogado.uid}`, dadosNovos);
+        
+        // 💾 CACHEAR A FOTO SEPERADAMENTE
+        if (dadosNovos.userphoto) {
+          setCache(`user_photo_${usuarioLogado.uid}`, dadosNovos.userphoto);
+        }
+        
+        // Prioridade: displayname > nome > username
+        const novoNome = dadosNovos.displayname || dadosNovos.name || dadosNovos.username || 'Usuário';
+        
+        if (usernameElement) {
+          usernameElement.textContent = novoNome;
+        }
+        
+        const novaFoto = dadosNovos.userphoto || obterFotoPerfil(dadosNovos, usuarioLogado);
+        if (fotoPerfilWelcome && novaFoto && novaFoto !== urlFotoPerfil && novaFoto !== './src/icon/default.jpg') {
+          fotoPerfilWelcome.src = novaFoto;
+          console.log('📸 Foto atualizada em background');
+        }
+        
+        console.log('📸 Dados atualizados em background:', { 
+          displayname: dadosNovos.displayname, 
+          nome: dadosNovos.name, 
+          temFoto: !!dadosNovos.userphoto 
+        });
+      }
+    } catch (e) {
+      console.warn('Erro ao buscar dados em background:', e);
+    }
+  }
+
+  // 🎄 Iniciar neve se for Natal (sem bloquear)
+  if (ehNatal) {
+    setTimeout(() => iniciarNeve(), 1000);
   }
 }
 
-async function atualizarDados(uid, cacheKey, photoKey) {
-  try {
-    const dados = await buscarDadosUsuarioPorUid(uid);
-    if (!dados) return;
-
-    setCache(cacheKey, dados);
-
-    if (dados.userphoto) {
-      setCache(photoKey, dados.userphoto);
-    }
-
-    const usernameEl = document.getElementById('username');
-    if (usernameEl) usernameEl.textContent = getNome(dados);
-
-    const fotoEl = document.querySelector('.user-welcome img');
-    if (fotoEl && dados.userphoto) {
-      fotoEl.src = dados.userphoto;
-    }
-
-  } catch (e) {
-    console.warn('Erro ao atualizar usuário:', e);
-  }
-}
 
 // ===================
 // CONFIGURAR LINKS
@@ -1746,7 +2523,9 @@ async function atualizarDados(uid, cacheKey, photoKey) {
 function configurarLinks() {
   const usuarioLogado = auth.currentUser;
   if (!usuarioLogado) return;
-  const urlPerfil = `profile.html?userid=${encodeURIComponent(usuarioLogado.uid)}`;
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const page = isMobile ? 'pfmobile.html' : 'PF.html';
+  const urlPerfil = `${page}?userid=${encodeURIComponent(usuarioLogado.uid)}`;
   const linkSidebar = document.getElementById('linkPerfilSidebar');
   const linkMobile = document.getElementById('linkPerfilMobile');
   if (linkSidebar) linkSidebar.href = urlPerfil;
@@ -1755,176 +2534,17 @@ function configurarLinks() {
   btnsSair.forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
-      auth.signOut().then(() => {
-        window.location.href = 'index.html';
-      });
+      mostrarPopupConfirmacao(
+        'Logout',
+        'Tem certeza que deseja sair?',
+        () => {
+          auth.signOut().then(() => {
+            window.location.href = 'index.html';
+          });
+        }
+      );
     });
   });
-}
-
-// ============================================================
-// SISTEMA DE ABERTURA DO POST LAYER
-// Conecta: botão "+", "Como foi o seu dia?", sidebar "Criar",
-//           botão fechar, e abrirPostModal global
-// ============================================================
-function configurarPostLayer() {
-  const postLayer = document.getElementById('postLayer');
-  const closeBtn  = document.getElementById('closeLayerBtn');
-
-  if (!postLayer) return;
-
-  function abrirLayer(tipoPadrao = 'post') {
-    // Ativar tab correta
-    document.querySelectorAll('.post-type-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.post-content-type').forEach(c => c.classList.remove('active'));
-    const tab = document.querySelector(`.post-type-tab[data-type="${tipoPadrao}"]`);
-    const content = document.querySelector(`.post-content-type[data-type="${tipoPadrao}"]`);
-    if (tab) tab.classList.add('active');
-    if (content) content.classList.add('active');
-
-    postLayer.classList.add('active');
-    document.body.style.overflow = 'hidden';
-
-    // Focar textarea
-    setTimeout(() => {
-      const textarea = postLayer.querySelector('.post-content-type.active .np-text-input');
-      if (textarea) textarea.focus();
-    }, 150);
-  }
-
-  function fecharLayer() {
-    postLayer.classList.remove('active');
-    document.body.style.overflow = '';
-    limparInputsPost();
-    // Remover preview de imagem se existir
-    document.querySelector('.image-preview-container')?.remove();
-  }
-
-  // Fechar ao clicar no botão de voltar
-  if (closeBtn) closeBtn.addEventListener('click', fecharLayer);
-
-  // Fechar ao clicar no fundo (fora do conteúdo)
-  postLayer.addEventListener('click', (e) => {
-    if (e.target === postLayer) fecharLayer();
-  });
-
-  // Fechar com ESC
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && postLayer.classList.contains('active')) fecharLayer();
-  });
-
-  // Botão "+" na navbar-top
-  const topBtn = document.querySelector('.navbar-top .top-btn');
-  if (topBtn) topBtn.addEventListener('click', () => abrirLayer('post'));
-
-  // Botão "Como foi o seu dia?" / "Criar post"
-  const npBtn = document.getElementById('openPostLayer');
-  if (npBtn) npBtn.addEventListener('click', () => abrirLayer('post'));
-
-  // Input de texto antigo (.post-box input) — clicar também abre
-  const postBoxInput = document.querySelector('.post-box input');
-  if (postBoxInput) {
-    postBoxInput.addEventListener('focus', () => {
-      postBoxInput.blur();
-      abrirLayer('post');
-    });
-  }
-
-  // Sidebar "Criar"
-  const sidebarCriar = document.querySelector('.sidebar .postmodal');
-  if (sidebarCriar) {
-    sidebarCriar.removeAttribute('onclick');
-    sidebarCriar.addEventListener('click', (e) => {
-      e.preventDefault();
-      abrirLayer('post');
-    });
-  }
-
-  // Expor globalmente para onclick inline residual
-  window.abrirPostModal  = () => abrirLayer('post');
-  window.fecharPostModal = fecharLayer;
-
-  // ============================================================
-  // UPLOAD DE IMAGEM NO POST-LAYER (suporte a drag & drop + click)
-  // ============================================================
-  const postFileArea = document.getElementById('post-file-input');
-  const previewPost  = document.querySelector('.image-preview-post');
-  const previewImg   = previewPost?.querySelector('img');
-  const removeBtn    = document.querySelector('.remove-image-post');
-
-  // Input oculto para seleção de arquivo
-  let fileInputLayer = document.getElementById('post-layer-file-input');
-  if (!fileInputLayer) {
-    fileInputLayer = document.createElement('input');
-    fileInputLayer.type = 'file';
-    fileInputLayer.id   = 'post-layer-file-input';
-    // Suporta todos os tipos aceitos pelo ImgBB + browser
-    fileInputLayer.accept = 'image/jpeg,image/png,image/gif,image/webp,image/bmp';
-    fileInputLayer.style.display = 'none';
-    document.body.appendChild(fileInputLayer);
-  }
-
-  function selecionarArquivo() { fileInputLayer.click(); }
-
-  function aplicarPreview(file) {
-    if (!file) return;
-    if (!IMGBB_TIPOS_SUPORTADOS.includes(file.type)) {
-      return;
-    }
-    postImageFile = file;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (previewImg) previewImg.src = e.target.result;
-      if (previewPost) previewPost.style.display = 'block';
-      if (postFileArea) postFileArea.style.display = 'none';
-      // Mostrar badge do tipo
-      const badge = previewPost?.querySelector('.preview-type-badge');
-      if (badge) {
-        badge.textContent = file.type === 'image/gif' ? 'GIF' : file.type.split('/')[1].toUpperCase();
-        badge.style.display = 'block';
-      }
-    };
-    reader.readAsDataURL(file);
-  }
-
-  // Click na área de upload
-  if (postFileArea) {
-    postFileArea.addEventListener('click', selecionarArquivo);
-  }
-
-  // Drag & drop
-  const fileBox = postFileArea?.closest('.file-box') || postFileArea;
-  if (fileBox) {
-    fileBox.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      fileBox.classList.add('drag-over');
-    });
-    fileBox.addEventListener('dragleave', () => fileBox.classList.remove('drag-over'));
-    fileBox.addEventListener('drop', (e) => {
-      e.preventDefault();
-      fileBox.classList.remove('drag-over');
-      const file = e.dataTransfer.files[0];
-      if (file) aplicarPreview(file);
-    });
-  }
-
-  // Seleção via input
-  fileInputLayer.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) aplicarPreview(file);
-    fileInputLayer.value = ''; // permite reselecionar o mesmo arquivo
-  });
-
-  // Remover imagem
-  if (removeBtn) {
-    removeBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      postImageFile = null;
-      if (previewImg) previewImg.src = '';
-      if (previewPost) previewPost.style.display = 'none';
-      if (postFileArea) postFileArea.style.display = '';
-    });
-  }
 }
 
 // ===================
@@ -1983,25 +2603,18 @@ function fileToBase64(file) {
   });
 }
 
-// Tipos suportados pelo ImgBB
-const IMGBB_TIPOS_SUPORTADOS = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'];
-const IMGBB_MAX_SIZE = 32 * 1024 * 1024; // 32MB limite ImgBB
-
 async function uploadImagemPost(file, userId) {
   try {
-    if (!file) throw new Error('Nenhum arquivo selecionado.');
-    if (!IMGBB_TIPOS_SUPORTADOS.includes(file.type)) {
-      throw new Error(`Tipo de arquivo não suportado. Use: JPEG, PNG, GIF, WebP ou BMP.`);
-    }
-    if (file.size > IMGBB_MAX_SIZE) {
-      throw new Error('Arquivo muito grande. Máximo 32MB.');
+    if (!file || !file.type.startsWith('image/')) {
+      throw new Error('Arquivo inválido. Apenas imagens são permitidas.');
     }
 
+    const maxSize = 5 * 1024 * 1024;
     let fileToUpload = file;
     
-    // Comprimir apenas imagens estáticas maiores que 2MB (NÃO comprimir GIFs!)
-    if (file.type !== 'image/gif' && file.size > 2 * 1024 * 1024) {
-      fileToUpload = await comprimirImagem(file, 1920, 0.8);
+    if (file.size > maxSize) {
+      console.log('Comprimindo imagem...');
+      fileToUpload = await comprimirImagem(file, 1920, 0.7);
     }
 
     const base64 = await fileToBase64(fileToUpload);
@@ -2016,7 +2629,9 @@ async function uploadImagemPost(file, userId) {
       body: formData
     });
     
-    if (!response.ok) throw new Error('Erro na conexão com o ImgBB');
+    if (!response.ok) {
+      throw new Error('Erro na requisição ao ImgBB');
+    }
     
     const data = await response.json();
     
@@ -2025,8 +2640,8 @@ async function uploadImagemPost(file, userId) {
         success: true,
         url: data.data.url,
         deleteUrl: data.data.delete_url,
-        thumb: data.data.thumb?.url || data.data.url,
-        display: data.data.display_url || data.data.url
+        thumb: data.data.thumb.url,
+        display: data.data.display_url
       };
     } else {
       throw new Error(data.error?.message || 'Erro ao fazer upload');
@@ -2034,7 +2649,10 @@ async function uploadImagemPost(file, userId) {
     
   } catch (error) {
     console.error('Erro ao fazer upload:', error);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error.message
+    };
   }
 }
 
@@ -2044,6 +2662,11 @@ function mostrarPreview(file) {
   
   const maxSize = 5 * 1024 * 1024;
   if (file.size > maxSize) {
+    criarPopup(
+      'Imagem muito grande', 
+      'A imagem será comprimida automaticamente ao enviar.', 
+      'info'
+    );
   }
   
   // Remove preview anterior se existir
@@ -2106,6 +2729,7 @@ function criarInputImagem() {
       if (file && file.type.startsWith('image/')) {
         mostrarPreview(file);
       } else if (file) {
+        criarPopup('Arquivo Inválido', 'Por favor, envie apenas imagens.', 'warning');
       }
     });
   }
@@ -2141,9 +2765,16 @@ function criarInputVideo() {
 
 
 // ===================
-// MODAL DE COMENTÁRIOS COM DRAG E CLICK FORA
+// DETECÇÃO MOBILE
 // ===================
-async function abrirModalComentarios(postId, creatorId) {
+function isMobileDevice() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+// ===================
+// MODAL DE COMENTÁRIOS MOBILE COM DRAG E CLICK FORA
+// ===================
+async function abrirModalComentariosMobile(postId, creatorId) {
   const modalExistente = document.querySelector('.mobile-comments-modal');
   if (modalExistente) modalExistente.remove();
 
@@ -2191,7 +2822,7 @@ async function abrirModalComentarios(postId, creatorId) {
   // FECHAR AO CLICAR FORA DO CONTEÚDO
   modal.addEventListener('click', (e) => {
     if (e.target === modal) {
-      fecharModalComentarios();
+      fecharModalComentariosMobile();
     }
   });
 
@@ -2234,7 +2865,7 @@ async function abrirModalComentarios(postId, creatorId) {
     
     // Se arrastou mais de 150px, fecha o modal
     if (deltaY > 150) {
-      fecharModalComentarios();
+      fecharModalComentariosMobile();
     } else {
       // Volta para a posição original
       modalContent.style.transform = 'translateY(0)';
@@ -2255,13 +2886,6 @@ async function abrirModalComentarios(postId, creatorId) {
   const commentsList = modal.querySelector('.comments-list-mobile');
   await renderizarComentarios(creatorId, postId, commentsList);
   
-const btnComment = document.querySelector(`.btn-comment[data-id="${postId}"]`);
-if (btnComment) {
-  const total = await contarComentarios(postId);
-  const span = btnComment.querySelector('span');
-  if (span) span.textContent = total;
-}
-  
   // Listener para o botão de envio
   modal.querySelector('.comment-submit-mobile').addEventListener('click', async (e) => {
     e.preventDefault();
@@ -2270,19 +2894,12 @@ if (btnComment) {
     if (conteudo) {
       const sucesso = await adicionarComentario(creatorId, postId, conteudo);
       if (sucesso) {
-        triggerNovoComentario(postId, creatorId).catch(console.warn);
         input.value = '';
-        invalidarCacheComentarios(postId); // força rebusca no Firestore
         await renderizarComentarios(creatorId, postId, commentsList);
-        // Atualiza contador no botão do feed
-        const btnCommentFeed = document.querySelector(`.btn-comment[data-id="${postId}"]`);
-        if (btnCommentFeed) {
-          const total = await contarComentarios(postId);
-          const spanCount = btnCommentFeed.querySelector('span');
-          if (spanCount) spanCount.textContent = total;
-        }
       }
-    } 
+    } else {
+      criarPopup('Campo Vazio', 'Digite um comentário antes de enviar!', 'warning');
+    }
   });
 
   // Listener para Enter
@@ -2294,23 +2911,15 @@ if (btnComment) {
       if (conteudo) {
         const sucesso = await adicionarComentario(creatorId, postId, conteudo);
         if (sucesso) {
-          triggerNovoComentario(postId, creatorId).catch(console.warn);
           input.value = '';
-          invalidarCacheComentarios(postId);
           await renderizarComentarios(creatorId, postId, commentsList);
-          const btnCommentFeed = document.querySelector(`.btn-comment[data-id="${postId}"]`);
-          if (btnCommentFeed) {
-            const total = await contarComentarios(postId);
-            const spanCount = btnCommentFeed.querySelector('span');
-            if (spanCount) spanCount.textContent = total;
-          }
         }
       }
     }
   });
 }
 
-function fecharModalComentarios() {
+function fecharModalComentariosMobile() {
   const modal = document.querySelector('.mobile-comments-modal');
   if (modal) {
     const modalContent = modal.querySelector('.mobile-comments-content');
@@ -2333,117 +2942,242 @@ function fecharModalComentarios() {
 }
 
 // Torna a função de fechar globalmente acessível
-window.fecharModalComentarios = fecharModalComentarios;
+window.fecharModalComentariosMobile = fecharModalComentariosMobile;
 
-let currentMenuPost = null;
+// ===================
+// SISTEMA DE MENU BOTTOM (MOBILE)
+// ===================
+let currentMenuPostId = null;
+let currentMenuPostOwnerId = null;
+let currentMenuPostElement = null;
 
 function abrirMenuBottom(postId, ownerId, postElement = null) {
   const menuLayer = document.querySelector('.menu-bottom-layer');
-  const user = auth.currentUser;
-
-  if (!menuLayer || !user) return;
-
-  currentMenuPost = { postId, ownerId, postElement };
-
-  const ehMeuPost = user.uid === ownerId;
-
-  menuLayer.querySelectorAll('.menu-bottom-btn').forEach(btn => {
-    const action = btn.dataset.action;
-
-    if (action === 'delete') {
+  const usuarioLogado = auth.currentUser;
+  
+  console.log('📱 abrirMenuBottom chamado');
+  console.log('Post ID:', postId);
+  console.log('Owner ID:', ownerId);
+  console.log('Post Element recebido?', !!postElement);
+  
+  if (!menuLayer || !usuarioLogado) {
+    console.error('❌ menuLayer ou usuário não encontrado');
+    return;
+  }
+  
+  // Armazena dados do post
+  currentMenuPostId = postId;
+  currentMenuPostOwnerId = ownerId;
+  currentMenuPostElement = postElement;
+  
+  // Verifica se é o dono do post
+  const ehMeuPost = usuarioLogado.uid === ownerId;
+  
+  console.log('🔓 Abrindo menu bottom - Seu post?', ehMeuPost);
+  console.log('UID atual:', usuarioLogado.uid, 'Dono:', ownerId);
+  
+  // Mostra/esconde botões baseado no dono do post
+  const botoesAcao = menuLayer.querySelectorAll('.menu-options-box:first-child .menu-bottom-btn');
+  
+  botoesAcao.forEach(btn => {
+    const texto = btn.textContent.trim();
+    
+    if (texto === 'Apagar') {
       btn.style.display = ehMeuPost ? 'block' : 'none';
-    } else if (action === 'report') {
+      console.log('🗑️ Botão Apagar:', ehMeuPost ? 'visível' : 'escondido');
+    } else if (texto === 'Denunciar') {
       btn.style.display = ehMeuPost ? 'none' : 'block';
-    } else {
+      console.log('🚩 Botão Denunciar:', !ehMeuPost ? 'visível' : 'escondido');
+    } else if (texto === 'Arquivar') {
+      // Arquivar sempre visível
       btn.style.display = 'block';
     }
   });
-
+  
+  // Adiciona classe active para mostrar com animação
   menuLayer.classList.add('active');
+  
+  // Bloqueia scroll da página
   document.body.classList.add('menu-bottom-open');
+  console.log('✅ Menu aberto');
 }
 
 function fecharMenuBottom() {
   const menuLayer = document.querySelector('.menu-bottom-layer');
   if (!menuLayer) return;
-
+  
+  // Add closing animation class
   menuLayer.classList.add('closing');
-
+  
+  // Remove classes após animação terminar
   setTimeout(() => {
     menuLayer.classList.remove('active', 'closing');
     document.body.classList.remove('menu-bottom-open');
-    currentMenuPost = null;
+    currentMenuPostId = null;
+    currentMenuPostOwnerId = null;
+    currentMenuPostElement = null;
+    console.log('✅ Menu fechado e variáveis resetadas');
   }, 300);
 }
 
 function configurarListenersMenuBottom() {
   const menuLayer = document.querySelector('.menu-bottom-layer');
-  if (!menuLayer) return;
-
-  // Clique fora
+  if (!menuLayer) {
+    console.error('❌ menu-bottom-layer não encontrado no HTML');
+    return;
+  }
+  
+  console.log('⚙️ Configurando listeners do menu bottom...');
+  
+  // Botão Cancelar
+  const btnCancelar = menuLayer.querySelector('.menu-bottom-btn:last-child');
+  if (btnCancelar) {
+    btnCancelar.addEventListener('click', () => {
+      console.log('❌ Botão Cancelar clicado');
+      fecharMenuBottom();
+    });
+  }
+  
+  // Fechar ao clicar fora (no overlay)
   menuLayer.addEventListener('click', (e) => {
-    if (e.target === menuLayer) fecharMenuBottom();
+    // Se clicar fora do container, fecha
+    if (e.target === menuLayer) {
+      console.log('❌ Clicou fora do menu - fechando');
+      fecharMenuBottom();
+    }
   });
-
-  // Ações
+  
+  // Event delegation para botões de ação
   menuLayer.addEventListener('click', async (e) => {
-    const btn = e.target.closest('.menu-bottom-btn');
-    if (!btn || !currentMenuPost) return;
-
-    const action = btn.dataset.action;
-
-    const { postId, ownerId, postElement } = currentMenuPost;
-
-    if (action === 'cancel') {
+    // Pega o botão clicado
+    const btnClicado = e.target.closest('.menu-bottom-btn');
+    
+    if (!btnClicado) return; // Se não for um botão de menu, ignora
+    
+    const textoBtn = btnClicado.textContent.trim();
+    console.log('📌 Botão menu clicado:', textoBtn);
+    
+    // Ignora o botão cancelar
+    if (textoBtn === 'Cancelar') {
+      console.log('❌ Cancelar clicado');
       fecharMenuBottom();
       return;
     }
-
-    if (action === 'delete') {
-      fecharMenuBottom();
-      handleDeletarPost(postId, ownerId, postElement);
+    
+    // Se não temos uma forma de saber se é o primeiro container, verifica o texto
+    if (textoBtn === 'Apagar') {
+      console.log('🗑️ Acionando delete...');
+      await handleDeletarPost();
+    } else if (textoBtn === 'Denunciar') {
+      console.log('🚩 Acionando denúncia...');
+      await handleDenunciarPost();
+    } else if (textoBtn === 'Arquivar') {
+      console.log('📦 Arquivar...');
+      criarPopup('Arquivar', 'Esta funcionalidade em breve.', 'info');
     }
-
-    if (action === 'report') {
-      fecharMenuBottom();
-      await handleDenunciarPost(postId, ownerId);
-    }
-
-    if (action === 'archive') {
-      fecharMenuBottom();
-    }
+    
+    fecharMenuBottom();
   });
+  
+  console.log('✅ Listeners do menu bottom configurados');
 }
 
-// =====================
-// DELETE CORRIGIDO
-// =====================
-
-async function handleDeletarPost(postId, ownerId, postElement) {
-  if (!postId) return;
-
-  const user = auth.currentUser;
-  if (!user || user.uid !== ownerId) return;
-
-  try {
-    const el = postElement || document.querySelector(`.post-card[data-post-id="${postId}"]`);
-    if (el) {
-      el.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-      el.style.opacity = '0';
-      el.style.transform = 'translateY(-16px)';
-      setTimeout(() => el.remove(), 300);
-    }
-
-    limparCacheFeed();
-
-    await Promise.all([
-      deleteDoc(doc(db, "posts", postId)),
-      deleteDoc(doc(db, "users", ownerId, "posts", postId))
-    ]);
-
-  } catch (err) {
-    console.error("Erro ao apagar post:", err);
+async function handleDeletarPost() {
+  console.log('🗑️ handleDeletarPost chamado');
+  console.log('ID do post:', currentMenuPostId);
+  console.log('Dono do post:', currentMenuPostOwnerId);
+  console.log('Elemento armazenado:', currentMenuPostElement);
+  
+  if (!currentMenuPostId) {
+    console.error('❌ Sem ID do post');
+    return;
   }
+  
+  const usuarioLogado = auth.currentUser;
+  if (!usuarioLogado) {
+    console.error('❌ Usuário não logado');
+    criarPopup("Erro", "Você precisa estar logado.", "error");
+    return;
+  }
+
+  if (usuarioLogado.uid !== currentMenuPostOwnerId) {
+    console.error('❌ Usuário não é o dono do post');
+    criarPopup("Erro", "Você não pode excluir este post.", "warning");
+    return;
+  }
+
+  mostrarPopupConfirmacao(
+    "Apagar Post",
+    "Tem certeza que deseja deletar este post?",
+    async () => {
+      let loadingInfo = null;
+      try {
+        loadingInfo = mostrarLoading('Apagando post...');
+        console.log('⏳ Iniciando exclusão do Firebase...');
+        
+        // 🔴 FASE 1: Deletar do Firebase (em paralelo)
+        const deletePromises = [
+          deleteDoc(doc(db, "posts", currentMenuPostId)),
+          deleteDoc(doc(db, "users", currentMenuPostOwnerId, "posts", currentMenuPostId))
+        ];
+        
+        await Promise.all(deletePromises);
+        console.log('✅ Post deletado do Firebase');
+        
+        // 🟢 FASE 2: Remover do DOM
+        let postElement = currentMenuPostElement;
+        
+        // Se não tiver elemento armazenado, procurar no DOM
+        if (!postElement) {
+          console.log('🔍 Procurando elemento no DOM...');
+          postElement = Array.from(document.querySelectorAll('.post-card')).find(card => {
+            const likeBtn = card.querySelector('.btn-like');
+            return likeBtn?.dataset.id === currentMenuPostId;
+          });
+          console.log('🔍 Elemento encontrado?', !!postElement);
+        }
+        
+        if (postElement) {
+          postElement.style.opacity = '0';
+          postElement.style.transform = 'translateY(-20px)';
+          postElement.style.transition = 'all 0.3s ease';
+          
+          setTimeout(() => {
+            postElement.remove();
+            console.log('✅ Post removido do DOM com animação');
+          }, 300);
+        } else {
+          console.warn('⚠️ Elemento do post não encontrado no DOM');
+        }
+        
+        // 🟡 FASE 3: Limpar cache e variáveis
+        limparCacheFeed();
+        currentMenuPostId = null;
+        currentMenuPostOwnerId = null;
+        currentMenuPostElement = null;
+        
+        esconderLoading();
+        criarPopup("Sucesso", "Post apagado com sucesso!", "success");
+      } catch (err) {
+        console.error('❌ Erro ao apagar post:', err);
+        console.error('Erro detalhado:', err.message);
+        esconderLoading();
+        criarPopup("Erro", `Não foi possível apagar o post: ${err.message}`, "error");
+      }
+    }
+  );
+}
+
+async function handleDenunciarPost() {
+  if (!currentMenuPostId) return;
+  
+  criarModalDenuncia({
+    targetType: "post",
+    targetId: currentMenuPostId,
+    targetPath: `posts/${currentMenuPostId}`,
+    targetOwnerId: currentMenuPostOwnerId,
+    targetOwnerUsername: "cache"
+  });
 }
 
 // ===================
@@ -2477,7 +3211,9 @@ function configurarEventListeners() {
       const btnReport = e.target.closest('.btn-report');
       const btnComment = e.target.closest('.btn-comment');
       const userNameLink = e.target.closest('.user-name-link');
+      const btnVer = e.target.closest('.btn-ver-post');
       const btnMore = e.target.closest(".more-options-button");
+      const btnDelete = e.target.closest(".btn-delete-post");
       const commentSubmit = e.target.closest('.comment-submit');
 
       // CURTIR POST
@@ -2487,6 +3223,7 @@ function configurarEventListeners() {
         if (uid && postId) {
           await toggleLikePost(uid, postId, btnLike);
         } else {
+          criarPopup('Erro', 'Você precisa estar logado para curtir posts.', 'warning');
         }
       }
 
@@ -2512,7 +3249,108 @@ function configurarEventListeners() {
       if (btnComment) {
         const postId = btnComment.dataset.id;
         const uid = btnComment.dataset.username;
-        abrirModalComentarios(postId, uid);
+        const isMobile = isMobileDevice();
+
+        if (isMobile) {
+          // Mobile: abre modal
+          abrirModalComentariosMobile(postId, uid);
+        } else {
+          // Desktop: toggle seção
+          const commentsSection = btnComment.closest('.post-card').querySelector('.comments-section');
+          if (commentsSection.style.display === 'none' || commentsSection.style.display === '') {
+            commentsSection.style.display = 'block';
+            const commentsList = commentsSection.querySelector('.comments-list');
+            await renderizarComentarios(uid, postId, commentsList);
+          } else {
+            commentsSection.style.display = 'none';
+          }
+        }
+      }
+
+      // 👁️ VER POST DENUNCIADO
+      if (btnVer) {
+        const postId = btnVer.dataset.id;
+        const postRef = doc(db, 'posts', postId);
+        const postSnap = await getDoc(postRef);
+        
+        if (postSnap.exists()) {
+          const postData = postSnap.data();
+          const avisoEl = btnVer.closest('.post-card');
+          
+          if (avisoEl) {
+            avisoEl.innerHTML = `
+              <div class="post-header">
+                <div class="user-info">
+                  <img src="./src/icon/default.jpg" alt="Avatar do usuário" class="avatar"
+                       onerror="this.src='./src/icon/default.jpg'" />
+                  <div class="user-meta">
+                    <strong class="user-name-link" data-username="${postData.creatorid}">Carregando...</strong>
+                    <small class="post-username"></small>
+                  </div>
+                </div>
+                <div class="more-options">
+                  <button class="more-options-button">
+                    <i class="fas fa-ellipsis-h"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="post-text">${formatarHashtags(postData.content || 'Conteúdo não disponível')}</div>
+              ${postData.img ? `
+                <div class="post-image">
+                  <img src="${postData.img}" loading="lazy" onclick="abrirModalImagem('${postData.img}')">
+                </div>
+              ` : postData.urlVideo ? `
+                <div class="post-video">
+                  <video src="${postData.urlVideo}" autoplay muted playsinline loop></video>
+                </div>
+              ` : ''}
+              <div class="post-actions">
+                <button class="btn-like" data-username="${postData.creatorid}" data-id="${postData.postid}">
+                  <svg xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" image-rendering="optimizeQuality" fill-rule="evenodd" clip-rule="evenodd" viewBox="0 0 512 456.549">
+                    <path fill-rule="nonzero" d="M433.871 21.441c29.483 17.589 54.094 45.531 67.663 81.351 46.924 123.973-73.479 219.471-171.871 297.485-22.829 18.11-44.418 35.228-61.078 50.41-7.626 7.478-19.85 7.894-27.969.711-13.9-12.323-31.033-26.201-49.312-41.01C94.743 332.128-32.73 228.808 7.688 106.7c12.956-39.151 41.144-70.042 75.028-88.266C99.939 9.175 118.705 3.147 137.724.943c19.337-2.232 38.983-.556 57.65 5.619 22.047 7.302 42.601 20.751 59.55 41.271 16.316-18.527 35.37-31.35 55.614-39.018 20.513-7.759 42.13-10.168 63.283-7.816 20.913 2.324 41.453 9.337 60.05 20.442z"/>
+                  </svg> <span>${postData.likes || 0}</span>
+                </button>
+                <button class="btn-comment" data-username="${postData.creatorid}" data-id="${postData.postid}">
+                  <svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 122.97 122.88"><title>instagram-comment</title><path d="M61.44,0a61.46,61.46,0,0,1,54.91,89l6.44,25.74a5.83,5.83,0,0,1-7.25,7L91.62,115A61.43,61.43,0,1,1,61.44,0ZM96.63,26.25a49.78,49.78,0,1,0-9,77.52A5.83,5.83,0,0,1,92.4,103L109,107.77l-4.5-18a5.86,5.86,0,0,1,.51-4.34,49.06,49.06,0,0,0,4.62-11.58,50,50,0,0,0-13-47.62Z"/></svg>
+                  Comentar
+                </button>
+                <button class="btn-report" data-username="${postData.creatorid}" data-id="${postData.postid}">
+                  <i class="fas fa-flag"></i> Denunciar
+                </button>
+              </div>
+              <div class="post-date">${formatarDataRelativa(postData.create)}</div>
+              <div class="comments-section" style="display: none;">
+                <div class="comment-form">
+                  <input type="text" class="comment-input" placeholder="Escreva um comentário..."
+                         data-username="${postData.creatorid}" data-post-id="${postData.postid}">
+                  <button class="comment-submit" data-username="${postData.creatorid}" data-post-id="${postData.postid}">
+                    <i class="fas fa-paper-plane"></i>
+                  </button>
+                </div>
+                <div class="comments-area">
+                  <div class="comments-list"></div>
+                </div>
+              </div>
+            `;
+            avisoEl.classList.remove('post-oculto-aviso');
+            
+            // Atualiza dados do usuário
+            buscarDadosUsuarioPorUid(postData.creatorid).then(userData => {
+              if (userData) {
+                const avatar = avisoEl.querySelector('.avatar');
+                const username = avisoEl.querySelector('.user-name-link');
+                if (avatar) avatar.src = userData.userphoto || './src/icon/default.jpg';
+                if (nome) {
+                  nome.textContent = userData.displayname || userData.username || postData.creatorid;
+                  if (userData.verified) {
+                    nome.innerHTML = `${nome.textContent} <i class="fas fa-check-circle" style="margin-left: 4px; font-size: 0.9em; color: #4A90E2;"></i>`;
+                  }
+                }
+                if (username) username.textContent = userData.username ? `@${userData.username}` : '';
+              }
+            });
+          }
+        }
       }
 
       // 👤 LINK PARA PERFIL
@@ -2522,7 +3360,9 @@ const userInfo = e.target.closest('.user-info');
         if (userNameLink) {
           const uid = userNameLink.dataset.username;
           if (uid) {
-            window.location.href = `profile.html?userid=${encodeURIComponent(uid)}`;
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const page = isMobile ? 'pfmobile.html' : 'PF.html';
+            window.location.href = `${page}?userid=${encodeURIComponent(uid)}`;
           }
         }
         return;
@@ -2533,22 +3373,109 @@ const userInfo = e.target.closest('.user-info');
         const postCard = btnMore.closest(".post-card");
         const postId = postCard.querySelector('.btn-like')?.dataset.id;
         const ownerId = postCard.querySelector('.btn-like')?.dataset.username;
-        if (postId && ownerId) {
-          abrirMenuBottom(postId, ownerId, postCard);
+        
+        const isMobile = isMobileDevice();
+        
+        if (isMobile) {
+          // Mobile: abre o menu-bottom-layer
+          if (postId && ownerId) {
+            abrirMenuBottom(postId, ownerId, postCard);
+          }
+        } else {
+          // Desktop: comportamento original (mostrar menu inline)
+          const menu = btnMore.closest(".post-header").querySelector(".more-menu");
+          menu.style.display = menu.style.display === "none" ? "block" : "none";
         }
       }
 
-      
-      // ✉️ ENVIAR COMENTÁRIO VIA BOTÃO (fallback inline - raramente usado)
-      if (commentSubmit) {
+      // 🗑️ DELETAR POST
+      if (btnDelete) {
+        const postId = btnDelete.dataset.id;
+        const ownerId = btnDelete.dataset.owner;
+        const usuarioLogado = auth.currentUser;
+
+        if (!usuarioLogado) {
+          criarPopup("Erro", "Você precisa estar logado.", "error");
+          return;
+        }
+
+        if (usuarioLogado.uid !== ownerId) {
+          criarPopup("Erro", "Você não pode excluir este post.", "warning");
+          return;
+        }
+
+        mostrarPopupConfirmacao(
+          "Apagar Post",
+          "Tem certeza que deseja deletar este post?",
+          async () => {
+            let loadingInfo = null;
+            try {
+              loadingInfo = mostrarLoading('Apagando post...');
+              const postElement = btnDelete.closest(".post-card");
+              
+              // 🔴 FASE 1: Deletar do Firebase (em paralelo)
+              await Promise.all([
+                deleteDoc(doc(db, "posts", postId)),
+                deleteDoc(doc(db, "users", ownerId, "posts", postId))
+              ]);
+
+              // 🟢 FASE 2: Remover do DOM com animação
+              if (postElement) {
+                postElement.style.opacity = '0';
+                postElement.style.transform = 'translateY(-20px)';
+                postElement.style.transition = 'all 0.3s ease';
+                
+                setTimeout(() => {
+                  postElement.remove();
+                  console.log('✅ Post removido do DOM');
+                }, 300);
+              }
+              
+              // 🟡 FASE 3: Limpar cache
+              limparCacheFeed();
+              
+              esconderLoading();
+              criarPopup("Sucesso", "Post apagado com sucesso!", "success");
+            } catch (err) {
+              console.error('❌ Erro ao apagar post:', err);
+              esconderLoading();
+              criarPopup("Erro", "Não foi possível apagar o post. Tente novamente.", "error");
+            }
+          }
+        );
+      }
+
+      // ✉️ ENVIAR COMENTÁRIO (DESKTOP APENAS)
+      if (commentSubmit && !isMobileDevice()) {
         const uid = commentSubmit.dataset.username;
         const postId = commentSubmit.dataset.postId;
         const commentInput = document.querySelector(`input[data-username="${uid}"][data-post-id="${postId}"]`);
+        
         if (commentInput && commentInput.value.trim()) {
           const sucesso = await adicionarComentario(uid, postId, commentInput.value.trim());
           if (sucesso) {
             commentInput.value = '';
             const commentsList = commentSubmit.closest('.comments-section').querySelector('.comments-list');
+            await renderizarComentarios(uid, postId, commentsList);
+          }
+        } else {
+          criarPopup('Campo Vazio', 'Digite um comentário antes de enviar!', 'warning');
+        }
+      }
+    });
+
+    // ✅ ÚNICO LISTENER DE KEYPRESS NO FEED (DESKTOP)
+    feed.addEventListener('keypress', async (e) => {
+      if (e.key === 'Enter' && e.target.classList.contains('comment-input') && !isMobileDevice()) {
+        e.preventDefault();
+        const uid = e.target.dataset.username;
+        const postId = e.target.dataset.postId;
+        
+        if (e.target.value.trim()) {
+          const sucesso = await adicionarComentario(uid, postId, e.target.value.trim());
+          if (sucesso) {
+            e.target.value = '';
+            const commentsList = e.target.closest('.comments-section').querySelector('.comments-list');
             await renderizarComentarios(uid, postId, commentsList);
           }
         }
@@ -2564,7 +3491,9 @@ document.addEventListener('click', (e) => {
   if (e.target.classList.contains('comentario-nome')) {
     const uid = e.target.dataset.username;
     if (uid) {
-      window.location.href = `profile.html?userid=${encodeURIComponent(uid)}`;
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const page = isMobile ? 'pfmobile.html' : 'PF.html';
+      window.location.href = `${page}?userid=${encodeURIComponent(uid)}`;
     }
   }
 });
@@ -2582,27 +3511,593 @@ document.addEventListener("click", (e) => {
 
 
 // ===================
+// ATUALIZAR MARQUEE
+// ===================
+async function atualizarMarquee() {
+  try {
+    const lastUpdateRef = doc(db, "lastupdate", "latestUser");
+    const docSnap = await getDoc(lastUpdateRef);
+    const marquee = document.querySelector(".marquee");
+    if (!marquee) return;
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      const nomeUsuario = data.username || "Usuário";
+      marquee.textContent = `${nomeUsuario} acabou de entrar no RealMe!`;
+    } else {
+      marquee.textContent = "Bem-vindo ao RealMe!";
+    }
+  } catch (error) {
+    console.error("Erro ao buscar último usuário:", error);
+    const marquee = document.querySelector(".marquee");
+    if (marquee) marquee.textContent = "Conectando...";
+  }
+}
+
+// ===================
 // ATUALIZAR DATAS AUTOMATICAMENTE
 // ===================
 function atualizarDatasAutomaticamente() {
   setInterval(() => {
-    // Atualiza datas relativas no feed (.post-date-mobile)
-    document.querySelectorAll('.post-date-mobile').forEach(dateElement => {
+    const datasPost = document.querySelectorAll('.post-date');
+    datasPost.forEach(dateElement => {
       const postCard = dateElement.closest('.post-card');
       if (postCard) {
-        const likeBtn = postCard.querySelector('.btn-like');
-        if (likeBtn) {
-          const postId = likeBtn.dataset.id;
-          const item = allItems.find(i => i.postid === postId || i.bubbleid === postId);
-          if (item && item.create) {
-            dateElement.textContent = formatarDataRelativa(item.create);
+        const postIndex = Array.from(feed.children).indexOf(postCard);
+        if (postIndex >= 0 && postIndex < allPosts.length) {
+          const post = allPosts[postIndex];
+          if (post && post.create) {
+            dateElement.textContent = formatarDataRelativa(post.create);
           }
         }
       }
     });
+    const datasComentario = document.querySelectorAll('.comentario-data');
+    datasComentario.forEach(dateElement => {
+      // Lógica similar para comentários se necessário
+    });
   }, 60000);
 }
 
+
+
+// ===================
+// ADICIONAR ESTILOS CSS NECESSÁRIOS
+// ===================
+function adicionarEstilosCSS() {
+  if (document.querySelector('#enhanced-feed-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'enhanced-feed-styles';
+  style.textContent = `/* Estilos para hashtags */
+
+
+    /* Estilos para imagens nos posts */
+    .post-image {
+      border-radius: 8px;
+      overflow: hidden;
+      max-height: 400px;
+    }
+
+    .post-image img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .comments-section {
+      margin-top: 10px;
+      padding-top: 10px;
+    }
+
+  
+
+    /* Responsivo para comentários */
+    @media (max-width: 768px) {
+      .comentario-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      
+      .comentario-meta {
+        flex-direction: row;
+        gap: 8px;
+      }
+    }
+          /* Estilos para imagens nos posts */
+    .post-image {
+      border-radius: 8px;
+      overflow: hidden;
+      max-height: 400px;
+    }
+
+    .post-image img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .comments-section {
+      margin-top: 10px;
+      padding-top: 10px;
+    }
+
+    /* Estilos para seção de comentários */
+    .comments-area {
+  max-height: 300px; /* Altura máxima da área de comentários */
+  overflow-y: auto; /* Adiciona barra de rolagem vertical */
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.comments-area::-webkit-scrollbar {
+  width: 8px; /* Largura da barra de rolagem */
+}
+
+.comments-area::-webkit-scrollbar-thumb {
+  background: #4A90E2; /* Cor da barra de rolagem */
+  border-radius: 4px;
+}
+
+.comments-area::-webkit-scrollbar-thumb:hover {
+  background: #0056b3; /* Cor ao passar o mouse */
+}
+
+.comments-area::-webkit-scrollbar-track {
+  background: transparent; /* Cor do fundo da barra de rolagem */
+}
+
+    .comment-form {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      background: #474747; /* Quase preto, mas não absoluto */
+    border: 1px solid #363636; /* Cinza quase preto pra separar do fundo */
+    box-shadow: inset 0 8px 8px -7px rgba(0, 0, 0, 0.644); /* Sombra interna clara no modo dark */
+    }
+
+    .comment-input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      font-size: 14px;
+      border:none;
+      background-color: transparent;
+    }
+
+    .comment-input:focus-within {
+      border-color: #4A90E2;
+      border: 1px solid #4A90E2;
+      outline: none;
+      border: none; /* garante que não crie outra borda */
+    }
+    
+    .comment-form:focus-within {
+      border-color: #4A90E2;
+      box-shadow: 0 0 10px rgba(74, 144, 226, 0.6);
+    }
+
+
+    .comment-submit {
+      background: #4A90E2;
+      color: white;
+      border: none;
+      border-top-right-radius: 20px;
+      border-bottom-right-radius: 20px;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding-left:5px;
+      padding-right: 5px;
+    }
+
+    .comment-submit:hover {
+      background: #0056b3;
+    }
+
+    /* Estilos para comentários */
+    .comentario-item {
+      margin-bottom: 12px;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #333;
+      background: #141414a1;
+      backdrop-filter: blur(8px);
+    }
+
+    .comentario-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .comentario-avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+    }
+
+    .comentario-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .comentario-nome {
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .comentario-nome:hover {
+      color: #4A90E2;
+    }
+
+    .comentario-usuario,
+    .comentario-data {
+      font-size: 11px;
+      color: #666;
+    }
+
+    .comentario-conteudo {
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .no-comments,
+    .error-comments {
+      text-align: center;
+      color: #666;
+      font-style: italic;
+      padding: 15px;
+    }
+
+    /* Estilos para nomes clicáveis */
+    .user-name-link {
+      cursor: pointer;
+    }
+
+    .user-name-link:hover {
+      color: #4A90E2;
+    }
+
+    /* Loading melhorado */
+    .loading-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: rgba(0, 123, 255, 0.1);
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .loading-bar.active {
+      opacity: 1;
+    }
+
+    .loading-progress {
+      height: 100%;
+      background: linear-gradient(90deg, #007bff, #0056b3);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .loading-text {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      z-index: 10000;
+      displey:none;
+    }
+
+    .post-actions {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding-top: 15px;
+  border: none;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+    /* Responsivo para comentários */
+    @media (max-width: 768px) {
+      .comentario-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      
+      .comentario-meta {
+        flex-direction: row;
+        gap: 8px;
+      }
+    }
+
+==================================== */
+  
+  .image-input-container {
+    margin-top: 10px;
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+  
+  .image-input-container.aberta {
+    opacity: 1;
+    max-height: 400px;
+  }
+  
+  .upload-area {
+    border: 2px dashed #4A90E2;
+    border-radius: 12px;
+    padding: 20px;
+    background: rgba(74, 144, 226, 0.05);
+    transition: all 0.3s ease;
+  }
+  
+  .upload-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 30px;
+    transition: all 0.3s ease;
+  }
+  
+  .upload-label:hover {
+    background: rgba(74, 144, 226, 0.1);
+    border-radius: 8px;
+  }
+  
+  .upload-label.dragover {
+    background: rgba(74, 144, 226, 0.2);
+    border-color: #0056b3;
+    transform: scale(1.02);
+  }
+  
+  .upload-label i {
+    font-size: 48px;
+    color: #4A90E2;
+  }
+  
+  .upload-label span {
+    font-size: 16px;
+    font-weight: 500;
+    color: #fff;
+  }
+  
+  .upload-label small {
+    font-size: 12px;
+    color: #999;
+  }
+  
+  .image-preview {
+    position: relative;
+    text-align: center;
+    hei
+  }
+  
+  .image-preview img {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  
+  .remove-image-btn {
+    margin-top: 15px;
+    padding: 10px 20px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  .remove-image-btn:hover {
+    background: #c0392b;
+    transform: scale(1.05);
+  }
+  
+  @media (max-width: 768px) {
+    .upload-label {
+      padding: 20px;
+    }
+    
+    .upload-label i {
+      font-size: 36px;
+    }
+    
+    .upload-label span {
+      font-size: 14px;
+    }
+  }
+
+  /* ========== SKELETON LOADER ANIMATION ========== */
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  .skeleton-post-card {
+    background: #1a1a1a;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    border: 1px solid #333;
+    animation: shimmer 2s infinite;
+    background: linear-gradient(
+      90deg,
+      #1a1a1a 0%,
+      #2a2a2a 50%,
+      #1a1a1a 100%
+    );
+    background-size: 1000px 100%;
+    background-position: -1000px 0;
+  }
+
+  .skeleton-header {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .skeleton-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #2a2a2a;
+    animation: shimmer 2s infinite;
+    background: linear-gradient(
+      90deg,
+      #2a2a2a 0%,
+      #3a3a3a 50%,
+      #2a2a2a 100%
+    );
+    background-size: 1000px 100%;
+    background-position: -1000px 0;
+    flex-shrink: 0;
+  }
+
+  .skeleton-user-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .skeleton-name {
+    width: 120px;
+    height: 16px;
+    border-radius: 4px;
+    background: #2a2a2a;
+    animation: shimmer 2s infinite;
+    background: linear-gradient(
+      90deg,
+      #2a2a2a 0%,
+      #3a3a3a 50%,
+      #2a2a2a 100%
+    );
+    background-size: 1000px 100%;
+    background-position: -1000px 0;
+  }
+
+  .skeleton-date {
+    width: 80px;
+    height: 12px;
+    border-radius: 4px;
+    background: #2a2a2a;
+    animation: shimmer 2s infinite;
+    background: linear-gradient(
+      90deg,
+      #2a2a2a 0%,
+      #3a3a3a 50%,
+      #2a2a2a 100%
+    );
+    background-size: 1000px 100%;
+    background-position: -1000px 0;
+  }
+
+  .skeleton-content {
+    margin-bottom: 16px;
+  }
+
+  .skeleton-text {
+    height: 14px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    background: #2a2a2a;
+    animation: shimmer 2s infinite;
+    background: linear-gradient(
+      90deg,
+      #2a2a2a 0%,
+      #3a3a3a 50%,
+      #2a2a2a 100%
+    );
+    background-size: 1000px 100%;
+    background-position: -1000px 0;
+  }
+
+  .skeleton-text-1 {
+    width: 100%;
+  }
+
+  .skeleton-text-2 {
+    width: 85%;
+  }
+
+  .skeleton-image {
+    width: 100%;
+    height: 250px;
+    border-radius: 8px;
+    margin-top: 12px;
+    background: #2a2a2a;
+    animation: shimmer 2s infinite;
+    background: linear-gradient(
+      90deg,
+      #2a2a2a 0%,
+      #3a3a3a 50%,
+      #2a2a2a 100%
+    );
+    background-size: 1000px 100%;
+    background-position: -1000px 0;
+  }
+
+  .skeleton-actions {
+    display: flex;
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #333;
+  }
+
+  .skeleton-action {
+    flex: 1;
+    height: 12px;
+    border-radius: 4px;
+    background: #2a2a2a;
+    animation: shimmer 2s infinite;
+    background: linear-gradient(
+      90deg,
+      #2a2a2a 0%,
+      #3a3a3a 50%,
+      #2a2a2a 100%
+    );
+    background-size: 1000px 100%;
+    background-position: -1000px 0;
+  }
+  `;
+  document.head.appendChild(style);
+  style.textContent += `
+
+  `;
+// ... o restante da sua função adicionarEstilosCSS() ...
+}
 
 // ===================
 // SISTEMA DE TIPOS DE POST
@@ -2612,59 +4107,91 @@ let postImageFile = null;
 let storyImageFile = null;
 
 function inicializarSistemaTipoPost() {
-  // Contador de caracteres (igual ao original)
+  const tabs = document.querySelectorAll('.post-type-tab');
+  const contentTypes = document.querySelectorAll('.post-content-type');
+  const sendBtn = document.querySelector('.send-post-btn');
+
+  // Troca de tabs
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const type = tab.dataset.type;
+      
+      // Atualiza tabs
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      
+      // Atualiza conteúdo
+      contentTypes.forEach(ct => ct.classList.remove('active'));
+      document.querySelector(`.post-content-type[data-type="${type}"]`).classList.add('active');
+      
+      currentPostType = type;
+      
+      // Limpa inputs
+      limparInputsPost();
+    });
+  });
+
+  // Contador de caracteres
   document.querySelectorAll('.np-text-input').forEach(textarea => {
     textarea.addEventListener('input', (e) => {
       const counter = e.target.parentElement.querySelector('.char-counter');
       if (counter) {
-        const max     = parseInt(textarea.getAttribute('maxlength'));
+        const max = parseInt(textarea.getAttribute('maxlength'));
         const current = e.target.value.length;
         counter.textContent = `${current}/${max}`;
-        counter.classList.toggle('limit', current >= max * 0.9);
+        
+        if (current >= max * 0.9) {
+          counter.classList.add('limit');
+        } else {
+          counter.classList.remove('limit');
+        }
       }
     });
   });
 
-  // Upload de imagem POST (igual ao original)
+  // Upload de imagem POST
   const postFileArea = document.getElementById('post-file-input');
   if (postFileArea) {
     postFileArea.addEventListener('click', () => {
-      const input   = document.createElement('input');
-      input.type    = 'file';
-      input.accept  = 'image/*';
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
       input.onchange = (e) => handlePostImageUpload(e.target.files[0]);
       input.click();
     });
   }
 
-  // Remover imagem POST (igual ao original)
+  // Upload de imagem STORY
+  const storyFileArea = document.getElementById('story-file-input');
+  if (storyFileArea) {
+    storyFileArea.addEventListener('click', () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = (e) => handleStoryImageUpload(e.target.files[0]);
+      input.click();
+    });
+  }
+
+  // Remover imagem POST
   document.querySelector('.remove-image-post')?.addEventListener('click', () => {
     postImageFile = null;
-    const preview = document.querySelector('.image-preview-post');
-    if (preview) preview.style.display = 'none';
+    document.querySelector('.image-preview-post').style.display = 'none';
   });
 
-  // -------------------------------------------------------
-  // BOTÃO "POST" — envia texto + imagem
-  // -------------------------------------------------------
-  document.getElementById('btn-post')?.addEventListener('click', async () => {
-    const user  = auth.currentUser;
-    const texto = document.querySelector('.np-text-input').value.trim();
-    await enviarPost(user, texto, postImageFile);
+  // Remover imagem STORY
+  document.querySelector('.remove-image-story')?.addEventListener('click', () => {
+    storyImageFile = null;
+    document.querySelector('.image-preview-story').style.display = 'none';
   });
 
-  // -------------------------------------------------------
-  // BOTÃO "NOTA" — envia só texto, ignora imagem
-  // -------------------------------------------------------
-  document.getElementById('btn-bubble')?.addEventListener('click', async () => {
-    const user  = auth.currentUser;
-    const texto = document.querySelector('.np-text-input').value.trim();
-    await enviarBubble(user, texto);
-  });
+  // Botão de enviar
+  sendBtn.addEventListener('click', enviarPublicacao);
 }
 
 function handlePostImageUpload(file) {
   if (!file || !file.type.startsWith('image/')) {
+    criarPopup('Erro', 'Apenas imagens são permitidas', 'error');
     return;
   }
 
@@ -2680,6 +4207,7 @@ function handlePostImageUpload(file) {
 
 function handleStoryImageUpload(file) {
   if (!file || !file.type.startsWith('image/')) {
+    criarPopup('Erro', 'Apenas imagens são permitidas', 'error');
     return;
   }
 
@@ -2703,22 +4231,17 @@ function limparInputsPost() {
       counter.classList.remove('limit');
     }
   });
-
-  postImageFile  = null;
+  
+  postImageFile = null;
   storyImageFile = null;
-
-  const previewPost  = document.querySelector('.image-preview-post');
-  const previewStory = document.querySelector('.image-preview-story');
-  if (previewPost)  previewPost.style.display  = 'none';
-  if (previewStory) previewStory.style.display = 'none';
-
-  const postFileArea = document.getElementById('post-file-input');
-  if (postFileArea) postFileArea.style.display = '';
+  document.querySelector('.image-preview-post').style.display = 'none';
+  document.querySelector('.image-preview-story').style.display = 'none';
 }
 
 async function enviarPublicacao() {
   const usuarioLogado = auth.currentUser;
   if (!usuarioLogado) {
+    criarPopup('Erro', 'Você precisa estar logado.', 'warning');
     return;
   }
 
@@ -2737,174 +4260,161 @@ async function enviarPublicacao() {
 
 async function enviarPost(user, texto, imageFile) {
   if (!texto && !imageFile) {
-    alert('Escreva algo ou adicione uma imagem!');
+    criarPopup('Campo Vazio', 'Adicione texto ou imagem!', 'warning');
     return;
   }
- 
-  // Fecha o modal na hora
-  const postLayer = document.getElementById('postLayer');
-  if (postLayer) postLayer.classList.remove('active');
-  document.body.style.overflow = '';
-  limparInputsPost();
- 
-  // Inicia barra em 0%
-  const bar = criarBarraPost();
-  avancarBarra(bar, 10); // começa com 10% imediatamente
- 
+
+  tocarSomEnvio();
+  criarAnimacaoAviaoPapel();
+  const loadingInfo = mostrarLoading('Enviando post...');
+
   try {
     const postId = gerarIdUnico('post');
     let urlImagem = '';
     let deleteUrlImagem = '';
- 
+
     if (imageFile) {
-      avancarBarra(bar, 30); // 30% — iniciando upload
+      atualizarTextoLoading('Fazendo upload da imagem...');
       const uploadResult = await uploadImagemPost(imageFile, user.uid);
+      
       if (!uploadResult.success) {
-        removerBarra(bar);
-        alert('Erro no upload: ' + uploadResult.error);
+        clearInterval(loadingInfo.interval);
+        esconderLoading();
+        criarPopup('Erro no Upload', uploadResult.error, 'error');
         return;
       }
-      urlImagem       = uploadResult.url;
+      
+      urlImagem = uploadResult.url;
       deleteUrlImagem = uploadResult.deleteUrl;
-      avancarBarra(bar, 70); // 70% — upload concluído
-    } else {
-      avancarBarra(bar, 60); // sem imagem, vai direto pra 60%
     }
- 
+
+    atualizarTextoLoading('Salvando post...');
+
     const postData = {
-      content:      texto,
-      img:          urlImagem,
+      content: texto,
+      img: urlImagem,
       imgDeleteUrl: deleteUrlImagem,
-      urlVideo:     '',
-      likes:        0,
-      saves:        0,
-      comentarios:  0,
-      postid:       postId,
-      creatorid:    user.uid,
-      reports:      0,
-      visible:      true,
-      create:       serverTimestamp()
+      urlVideo: '',
+      likes: 0,
+      saves: 0,
+      comentarios: 0,
+      postid: postId,
+      creatorid: user.uid,
+      reports: 0,
+      visible: true,
+      create: serverTimestamp()
     };
- 
-    avancarBarra(bar, 85); // 85% — salvando
-    await setDoc(doc(db, 'posts', postId), postData);
+
     await setDoc(doc(db, 'users', user.uid, 'posts', postId), postData);
- 
-    // ✅ ATIVIDADE — novo post
-    triggerNovoPost(postId).catch(console.warn);
- 
-    avancarBarra(bar, 100); // 100% — salvo!
-    setTimeout(() => removerBarra(bar), 400);
- 
-    feed.innerHTML   = '';
+    await setDoc(doc(db, 'posts', postId), postData);
+
+    limparInputsPost();
+    document.getElementById('closeLayerBtn').click();
+    
+    feed.innerHTML = '';
     lastPostSnapshot = null;
-    hasMorePosts     = true;
-    loading          = false;
-    limparCacheFeed();
+    hasMorePosts = true;
+    loading = false;
     await loadPosts();
- 
+
+    clearInterval(loadingInfo.interval);
+    esconderLoading();
+    criarPopup('Sucesso!', 'Post enviado com sucesso!', 'success');
+
   } catch (error) {
-    console.error('Erro ao enviar post:', error);
-    removerBarra(bar);
-    alert('Erro ao enviar post: ' + error.message);
+    console.error("Erro ao enviar post:", error);
+    clearInterval(loadingInfo.interval);
+    esconderLoading();
+    criarPopup('Erro', 'Erro ao enviar post: ' + error.message, 'error');
   }
 }
 
 async function enviarBubble(user, texto) {
   if (!texto) {
-    alert('Escreva algo para a nota!');
+    criarPopup('Campo Vazio', 'Escreva algo para o bubble!', 'warning');
     return;
   }
- 
-  // Fecha o modal na hora
-  const postLayer = document.getElementById('postLayer');
-  if (postLayer) postLayer.classList.remove('active');
-  document.body.style.overflow = '';
-  limparInputsPost();
- 
-  // Inicia barra em 0%
-  const bar = criarBarraPost();
-  avancarBarra(bar, 20);
- 
+
+  tocarSomEnvio();
+  const loadingInfo = mostrarLoading('Enviando bubble...');
+
   try {
     const bubbleId = gerarIdUnico('bubble');
- 
-    avancarBarra(bar, 60); // salvando
-    await setDoc(doc(db, 'bubbles', bubbleId), {
-      content:   texto,
-      bubbleid:  bubbleId,
+
+    const bubbleData = {
+      content: texto,
+      bubbleid: bubbleId,
       creatorid: user.uid,
-      create:    serverTimestamp(),
-      musicUrl:  ''
-    });
- 
-    // ✅ ATIVIDADE — novo bubble
-    triggerNovoBubble(bubbleId).catch(console.warn);
- 
-    avancarBarra(bar, 100); // pronto
-    setTimeout(() => removerBarra(bar), 400);
- 
-    feed.innerHTML   = '';
+      create: serverTimestamp(),
+      musicUrl: ''
+    };
+
+    await setDoc(doc(db, 'bubbles', bubbleId), bubbleData);
+
+    limparInputsPost();
+    document.getElementById('closeLayerBtn').click();
+
+    feed.innerHTML = '';
     lastPostSnapshot = null;
-    hasMorePosts     = true;
-    loading          = false;
-    limparCacheFeed();
+    hasMorePosts = true;
+    loading = false;
     await loadPosts();
- 
+
+    clearInterval(loadingInfo.interval);
+    esconderLoading();
+    criarPopup('Sucesso!', 'Bubble publicado!', 'success');
+
   } catch (error) {
-    console.error('Erro ao enviar nota:', error);
-    removerBarra(bar);
-    alert('Erro ao enviar nota: ' + error.message);
+    console.error("Erro ao enviar bubble:", error);
+    clearInterval(loadingInfo.interval);
+    esconderLoading();
+    criarPopup('Erro', 'Erro ao enviar bubble: ' + error.message, 'error');
   }
 }
 
-// ===================
-// BARRA DE PROGRESSO DO POST (0% → 100%)
-// ===================
-function criarBarraPost() {
-  // injeta o CSS uma única vez
-  if (!document.getElementById('plb-style')) {
-    const s = document.createElement('style');
-    s.id = 'plb-style';
-    s.textContent = `
-      #post-loading-bar {
-        position: fixed;
-        bottom: 80px;
-        left: 0;
-        width: 100%;
-        height: 3px;
-        background: var(--bg-primary);
-        z-index: 99997;
-      }
-      #post-loading-bar .plb-inner {
-        height: 100%;
-        width: 0%;
-        background: linear-gradient(90deg, #4A90E2, #4A90E2);
-        transition: width 0.4s ease;
-      }
-    `;
-    document.head.appendChild(s);
+async function enviarStory(user, imageFile) {
+  if (!imageFile) {
+    criarPopup('Imagem Obrigatória', 'Stories precisam de uma imagem!', 'warning');
+    return;
   }
 
-  // remove barra antiga se existir
-  document.getElementById('post-loading-bar')?.remove();
+  tocarSomEnvio();
+  const loadingInfo = mostrarLoading('Enviando story...');
 
-  const bar = document.createElement('div');
-  bar.id = 'post-loading-bar';
-  bar.innerHTML = '<div class="plb-inner"></div>';
-  document.body.appendChild(bar);
-  return bar;
-}
+  try {
+    atualizarTextoLoading('Fazendo upload da imagem...');
+    const uploadResult = await uploadImagemPost(imageFile, user.uid);
+    
+    if (!uploadResult.success) {
+      clearInterval(loadingInfo.interval);
+      esconderLoading();
+      criarPopup('Erro no Upload', uploadResult.error, 'error');
+      return;
+    }
 
-function avancarBarra(bar, porcentagem) {
-  const inner = bar?.querySelector('.plb-inner');
-  if (inner) inner.style.width = porcentagem + '%';
-}
+    const storyId = gerarIdUnico('story');
 
-function removerBarra(bar) {
-  if (bar) {
-    avancarBarra(bar, 100);
-    setTimeout(() => bar.remove(), 400);
+    const storyData = {
+      storyid: storyId,
+      creatorId: user.uid,
+      img: uploadResult.url,
+      create: serverTimestamp()
+    };
+
+    await setDoc(doc(db, 'storys', storyId), storyData);
+
+    limparInputsPost();
+    document.getElementById('closeLayerBtn').click();
+
+    clearInterval(loadingInfo.interval);
+    esconderLoading();
+    criarPopup('Sucesso!', 'Story publicado!', 'success');
+
+  } catch (error) {
+    console.error("Erro ao enviar story:", error);
+    clearInterval(loadingInfo.interval);
+    esconderLoading();
+    criarPopup('Erro', 'Erro ao enviar story: ' + error.message, 'error');
   }
 }
 
@@ -2913,24 +4423,95 @@ function removerBarra(bar) {
 // ===================
 
 window.addEventListener("DOMContentLoaded", async () => {
+  console.log('🚀 DOMContentLoaded disparado - iniciando verificação de login...');
   const user = await verificarLogin();
   if (!user) {
     console.error('❌ Usuário não autenticado');
     return;
   }
+  console.log('✅ Usuário autenticado:', user.uid);
+  console.log('📦 Adicionando estilos CSS...');
+  adicionarEstilosCSS();
   criarInputImagem();
   criarInputVideo();
   await atualizarGreeting();
   configurarLinks();
-  configurarPostLayer();
   inicializarSistemaTipoPost();
   configurarEventListeners();
   configurarListenersMenuBottom();
   configurarScrollInfinito();
+  await atualizarMarquee();
+  console.log('📥 Iniciando carregamento de posts...');
   await loadPosts();
   atualizarDatasAutomaticamente();
+  console.log("✨ Feed aprimorado inicializado com sucesso!");
 });
 
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('comentario-nome')) {
+    const uid = e.target.dataset.username;
+    if (uid) {
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const page = isMobile ? 'pfmobile.html' : 'PF.html';
+      window.location.href = `${page}?userid=${encodeURIComponent(uid)}`;
+    }
+  }
+});
+
+/*document.addEventListener('DOMContentLoaded', function() {
+  const searchBtn = document.querySelector('.search-mobile-btn');
+  const searchContainer = document.getElementById('mobile-search-container');
+  let searchInput = null;
+
+  function showSearchInput() {
+    if (!searchInput) {
+      searchInput = document.createElement('input');
+      searchInput.type = 'text';
+      searchInput.placeholder = 'Buscar...';
+      searchInput.className = 'search-box-mobile';
+      searchInput.autocomplete = 'off';
+      searchContainer.appendChild(searchInput);
+    }
+    searchContainer.classList.add('active');
+    searchInput.focus();
+  }
+
+  function hideSearchInput() {
+    searchContainer.classList.remove('active');
+    if (searchInput) searchInput.blur();
+  }
+
+  // Alterna ao clicar no botão
+  searchBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (searchContainer.classList.contains('active')) {
+      hideSearchInput();
+    } else {
+      showSearchInput();
+    }
+  });
+
+  // Esconde ao rolar a página
+  let lastScroll = window.scrollY;
+  window.addEventListener('scroll', function() {
+    if (searchContainer.classList.contains('active') && Math.abs(window.scrollY - lastScroll) > 40) {
+      hideSearchInput();
+    }
+    lastScroll = window.scrollY;
+  });
+
+  // Esconde ao clicar fora do input e do botão
+  document.addEventListener('click', function(e) {
+    if (
+      searchContainer.classList.contains('active') &&
+      !searchContainer.contains(e.target) &&
+      !searchBtn.contains(e.target)
+    ) {
+      hideSearchInput();
+    }
+  });
+  
+});*/
 
 
 window.abrirModalImagem = function(imagemUrl) {
@@ -2956,6 +4537,14 @@ window.fecharModal = function() {
     document.body.style.overflow = 'auto';
   }
 };
+
+document.addEventListener("click", (e) => {
+  const video = e.target.closest("video");
+  if (video) {
+    if (video.paused) video.play();
+    else video.pause();
+  }
+});
 
 
 function configurarAutoPauseVideos() {
@@ -3006,51 +4595,9 @@ function configurarLimiteRepeticoes() {
 // ==============================
 window.addEventListener('beforeunload', () => {
   pararSincronizacaoBackground();
+  console.log('👋 Página descarregada - sincronização encerrada');
 });
 
 window.addEventListener('pagehide', () => {
   pararSincronizacaoBackground();
 });
-
-
-function carregarFotoPerfil() {
-  const navPic = document.getElementById('nav-pic');
-  const defaultPic = './src/icon/default.jpg';
-
-  // Carregamento imediato do cache
-  const cachedPhoto = localStorage.getItem('user_photo_cache');
-  if (cachedPhoto) {
-    navPic.src = cachedPhoto;
-  }
-
-  // Validação em segundo plano
-  onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      const userId = user.uid;
-      try {
-        const userMediaRef = doc(db, `users/${userId}/user-infos/user-media`);
-        const userMediaSnap = await getDoc(userMediaRef);
-
-        if (userMediaSnap.exists()) {
-          const userPhoto = userMediaSnap.data().userphoto || defaultPic;
-
-          if (userPhoto !== cachedPhoto) {
-            navPic.src = userPhoto;
-            localStorage.setItem('user_photo_cache', userPhoto);
-          }
-        } else {
-          navPic.src = defaultPic;
-          localStorage.removeItem('user_photo_cache');
-        }
-      } catch (error) {
-        console.error('Erro ao buscar foto:', error);
-        if (!cachedPhoto) navPic.src = defaultPic;
-      }
-    } else {
-      navPic.src = defaultPic;
-      localStorage.removeItem('user_photo_cache');
-    }
-  });
-}
-
-document.addEventListener('DOMContentLoaded', carregarFotoPerfil);

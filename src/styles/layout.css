@@ -1222,6 +1222,9 @@ textarea#postText:focus {
   animation: particleAnimation 0.8s ease-out;
 }
 
+.post-layer {
+  display: none;
+}
 
 .btn-delete-post {
   border: none;
