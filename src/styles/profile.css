@@ -171,6 +171,11 @@
       border-radius: 3px;
     }
 
+    .menu-item svg {
+      fill: currentColor;
+      height: 30px;
+    }
+
     .menu-item p {
       display: flex;
       text-align: left;
@@ -658,7 +663,7 @@
       right: 0;
       bottom: 0;
       z-index: 10000;
-      opacity: 0;
+      opacity: 1;
       visibility: hidden;
       transition: opacity 0.3s ease, visibility 0.3s ease;
     }
@@ -2671,7 +2676,7 @@ background: #fff;
       right: 0;
       bottom: 0;
       z-index: 10000;
-      opacity: 0;
+      opacity: 1;
       visibility: hidden;
       transition: opacity 0.3s ease, visibility 0.3s ease;
     }
@@ -2684,7 +2689,7 @@ background: #fff;
     .side-menu {
       position: fixed;
       top: 0;
-      right: -320px;
+      right: -100vh;
       width: 100%;
       height: 100vh;
       background: var(--bg-primary);
@@ -3306,6 +3311,11 @@ background: #fff;
   border: 2px solid #f8f9f9;
   color: #f8f9f9;
   font-size: 16px;
+}
+
+.icon-place svg {
+  fill: #fff;
+  height: 50px;
 }
 
 .icon-area {

@@ -892,9 +892,6 @@ function renderPost(postData, feed) {
             <svg width="252" height="253" viewBox="0 0 252 253"  xmlns="http://www.w3.org/2000/svg"><path d="M207.821 9.02051C228.731 3.33416 247.898 22.5349 242.175 43.4346L192.671 224.216C186.201 247.842 154.655 252.357 141.818 231.494L100.558 164.439L97.285 159.121L101.649 154.656L167.753 87.0137L165.087 84.2861L99.2411 151.665L94.6532 156.358L89.1542 152.777L20.7343 108.225C0.472592 95.0309 5.33388 64.0873 28.6649 57.7422L207.821 9.02051Z" stroke="#D9D9D9" stroke-width="20"/></svg>
             <p>Compartilhar</p>
           </button>
-          <button class="btn-report" data-username="${postData.creatorid}" data-id="${postData.postid}">
-            <i class="fas fa-flag"></i> <p>Denunciar</p>
-          </button>
         </div>
         <div class="post-actions-rigth">
           <button class="btn-save" data-post-id="${postData.postid}" data-post-owner="${postData.creatorid}">

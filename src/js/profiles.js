@@ -729,7 +729,7 @@ function renderLinks(dados) {
     <div class="about-box" style="text-align:center;padding:30px;">
       <div class="icon-area"><div class="icon-place"><i class="fas fa-link" style="font-size:38px;color:#fff;"></i></div></div>
       <h3 style="color:#fff;margin-bottom:12px;">Nenhum link ainda</h3>
-      <p style="color:#555;">Este usuário ainda não adicionou nenhum link.</p>
+      <p style="color:#555;">Este usuário ainda não adicionou nenhum link</p>
     </div>`;
 }
 
