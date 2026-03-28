@@ -18,13 +18,10 @@
   <link rel="apple-touch-icon" href="./src/icon/icon.png" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <link rel="stylesheet" href="./src/styles/base.css" />
-  <link rel="stylesheet" href="./src/styles/layout.css" />
   <link rel="stylesheet" href="./src/styles/components.css" />
   <link rel="stylesheet" href="./src/styles/menu-bottom.css" />
   <link rel="stylesheet" href="./src/styles/navbars.css" />
   <link rel="stylesheet" href="./src/styles/root.css" />
-  <link rel="stylesheet" href="./src/styles/popup.css">
-  <link rel="stylesheet" href="./src/styles/loading.css">
   <link rel="stylesheet" href="./src/styles/feed.css">
   <link rel="stylesheet" href="./src/styles/feed-mobile.css">
   <link rel="stylesheet" href="./src/styles/report.css">
@@ -32,6 +29,9 @@
   <link rel="stylesheet" href="./src/styles/feeds-tab.css">
   <link rel="stylesheet" href="./src/styles/storys.css">
   <link rel="stylesheet" href="./src/styles/navbar-bottom.css">
+  <link rel="apple-touch-startup-image"
+href="./src/img/launchiphone11.png"
+media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)">
     <!-- Título do preview -->
   <meta property="og:title" content="RealMe">
 
@@ -117,23 +117,6 @@
       text-align: right;
     }
 
-    /* Botão carregar mais */
-    #load-more-btn {
-      background: #4A90E2;
-      border: none;
-      color: white;
-      padding: 12px 24px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 16px;
-      margin: 20px auto;
-      display: block;
-      transition: background-color 0.3s;
-    }
-
-    #load-more-btn:hover {
-      background: #357ABD;
-    }
     @media (max-width: 600px) {
   .post-card {
     padding: 15px;
@@ -178,9 +161,6 @@
 
 .menu-bottom-layer {
   display: none;
-}
-.feeds-tab.hidden {
-  display: none !important;
 }
 
 /* ===================
@@ -261,29 +241,10 @@
 </div>
 
 <div class="feedpage">
-  <!-- Navbar -->
-   <nav>
-    <div class="logo_area">
-      <div class="logo">RealMe</div>
-    </div>
-<div class="search-area">
-  <div class="search-box">
-    <button><i class="fas fa-search"></i></button>
-    <input type="text" id="searchInput" placeholder="Buscar" autocomplete="off"  />
-  </div>
-</div>
-
-    <div class="last-update-area">
-      <div class="last-update">
-        <p>Novidades!</p>
-      </div>
-    </div>
-    <div class="marquee-container">
-      <div class="marquee"></div>
-    </div>
-  </nav>
 
   <div class="navbar-top">
+    <div class="img-nav"></div>
+    <div class="navbar-top-content">
       <button class="top-btn">
         <i class="fa-solid fa-plus"></i>
       </button>
@@ -291,40 +252,8 @@
       <a href="nt.html" class="top-btn2">
         <svg xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" image-rendering="optimizeQuality" fill-rule="evenodd" clip-rule="evenodd" viewBox="0 0 512 456.549"><path fill-rule="nonzero" d="M463.044 117.283c-10.125-26.729-28.412-47.537-50.269-60.578-13.478-8.048-28.343-13.125-43.461-14.808-14.879-1.655-30.018.007-44.284 5.407-37.461 14.189-50.601 41.912-66.522 74.028-3.422 6.887-1.964 6.964-5.893.078-17.576-30.87-33.786-63.684-70.127-75.725-12.879-4.26-26.554-5.408-40.088-3.845-13.83 1.606-27.546 6.028-40.207 12.83-25.068 13.485-45.883 36.215-55.382 64.916-31.525 95.237 83.379 188.376 170.42 258.918 12.97 10.506 25.363 20.547 36.834 30.251 15.449-13.288 32.356-26.695 49.995-40.687 87.815-69.634 195.291-154.872 158.984-250.785zm-29.173-95.842c29.483 17.589 54.094 45.531 67.663 81.351 46.924 123.973-73.479 219.471-171.871 297.485-22.829 18.11-44.418 35.228-61.078 50.41-7.626 7.478-19.85 7.894-27.969.711-13.9-12.323-31.033-26.201-49.312-41.01C94.743 332.128-32.73 228.808 7.688 106.7c12.956-39.151 41.144-70.042 75.028-88.266C99.939 9.175 118.705 3.147 137.724.943c19.337-2.232 38.983-.556 57.65 5.619 22.047 7.302 42.601 20.751 59.55 41.271 16.316-18.527 35.37-31.35 55.614-39.018 20.513-7.759 42.13-10.168 63.283-7.816 20.913 2.324 41.453 9.337 60.05 20.442z"/></svg>
       </a>
+    </div>
   </div>
-
-  <!-- Sidebar -->
-  <aside class="sidebar">
-    <a href="feed.html"><i class="fas fa-home"></i> Início</a>
-    <a href="acharamigos.html"><i class="fas fa-user-friends"></i> Achar Amigos</a>
-    <a href="direct.html"><i class="fas fa-comments"></i> Mensagens</a>
-    <a href="nt.html">
-      <i class="fas fa-bell"></i> Notificações
-      <span class="notification-badge" style="display: none;">0</span>
-    </a>
-    <a href="feed.html" onclick="window.abrirPostModal(); return false;" class="postmodal"><i class="fas fa-plus-square"></i> Criar</a>
-    <a href="profile.html"><i class="fas fa-user"></i> Perfil</a>
-    <!-- Menu Mais com submenu flutuante -->
-        <div class="more-menu" id="moreMenu">
-            <a href="#" class="more-toggle" id="moreToggle">
-                <i class="fa-solid fa-bars"></i>
-                Mais
-            </a>
-            <div class="floating-menu" id="floatingMenu">
-                <a href="config.html"><i class="fas fa-cog"></i> Configurações</a>
-                
-                <a href="como-usar.html"><i class="fa-solid fa-book-open"></i> Como Usar</a>
-                <a href="sobre.html"><i class="fas fa-question-circle"></i> Sobre</a>
-                <a href="#" id="btnSair"><i class="fas fa-sign-out-alt"></i> Sair</a>
-            </div>
-        </div>
-  </aside>
-  <ul id="searchResults"></ul>
-
-      <!-- Barra de progresso para recarregamentos -->
-    <div class="progress-bar" id="progressBar"></div>
-
-
 
 
 
@@ -357,51 +286,14 @@
             </div>
         </div>
         </div>
-      <div class="welcome-start">
-        <p class="welcome-start-pc">Compartilhe como está sendo o seu dia, conte algo curioso, poste uma lembrança especial ou simplesmente jogue conversa fora com seus amigos.</p>
-        <p class="welcome-start-mobile"></p>
-          <div class="post-area">
-            <div class="post-box">
-              <input type="text" placeholder="Oque você esta pensando?"  spellcheck="false" autocomplete="off" />
-              <button class="post-button">
-                <i class="fas fa-plus-square"></i><p>Enviar Post!</p>
-              </button>
-            </div>
-            <button class="file-button">
-              <i class="fa-solid fa-image"></i>
-            </button>
-          </div>
     </section>
     
 
 
 <div id="feed"></div>
 
-
-
-    <button id="load-more-btn">Carregar mais</button>
-
-    <footer>
-      <div>
-        <a href="sobre.html">Sobre</a>
-        <a href="contato.html">Contato</a>
-        <a href="privacidade.html">Privacidade</a>
-      </div>
-      <p>&copy; 2025 RealMe - Criado por maxgfortes</p>
-    </footer>
     </div>
   </main>
-  <aside class="right-column">
-    <div class="new-people">
-      <h2>Novas Pessoas Legais</h2>
-      <!-- conteúdo original intacto -->
-      <!-- Usuários carregados dinamicamente pelo JS -->
-      <div class="reloadarea">
-        <button class="reload-new-users">Recarregar</button>
-      </div>
-
-    </div>
-  </aside>
 
   <div class="navbar-bottom">
     <div class="navbar-bottom-area">
@@ -423,9 +315,6 @@
     </div>
   </div>
 </div>
-
-<!-- Popups são criados dinamicamente por criarPopup() em feed.js -->
-
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
