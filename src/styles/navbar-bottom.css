@@ -360,7 +360,7 @@
       height: 80px;
       background: var(--bg-primary);
       backdrop-filter: blur(20px);
-      border-top: 0.1px solid var(--navbar-border);
+ 
       z-index: 9999;
     }
 

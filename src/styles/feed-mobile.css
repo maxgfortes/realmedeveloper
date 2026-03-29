@@ -1375,12 +1375,14 @@ textarea#postText:focus {
   width: 24px !important;
   height: 24px !important;
   fill: currentColor !important;
+  display: none;
 }
 
 .btn-share svg {
   width: 24px !important;
   height: 24px !important;
   color: transparent;
+  display: none;
 }
 
 .btn-share p {

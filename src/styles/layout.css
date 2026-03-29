@@ -1288,11 +1288,7 @@ textarea#postText:focus {
     margin-left: auto;
     margin-right: auto;
   }
-  
-  .remove-image-btn:hover {
-    background: #c0392b;
-    transform: scale(1.05);
-  }
+
   .btn-like.liked svg,
 .btn-like.liked i,
 .btn-like.liked {

@@ -346,7 +346,7 @@ body {
 #dmSearchInput {
   width: 100%;
   padding: 12px 18px;
-  border-radius: 9999px; 
+  border-radius: 16px; 
   background: #272727;
   border: none;
   color: #fff;
@@ -462,7 +462,6 @@ body {
       height: 80px;
       background: var(--bg-primary);
       backdrop-filter: blur(20px);
-      border-top: 0.1px solid var(--navbar-border) !important;
       z-index: 9999;
     }
 

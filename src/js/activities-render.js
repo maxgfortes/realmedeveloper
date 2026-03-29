@@ -1,6 +1,6 @@
 // ============================================================
-// explore-activities.js — Realme
-// Carrega e renderiza atividades reais do Firestore no explore.html
+// activities-render.js — Realme
+// Versão 2 — layout big+small, swipe-to-delete, ranking inteligente
 // ============================================================
 
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -59,6 +59,20 @@ async function resolveUser(uid) {
   }
 }
 
+// ─── Busca amigos do usuário atual ───────────────────────────────────────────
+async function buscarAmigos(uid) {
+  const amigos = new Set();
+  try {
+    const [followersSnap, followingSnap] = await Promise.all([
+      getDocs(collection(db, `users/${uid}/followers`)),
+      getDocs(collection(db, `users/${uid}/following`))
+    ]);
+    followersSnap.forEach(d => amigos.add(d.id));
+    followingSnap.forEach(d => amigos.add(d.id));
+  } catch (_) {}
+  return amigos;
+}
+
 // ─── Tempo relativo contextual ────────────────────────────────────────────────
 function toMs(ts) {
   if (!ts) return 0;
@@ -66,10 +80,6 @@ function toMs(ts) {
   return new Date(ts).getTime();
 }
 
-/**
- * Retorna fragmento de tempo para uso natural em frases.
- * Ex: "há 5 minutos", "ontem à noite", "há 3 dias"
- */
 function tempoContextual(ms) {
   const diff = Date.now() - ms;
   const m    = Math.floor(diff / 60000);
@@ -79,20 +89,20 @@ function tempoContextual(ms) {
   const periodo = hora < 12 ? 'de manhã' : hora < 18 ? 'à tarde' : 'à noite';
 
   if (diff < 60000)  return 'agora mesmo';
-  if (m < 60)        return `há ${m} minuto${m > 1 ? 's' : ''}`;
-  if (h < 24)        return `há ${h} hora${h > 1 ? 's' : ''}`;
+  if (m < 60)        return `${m}min atrás`;
+  if (h < 24)        return `${h}h atrás`;
   if (d === 1)       return `ontem ${periodo}`;
-  if (d < 7)         return `há ${d} dias`;
+  if (d < 7)         return `${d} dias atrás`;
   if (d < 14)        return 'semana passada';
-  return `há ${d} dias`;
+  return `${d} dias atrás`;
 }
-
 function profileLink(username) {
   return `<a class="act-link" href="profile.html?u=${username}">${username}</a>`;
 }
-function span(text) { return `<span>${text}</span>`; }
+function spanAcao(text)  { return `<span class="act-acao">${text}</span>`; }
+function spanTempo(text) { return `<span class="act-tempo">${text}</span>`; }
 
-// ─── Texto contextual com tempo embutido ─────────────────────────────────────
+// ─── Texto limpo e natural ────────────────────────────────────────────────────
 function gerarTexto(tipo, items, ultimoMs) {
   const primeiro = items[0];
   const n        = items.length;
@@ -114,8 +124,8 @@ function gerarTexto(tipo, items, ultimoMs) {
     casado: 'casado', em_compromisso: 'em compromisso', viuvo: 'viúvo'
   };
   const campoLabel = {
-    bio: 'atualizou a bio', foto: 'mudou a foto de perfil', banner: 'mudou a foto de capa',
-    nome: 'mudou o nome de exibição', pronomes: 'atualizou os pronomes',
+    bio: 'atualizou a bio', foto: 'mudou a foto', banner: 'mudou o banner',
+    nome: 'mudou o nome', pronomes: 'atualizou os pronomes',
     localizacao: 'atualizou a localização', musica: 'mudou a música favorita',
     genero: 'atualizou o gênero', username: 'mudou o username'
   };
@@ -123,53 +133,56 @@ function gerarTexto(tipo, items, ultimoMs) {
   switch (tipo) {
     case 'new_post':
       return n === 1
-        ? `${autor} fez um novo post ${span(tempo)}`
-        : `${autor} fez ${span(n + ' novos posts')} — o mais recente ${span(tempo)}`;
+        ? `${autor} ${spanAcao('publicou um post')} ${spanTempo(tempo)}`
+        : `${autor} ${spanAcao('fez')} ${spanAcao(n + ' novos posts')} ${spanTempo(tempo)}`;
 
     case 'new_bubble':
       return n === 1
-        ? `${autor} publicou um nova nota ${span(tempo)}`
-        : `${autor} publicou ${span(n + ' novas notas')} — o último ${span(tempo)}`;
+        ? `${autor} ${spanAcao('publicou uma nota')} ${spanTempo(tempo)}`
+        : `${autor} ${spanAcao('publicou')} ${spanAcao(n + ' notas')} ${spanTempo(tempo)}`;
 
     case 'new_comment': {
       const alvo = primeiro.targetUsername ? profileLink(primeiro.targetUsername) : 'alguém';
       return n === 1
-        ? `${autor} comentou no post de ${alvo} ${span(tempo)}`
-        : `${autor} deixou ${span(n + ' comentários')} — o mais recente ${span(tempo)}`;
+        ? `${autor} ${spanAcao('comentou em')} ${alvo} ${spanTempo(tempo)}`
+        : `${autor} ${spanAcao('deixou')} ${spanAcao(n + ' comentários')} ${spanAcao('em')} ${alvo} ${spanTempo(tempo)}`;
     }
 
     case 'new_friendship': {
       const amigo = primeiro.targetUsername ? profileLink(primeiro.targetUsername) : 'alguém';
-      return n === 1
-        ? `${autor} e ${amigo} ficaram amigos ${span(tempo)}`
-        : `${autor} fez ${span(n + ' novas amizades')} ${span(tempo)}`;
+      return `${autor} ${spanAcao('e')} ${amigo} ${spanAcao('são amigos agora')} • ${spanTempo(tempo)}`;
     }
 
     case 'profile_update': {
-      const acao = campoLabel[primeiro.campo] || 'atualizou o perfil';
-      return diffDays === 1
-        ? `${autor} ${span(acao)} ontem`
-        : `${autor} ${span(acao)} ${span(tempo)}`;
+      const campos = Array.isArray(primeiro.campos) ? primeiro.campos : [primeiro.campo];
+      if (campos.length === 1) {
+        const acao = campoLabel[campos[0]] || 'atualizou o perfil';
+        return diffDays === 1
+          ? `${autor} ${spanAcao(acao)} ${spanTempo('ontem')}`
+          : `${autor} ${spanAcao(acao)} ${spanTempo(tempo)}`;
+      }
+      const acoes = campos.map(c => campoLabel[c] || c).join(', ');
+      return `${autor} ${spanAcao('atualizou o perfil')} — ${spanAcao(acoes)} ${spanTempo(tempo)}`;
     }
 
     case 'status_change': {
       const novoStatus = statusLabel[primeiro.novoStatus] || primeiro.novoStatus;
-      if (diffDays === 0) return `${autor} mudou o status para ${span(novoStatus)} ${span(tempo)}`;
-      if (diffDays === 1) return `desde ontem, ${autor} está ${span(novoStatus)}`;
-      return `${autor} está ${span(novoStatus)} desde ${span(tempo)}`;
+      return diffDays === 0
+        ? `${autor} ${spanAcao('está')} ${spanAcao(novoStatus)} ${spanTempo(tempo)}`
+        : `${autor} ${spanAcao('está')} ${spanAcao(novoStatus)} ${spanAcao('desde')} ${spanTempo(tempo)}`;
     }
 
     case 'new_user':
       return n === 1
-        ? `${autor} entrou no Realme ${span(tempo)} 👋`
-        : `${listarNomes(autoresLinks)} entraram no Realme ${span(tempo)} 👋`;
+        ? `${autor} ${spanAcao('chegou ao Realme')} ${spanTempo(tempo)} 👋`
+        : `${listarNomes(autoresLinks)} ${spanAcao('entraram no Realme')} ${spanTempo(tempo)} 👋`;
 
     default:
-      return `${autor} fez algo novo ${span(tempo)}`;
+      return `${autor} ${spanAcao('fez algo novo')} ${spanTempo(tempo)}`;
   }
 }
 
-// ─── isBig — define qual template usar ──────────────────────────────────────
+// ─── isBig ────────────────────────────────────────────────────────────────────
 function isBig(tipo) {
   return ['new_post', 'new_bubble', 'new_friendship', 'new_user'].includes(tipo);
 }
@@ -198,99 +211,251 @@ function agrupar(atividades) {
   return grupos;
 }
 
-// ─── CSS ─────────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// ALGORITMO DE RANKING
+// ════════════════════════════════════════════════════════════════════════════
+/**
+ * Calcula score de cada grupo para ordenação final.
+ *
+ * Base: score cronológico decrescente (mais recente = maior score).
+ * Modificadores:
+ *   +40%  se o ator for amigo do usuário atual
+ *   +15%  se o tipo for "big" (mais relevante)
+ *   Fator de redescoberta aleatória: ±10% para quebrar monotonia
+ *     — aplicado com peso menor em atividades muito recentes (< 6h)
+ *
+ * Uma atividade de amigo de 3 dias atrás ainda pode superar
+ * um desconhecido de 1 dia atrás, mas nunca supera algo de horas atrás.
+ */
+function calcularRanking(grupos, amigosSet) {
+  const agora = Date.now();
+
+  return grupos.map(grupo => {
+    const ageMs    = agora - grupo.ultimoMs;
+    const ageHours = ageMs / 3600000;
+
+    // Score base: decai com o tempo (0 a 1, 1 = agora, 0 ≈ 2 semanas)
+    const baseScore = Math.max(0, 1 - ageMs / DUAS_SEMANAS_MS);
+
+    // Boost de amigo
+    const isAmigo    = grupo.items.some(i => amigosSet.has(i.actorUid));
+    const friendBoost = isAmigo ? 0.40 : 0;
+
+    // Boost de tipo big
+    const typeBoost = isBig(grupo.tipo) ? 0.15 : 0;
+
+    // Fator de redescoberta — menor para conteúdo muito fresco
+    const recentDamp = ageHours < 6 ? 0.02 : 0.10;
+    const redescoberta = (Math.random() * 2 - 1) * recentDamp;
+
+    const score = baseScore * (1 + friendBoost + typeBoost) + redescoberta;
+
+    return { ...grupo, _score: score, _isAmigo: isAmigo };
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// INJETAR CSS
+// ════════════════════════════════════════════════════════════════════════════
 function injetarCSS() {
   if (document.getElementById('xact-style')) return;
   const s = document.createElement('style');
   s.id = 'xact-style';
-  s.textContent = ``;
+  s.textContent = `
+  
+  `;
   document.head.appendChild(s);
 }
 
-// ─── Renderiza card grande (act-big) ─────────────────────────────────────────
+// ─── Monta bloco de avatares (1 ou 2 fotos) ──────────────────────────────────
+function avatarsHtml(fotos) {
+  if (fotos.length >= 2) {
+    return `<div class="act-avatars duo">
+      <img src="${fotos[0]}" onerror="this.src='${DEFAULT_PHOTO}'" loading="lazy">
+      <img src="${fotos[1]}" onerror="this.src='${DEFAULT_PHOTO}'" loading="lazy">
+    </div>`;
+  }
+  return `<div class="act-avatars single">
+    <img src="${fotos[0] || DEFAULT_PHOTO}" onerror="this.src='${DEFAULT_PHOTO}'" loading="lazy">
+  </div>`;
+}
+
+// ─── Renderiza card grande ────────────────────────────────────────────────────
 function renderBigCard(grupo, currentUid) {
-  const { tipo, items, ultimoMs } = grupo;
+  const { tipo, items, ultimoMs, _isAmigo } = grupo;
   const ids    = items.map(i => i.activityId).join(',');
   const isDono = items.some(i => i.actorUid === currentUid);
   const texto  = gerarTexto(tipo, items, ultimoMs);
 
-  const fotos = [...new Set(items.map(i => i.authorPhoto).filter(Boolean))].slice(0, 3);
-  const autoresUnicos = [...new Map(items.map(i => [i.actorUid, i])).values()].slice(0, 2);
+  // Para new_friendship pega foto do ator + foto do target; demais pega fotos dos atores únicos
+  let fotos;
+  if (tipo === 'new_friendship' && items[0].targetPhoto) {
+    fotos = [items[0].authorPhoto || DEFAULT_PHOTO, items[0].targetPhoto].filter(Boolean);
+  } else {
+    fotos = [...new Map(items.map(i => [i.actorUid, i.authorPhoto])).values()].filter(Boolean).slice(0, 2);
+  }
 
-  const profilePhotosHtml = fotos.length > 1
-    ? `<div class="profile-photos">${fotos.map((f, idx) =>
-        `<div class="image user-img${idx + 1}"><img src="${f}" onerror="this.src='${DEFAULT_PHOTO}'"></div>`
-      ).join('')}</div>`
-    : `<img src="${fotos[0] || DEFAULT_PHOTO}" onerror="this.src='${DEFAULT_PHOTO}'">`;
-
-  const userInfoHtml = autoresUnicos.map(item => `
-    <div class="user-info">
-      <div class="act-udisplay">${item.authorNome || item.authorUsername || item.actorUid}</div>
-      <div class="act-username">@${item.authorUsername || item.actorUid}</div>
-    </div>`).join('');
+  const badgeHtml = _isAmigo ? `<span class="act-friend-badge">amigo</span>` : '';
 
   return `
-  <div class="act-big" data-ids="${ids}">
-    <div class="act-header">
-      ${profilePhotosHtml}
-      ${userInfoHtml}
-      ${isDono ? `<button class="xact-del" data-ids="${ids}"><i class="fas fa-trash-can"></i></button>` : ''}
-    </div>
-    <div class="act-content">
-      <p>${texto}</p>
+  <div class="act-swipe-wrapper">
+    <div class="act-big" data-ids="${ids}" data-dono="${isDono}">
+      <div class="act-inner">
+        <div>
+          ${avatarsHtml(fotos)}
+          ${badgeHtml}
+        </div>
+        <div class="act-text"><p>${texto}</p></div>
+      </div>
     </div>
   </div>`;
 }
 
-// ─── Renderiza card pequeno (act-small) ──────────────────────────────────────
+// ─── Renderiza card pequeno — agora usa layout big ───────────────────────────
 function renderSmallCard(grupo, currentUid) {
-  const { tipo, items, ultimoMs } = grupo;
+  const { tipo, items, ultimoMs, _isAmigo } = grupo;
   const ids    = items.map(i => i.activityId).join(',');
   const isDono = items.some(i => i.actorUid === currentUid);
   const texto  = gerarTexto(tipo, items, ultimoMs);
   const foto   = items[0].authorPhoto || DEFAULT_PHOTO;
-  const nome   = items[0].authorNome || items[0].authorUsername || items[0].actorUid;
+
+  const fotos = [...new Map(items.map(i => [i.actorUid, i.authorPhoto])).values()].filter(Boolean).slice(0, 2);
+  if (!fotos.length) fotos.push(foto);
+
+  const badgeHtml = _isAmigo ? `<span class="act-friend-badge">amigo</span>` : '';
 
   return `
-  <div class="act-small" data-ids="${ids}">
-    <div class="act-header">
-      <img src="${foto}" onerror="this.src='${DEFAULT_PHOTO}'">
-      <div class="user-info">
-        <div class="act-udisplay">${nome}</div>
+  <div class="act-swipe-wrapper">
+    <div class="act-delete-hint"><i class="fas fa-trash-can"></i></div>
+    <div class="act-big" data-ids="${ids}" data-dono="${isDono}">
+      <div class="act-inner">
+        <div>
+          ${avatarsHtml(fotos)}
+          ${badgeHtml}
+        </div>
+        <div class="act-text"><p>${texto}</p></div>
       </div>
-      ${isDono ? `<button class="xact-del" data-ids="${ids}"><i class="fas fa-trash-can"></i></button>` : ''}
-    </div>
-    <div class="act-content-small">
-      <p>${texto}</p>
     </div>
   </div>`;
 }
 
-// ─── Layout: big sozinho, smalls em pares .act-doble ─────────────────────────
+// ─── Layout: todos os cards em coluna, sem pares ─────────────────────────────
 function montarLayout(grupos, currentUid) {
-  const htmlParts  = [];
-  let smallBuffer  = [];
+  return grupos.map(grupo => {
+    if (isBig(grupo.tipo)) return renderBigCard(grupo, currentUid);
+    return renderSmallCard(grupo, currentUid);
+  }).join('\n');
+}
 
-  function flushSmall() {
-    if (!smallBuffer.length) return;
-    for (let i = 0; i < smallBuffer.length; i += 2) {
-      htmlParts.push(i + 1 < smallBuffer.length
-        ? `<div class="act-doble">${smallBuffer[i]}${smallBuffer[i + 1]}</div>`
-        : smallBuffer[i]);
-    }
-    smallBuffer = [];
+// ════════════════════════════════════════════════════════════════════════════
+// SWIPE TO REVEAL DELETE BUTTON
+// ════════════════════════════════════════════════════════════════════════════
+const SWIPE_THRESHOLD  = 60;   // px para revelar o botão
+const SWIPE_MAX        = 100;  // px máximo de arrasto
+
+function ativarSwipeDelete(container, currentUid) {
+  // Fecha todos os cards abertos exceto o alvo
+  function fecharOutros(exceptWrapper) {
+    container.querySelectorAll('.act-swipe-wrapper.open').forEach(w => {
+      if (w === exceptWrapper) return;
+      const c = w.querySelector('.act-big');
+      if (c) {
+        c.style.transition = 'transform .2s ease';
+        c.style.transform  = 'translateX(0)';
+      }
+      w.classList.remove('open');
+    });
   }
 
-  for (const grupo of grupos) {
-    if (isBig(grupo.tipo)) {
-      flushSmall();
-      htmlParts.push(renderBigCard(grupo, currentUid));
-    } else {
-      smallBuffer.push(renderSmallCard(grupo, currentUid));
+  container.querySelectorAll('.act-big').forEach(card => {
+    const isDono  = card.dataset.dono === 'true';
+    const wrapper = card.closest('.act-swipe-wrapper');
+    const hint    = wrapper?.querySelector('.act-delete-hint');
+    if (!wrapper || !hint) return;
+
+    // Injeta botão de apagar no hint (uma vez)
+    if (!hint.querySelector('.act-delete-btn')) {
+      hint.innerHTML = `<button class="act-delete-btn"> Apagar</button>`;
     }
-  }
-  flushSmall();
-  return htmlParts.join('\n');
+    const btn = hint.querySelector('.act-delete-btn');
+
+    // Clique no botão confirma a exclusão
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!isDono) return;
+
+      card.style.transition = 'transform .25s ease, opacity .25s ease';
+      card.style.transform  = 'translateX(-110%)';
+      card.style.opacity    = '0';
+      await new Promise(r => setTimeout(r, 250));
+
+      const ids = card.dataset.ids.split(',').filter(id => !id.startsWith('_'));
+      await Promise.all(ids.map(id => deleteDoc(doc(db, 'activities', id)).catch(() => {})));
+
+      const doble = wrapper.closest('.act-doble');
+      if (doble) {
+        wrapper.remove();
+        if (!doble.querySelector('.act-swipe-wrapper')) doble.remove();
+      } else {
+        wrapper.remove();
+      }
+    });
+
+    let startX = 0, currentX = 0, dragging = false;
+
+    function onStart(e) {
+      if (!isDono) return;
+      const touch = e.touches ? e.touches[0] : e;
+      startX   = touch.clientX;
+      currentX = 0;
+      dragging = true;
+      card.classList.add('swiping');
+      fecharOutros(wrapper);
+    }
+
+    function onMove(e) {
+      if (!dragging) return;
+      const touch = e.touches ? e.touches[0] : e;
+      const dx = Math.min(0, touch.clientX - startX);
+      currentX = Math.max(dx, -SWIPE_MAX);
+      card.style.transform = `translateX(${currentX}px)`;
+    }
+
+    function onEnd() {
+      if (!dragging) return;
+      dragging = false;
+      card.classList.remove('swiping');
+
+      if (Math.abs(currentX) >= SWIPE_THRESHOLD && isDono) {
+        // Mantém aberto — usuário precisa clicar em "Apagar"
+        card.style.transition = 'transform .2s ease';
+        card.style.transform  = `translateX(-${SWIPE_MAX}px)`;
+        wrapper.classList.add('open');
+      } else {
+        // Volta ao lugar
+        card.style.transition = 'transform .2s ease';
+        card.style.transform  = 'translateX(0)';
+        wrapper.classList.remove('open');
+      }
+    }
+
+    // Fecha ao clicar fora
+    document.addEventListener('click', (e) => {
+      if (wrapper.classList.contains('open') && !wrapper.contains(e.target)) {
+        card.style.transition = 'transform .2s ease';
+        card.style.transform  = 'translateX(0)';
+        wrapper.classList.remove('open');
+      }
+    });
+
+    card.addEventListener('touchstart', onStart, { passive: true });
+    card.addEventListener('touchmove',  onMove,  { passive: true });
+    card.addEventListener('touchend',   onEnd);
+
+    card.addEventListener('mousedown', e => { if (isDono) onStart(e); });
+    document.addEventListener('mousemove', e => { if (dragging) onMove(e); });
+    document.addEventListener('mouseup',   () => { if (dragging) onEnd(); });
+  });
 }
 
 // ─── Função principal ─────────────────────────────────────────────────────────
@@ -299,7 +464,7 @@ async function carregarAtividades() {
   const container = document.getElementById('activities-section');
   if (!container) return;
 
-  container.innerHTML = `<div class="xact-loading"></div>`;
+  container.innerHTML = `<div class="loading-area"><div class="xact-loading"></div></div>`;
 
   const user = await esperarAuth();
   if (!user) {
@@ -310,13 +475,17 @@ async function carregarAtividades() {
   try {
     const duasSemanasAtras = Timestamp.fromMillis(Date.now() - DUAS_SEMANAS_MS);
 
-    const snap = await getDocs(query(
-      collection(db, 'activities'),
-      where('createdAt', '>=', duasSemanasAtras),
-      where('visible', '==', true),
-      orderBy('createdAt', 'desc'),
-      limit(150)
-    ));
+    // Busca atividades e amigos em paralelo
+    const [snap, amigosSet] = await Promise.all([
+      getDocs(query(
+        collection(db, 'activities'),
+        where('createdAt', '>=', duasSemanasAtras),
+        where('visible', '==', true),
+        orderBy('createdAt', 'desc'),
+        limit(150)
+      )),
+      buscarAmigos(user.uid)
+    ]);
 
     let atividades = snap.docs.map(d => ({ activityId: d.id, ...d.data() }));
 
@@ -348,44 +517,36 @@ async function carregarAtividades() {
         });
       }
     } catch (e) {
-      console.warn('[explore-activities] Erro ao varrer newusers:', e);
+      console.warn('[activities-render] Erro ao varrer newusers:', e);
     }
 
+    // Ordena cronologicamente antes de agrupar
     atividades.sort((a, b) => toMs(b.createdAt) - toMs(a.createdAt));
+
+    // Agrupa
     const grupos = agrupar(atividades);
 
     if (!grupos.length) {
-      container.innerHTML = `<p class="xact-empty">Nenhuma atividade recente ainda</p>`;
+      container.innerHTML = `<p class="xact-empty">Nenhuma atividade recente ainda.</p>`;
       return;
     }
 
-    container.innerHTML = `<div class="xact-list">${montarLayout(grupos, user.uid)}</div>`;
+    // Aplica ranking com peso de amizade + redescoberta
+    const gruposRankeados = calcularRanking(grupos, amigosSet)
+      .sort((a, b) => b._score - a._score);
 
-    // Long-press deletar (só dono)
-    container.querySelectorAll('.act-big, .act-small').forEach(card => {
-      let timer = null;
-      card.addEventListener('pointerdown',  () => { timer = setTimeout(() => card.classList.add('show-del'), 600); });
-      card.addEventListener('pointerup',    () => clearTimeout(timer));
-      card.addEventListener('pointerleave', () => clearTimeout(timer));
-      document.addEventListener('pointerdown', e => {
-        if (!card.contains(e.target)) card.classList.remove('show-del');
-      }, { passive: true });
-    });
+    container.innerHTML = `
+    <div class="xact-list">${montarLayout(gruposRankeados, user.uid)}</div>
+    <div class="end-feed">
+    <h3>As atividades acabaram...</h3>
+    <p>ja viu tudo? porque não puxar assunto com alguém agora?</p>
+    </div>`;
 
-    container.querySelectorAll('.xact-del').forEach(btn => {
-      btn.addEventListener('click', async e => {
-        e.stopPropagation();
-        const card = btn.closest('.act-big, .act-small');
-        card.style.opacity = '.3';
-        card.style.pointerEvents = 'none';
-        const ids = btn.dataset.ids.split(',').filter(id => !id.startsWith('_'));
-        await Promise.all(ids.map(id => deleteDoc(doc(db, 'activities', id)).catch(() => {})));
-        card.remove();
-      });
-    });
+    // Ativa swipe-to-delete
+    ativarSwipeDelete(container, user.uid);
 
   } catch (err) {
-    console.error('[explore-activities] Erro:', err);
+    console.error('[activities-render] Erro:', err);
     container.innerHTML = `<p class="xact-empty">Não foi possível carregar as atividades.</p>`;
   }
 }

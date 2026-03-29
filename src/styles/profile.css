@@ -1656,7 +1656,7 @@ background: #fff;
       padding: 12px 12px;
       padding-bottom: max(40px, env(safe-area-inset-bottom));
       background: var(--bg-primary);
-      border-top: 0.1px solid var(--navbar-border);
+ 
       backdrop-filter: blur(20px);
       gap: 12px;
     }
@@ -2413,9 +2413,7 @@ background: #fff;
 }
 
 
-.liked {
-  color: red;
-}
+
 
 
     /* Navbar Top */
@@ -3580,7 +3578,7 @@ background: #fff;
       padding: 12px 12px;
       padding-bottom: max(40px, env(safe-area-inset-bottom));
       background: var(--bg-primary);
-      border-top: 0.1px solid var(--navbar-border);
+ 
       backdrop-filter: blur(20px);
       gap: 12px;
     }
