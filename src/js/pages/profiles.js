@@ -1086,7 +1086,7 @@ async function carregarPosts(uid) {
       c.classList.add('empty-posts');
       c.innerHTML = `
         <div class="about-box" style="text-align:center;padding:30px;width:100%!important;">
-          <div class="icon-area"><div class="icon-place"><i class="fa-regular fa-camera" style="font-size:38px;color:#fff;"></i></div></div>
+          <div class="icon-area"><div class="icon-place"><i class="fa-solid fa-pen-to-square" style="font-size:38px;color:#fff;"></i></div></div>
           <h3 style="color:#fff;margin-bottom:12px;">Nenhum post ainda</h3>
           <p style="color:#555;">Este usuário ainda não fez nenhum post.</p>
         </div>`;
@@ -1114,7 +1114,7 @@ async function carregarPosts(uid) {
         c.classList.add('empty-posts');
         c.innerHTML = `
           <div class="about-box" style="text-align:center;padding:30px;width:100%!important;">
-            <div class="icon-area"><div class="icon-place"><i class="fa-regular fa-camera" style="font-size:38px;color:#fff;"></i></div></div>
+            <div class="icon-area"><div class="icon-place"><i class="fa-solid fa-pen-to-square" style="font-size:38px;color:#fff;"></i></i></div></div>
             <h3 style="color:#fff;margin-bottom:12px;">Nenhum post ainda</h3>
             <p style="color:#555;">Este usuário ainda não fez nenhum post.</p>
           </div>`;
