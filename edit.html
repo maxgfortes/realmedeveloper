@@ -2,22 +2,19 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Profile's</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>RealMe</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-  <link rel="stylesheet" href="./src/styles/base.css">
-  <link rel="stylesheet" href="./src/styles/edit.css">
-  <link rel="stylesheet" href="./src/styles/navbar-bottom.css">
-  <link rel="stylesheet" href="./src/styles/root.css" />
-  <link rel="icon" href="./src/icon/icon.png" type="image/png" />
+  <link rel="stylesheet" href="../src/styles/base.css">
+  <link rel="stylesheet" href="../src/styles/edit.css">
+  <link rel="stylesheet" href="../src/styles/root.css" />
+  <link rel="icon" href="../public/img/icon.png" type="image/png" />
   <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#020202">
+  <meta name="theme-color" content="#0f0f0f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="screen-orientation" content="portrait">
   <meta name="x5-orientation" content="portrait">
-
-  <!-- Social preview -->
   <meta property="og:title" content="RealMe">
   <meta property="og:description" content="Entre no RealMe ainda hoje e seja você mesmo!">
   <meta property="og:url" content="https://maxgfortes.github.io/realme/PF.html">
@@ -27,7 +24,10 @@
 </head>
 <body>
 
-  <!-- Navbar Top -->
+
+
+
+  
   <nav class="navbar-top">
     <div class="top-left">
       <button onclick="window.history.back()">
@@ -45,21 +45,19 @@
       </a>
     </div>
   </nav>
-
   <div class="page-container">
     <div class="media-area"> 
       <div class="pfp-container">
         <div class="pfp-area">
-          <img src="./src/img/default.jpg" alt="pfp" class="pfp">
+          <img src="./public/img/default.jpg" alt="pfp" class="pfp">
         </div>
       </div>
       <div class="banner-container">
         <div class="banner-area">
-          <img src="./src/img/bg.jpg" alt="banner" class="banner">
+          <img src="../public/img/bg.jpg" alt="banner" class="banner">
         </div>
       </div>
     </div>
-
     <div class="major-container">
       <div class="label-container">
         <div class="label-left">
@@ -152,14 +150,10 @@
         </div>
       </div>
     </div>
-
     <div class="major-container link" id="links-container">
-
-      <!-- Título clicável com seta -->
       <div class="config-title" id="links-toggle">
         Links
       </div>
-
       <div class="links-list">
         <div class="label-container">
           <div class="label-left link">
@@ -172,7 +166,6 @@
             </div>
           </div>
         </div>
-
         <div class="label-container">
           <div class="label-left link">
             <div class="label-title"><i class="fa-brands fa-x-twitter"></i></div>
@@ -184,7 +177,6 @@
             </div>
           </div>
         </div>
-
         <div class="label-container">
           <div class="label-left link">
             <div class="label-title"><i class="fab fa-spotify"></i></div>
@@ -196,7 +188,6 @@
             </div>
           </div>
         </div>
-
         <div class="label-container">
           <div class="label-left link">
             <div class="label-title"><i class="fab fa-tiktok"></i></div>
@@ -208,7 +199,6 @@
             </div>
           </div>
         </div>
-
         <div class="label-container">
           <div class="label-left link">
             <div class="label-title"><i class="fab fa-pinterest"></i></div>
@@ -220,7 +210,6 @@
             </div>
           </div>
         </div>
-
         <div class="label-container">
           <div class="label-left link">
             <div class="label-title"><i class="fa-brands fa-reddit-alien"></i></div>
@@ -232,7 +221,6 @@
             </div>
           </div>
         </div>
-
         <div class="label-container">
           <div class="label-left link">
             <div class="label-title"><i class="fab fa-facebook"></i></div>
@@ -244,7 +232,6 @@
             </div>
           </div>
         </div>
-
         <div class="label-container">
           <div class="label-left link">
             <div class="label-title"><i class="fab fa-youtube"></i></div>
@@ -256,7 +243,6 @@
             </div>
           </div>
         </div>
-
         <div class="label-container">
           <div class="label-left link">
             <div class="label-title"><i class="fab fa-discord"></i></div>
@@ -268,7 +254,6 @@
             </div>
           </div>
         </div>
-
         <div class="label-container">
           <div class="label-left link">
             <div class="label-title"><i class="fab fa-playstation"></i></div>
@@ -280,15 +265,15 @@
             </div>
           </div>
         </div>
-      </div><!-- .links-list -->
-
-    </div><!-- #links-container -->
-
+      </div>
+    </div>
     <div class="save-area">
       <button class="save-btn">Salvar</button>
     </div>
-  </div><!-- .page-container -->
-
-  <script type="module" src="./src/js/edit.js"></script> 
+  </div>
 </body>
+<script type="module" src="./src/js/pages/edit.js"></script> 
+<script type="module" src="./src/modules/auth-verification.js"></script>
+<script type="module" src="../src/components/pc-alert.js"></script>
 </html>
+
