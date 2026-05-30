@@ -998,7 +998,6 @@ function _injectTimelineStyles() {
       flex-shrink: 0;
       transition: background 0.15s;
     }
-    .ptl-back-btn:hover { background: rgba(255,255,255,0.07); }
     .ptl-header-center {
       display: flex;
       flex-direction: column;
