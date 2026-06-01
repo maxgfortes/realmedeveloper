@@ -436,9 +436,6 @@ body.modal-open {
       color: #fff;
     }
 
-    .user-name-link:hover {
-      color: var(--primary-color);
-    }
 
 
     .comment-form {
@@ -643,9 +640,9 @@ body.modal-open {
 .avatar {
   width: 46px !important;
   height: 46px !important;
+  aspect-ratio: 1/1;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid #373737;
 }
 
 .user-meta {

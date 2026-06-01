@@ -460,6 +460,33 @@ function mostrarSkeletonMensagens() {
   dmMessages.appendChild(frag);
 }
 
+// ── Formatar label do separador de tempo ──────────────────────────────────────
+function formatarLabelSeparador(date) {
+  const agora   = new Date();
+  const hoje    = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  const ontem   = new Date(hoje); ontem.setDate(hoje.getDate() - 1);
+  const dataMsg = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  const hhmm = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+  if (dataMsg.getTime() === hoje.getTime())    return `hoje às ${hhmm}`;
+  if (dataMsg.getTime() === ontem.getTime())   return `ontem às ${hhmm}`;
+
+  const diffDias = Math.floor((hoje - dataMsg) / 86_400_000);
+  if (diffDias < 7) {
+    const dia = date.toLocaleDateString("pt-BR", { weekday: "long" });
+    return `${dia} às ${hhmm}`;
+  }
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) + ` às ${hhmm}`;
+}
+
+function criarSeparadorTempo(label) {
+  const sep = document.createElement("div");
+  sep.className = "dm-time-separator";
+  sep.innerHTML = `<span>${label}</span>`;
+  return sep;
+}
+
 // ── Renderizar mensagens ───────────────────────────────────────────────────────
 function renderizarMensagens(mensagens) {
   const frag     = document.createDocumentFragment();
@@ -473,8 +500,40 @@ function renderizarMensagens(mensagens) {
     if (visiveis[i].sender === loggedUser) { lastUserMsgIdx = i; break; }
   }
 
+  const GAP_SEPARADOR_MS = 4 * 60 * 60 * 1000; // 4 horas
+  let lastMsgDate = null;
+
   visiveis.forEach((m, idx) => {
     const isSender = m.sender === loggedUser;
+
+    // ── Separadores de tempo ────────────────────────────────────────────────
+    const tsRaw  = m.timestamp
+      ? (m.timestamp.toDate ? m.timestamp.toDate() : new Date(m.timestamp.seconds * 1000))
+      : null;
+
+    if (tsRaw) {
+      const msgDay = new Date(tsRaw.getFullYear(), tsRaw.getMonth(), tsRaw.getDate()).getTime();
+
+      if (!lastMsgDate) {
+        // Primeira mensagem: sempre mostra separador
+        frag.appendChild(criarSeparadorTempo(formatarLabelSeparador(tsRaw)));
+      } else {
+        const lastDay = new Date(lastMsgDate.getFullYear(), lastMsgDate.getMonth(), lastMsgDate.getDate()).getTime();
+        const gapMs   = tsRaw - lastMsgDate;
+
+        if (msgDay !== lastDay) {
+          // Mudou o dia
+          frag.appendChild(criarSeparadorTempo(formatarLabelSeparador(tsRaw)));
+          lastSender = null; // forçar novo bloco de bolhas após separador
+        } else if (gapMs >= GAP_SEPARADOR_MS) {
+          // Mesmo dia mas gap ≥ 4h
+          frag.appendChild(criarSeparadorTempo(formatarLabelSeparador(tsRaw)));
+          lastSender = null; // forçar novo bloco de bolhas após separador
+        }
+      }
+      lastMsgDate = tsRaw;
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     if (m.sender !== lastSender) {
       bloco = document.createElement("div");
@@ -642,7 +701,6 @@ function adicionarGestos(bubble, msg, isSender) {
     if (!icon) {
       icon = document.createElement("span");
       icon.className   = "swipe-reply-icon";
-      icon.textContent = "↩";
       bubble.parentElement.appendChild(icon);
       bubble._replyIcon = icon;
     }
@@ -692,9 +750,9 @@ function mostrarContextMenu(bubble, msg, isSender) {
   });
   menu.appendChild(reacRow);
 
-  const acoes = [{ icon: "↩", label: "Responder", fn: () => iniciarReply(msg) }];
-  if (isSender) acoes.push({ icon: "🗑", label: "Apagar", fn: () => apagarMensagem(msg.id) });
-  acoes.push({ icon: "📋", label: "Copiar", fn: () => { navigator.clipboard?.writeText(msg.content || ""); fecharContextoAtivo(); } });
+  const acoes = [{ icon: "", label: "Responder", fn: () => iniciarReply(msg) }];
+  if (isSender) acoes.push({ icon: "", label: "Apagar", fn: () => apagarMensagem(msg.id) });
+  acoes.push({ icon: "", label: "Copiar", fn: () => { navigator.clipboard?.writeText(msg.content || ""); fecharContextoAtivo(); } });
 
   acoes.forEach(({ icon, label, fn }) => {
     const item = document.createElement("button");

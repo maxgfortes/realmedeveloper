@@ -226,7 +226,7 @@ function gerarTexto(tipo, items, ultimoMs) {
     primeiro.authorUsername || primeiro.actorUid
   );
 
-  const tempo = spanDate(
+  const tempo = spanTempo(
     tempoContextual(ultimoMs)
   );
 
@@ -438,7 +438,7 @@ function renderBigCard(grupo, currentUid) {
         <div>
           ${avatarsHtml(fotos)}
         </div>
-        <div class="act-text"><p>${texto}.</p></div>
+        <div class="act-text"><p>${texto}</p></div>
       </div>
     </div>
   </div>`;
@@ -465,7 +465,7 @@ function renderSmallCard(grupo, currentUid) {
         <div>
           ${avatarsHtml(fotos)}
         </div>
-        <div class="act-text"><p>${texto}.</p></div>
+        <div class="act-text"><p>${texto}</p></div>
       </div>
     </div>
   </div>`;

@@ -172,14 +172,13 @@ function attachSwipe(boxEl) {
 // AMIZADE — aceitar / recusar
 // ─────────────────────────────────────────────────────────
 async function aceitarAmizade(fromUid, meUid) {
-  const now = serverTimestamp();
-  const batch = [
-    setDoc(doc(db, `users/${meUid}/friends/${fromUid}`),  { uid: fromUid, since: now }),
-    setDoc(doc(db, `users/${fromUid}/friends/${meUid}`),  { uid: meUid,   since: now }),
-    deleteDoc(doc(db, `friendRequests/${fromUid}_${meUid}`)),
-    deleteDoc(doc(db, `friendRequests/${meUid}_${fromUid}`)),
-  ];
-  await Promise.all(batch);
+  // fromUid = quem enviou (resource.data.from)
+  // meUid   = quem aceita (resource.data.to) — auth.uid deve ser este
+  // updateDoc só toca status+acceptedAt, compatível com a security rule
+  await updateDoc(doc(db, `friendRequests/${fromUid}_${meUid}`), {
+    status: "accepted",
+    acceptedAt: serverTimestamp(),
+  });
 }
 
 async function recusarAmizade(fromUid, meUid) {

@@ -2,12 +2,16 @@
 // FIREBASE
 // ═══════════════════════════════════════════════════════════
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, getDoc, getDocs, addDoc, onSnapshot, collection, query, orderBy, where, setDoc, updateDoc, deleteDoc, serverTimestamp, limit, startAfter } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import {
+  getFirestore, doc, getDoc, getDocs, addDoc, onSnapshot,
+  collection, query, orderBy, where, setDoc, updateDoc,
+  deleteDoc, serverTimestamp, limit, startAfter,
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { triggerNovaAmizade } from '../../components/activitie-creator.js';
-import { openProfileTimeline } from '../../components/posts.js';
+import { openProfileTimeline, renderPost } from '../../components/posts.js';
 
-const app  = getApps().length ? getApps()[0] : initializeApp({
+const app = getApps().length ? getApps()[0] : initializeApp({
   apiKey:            "AIzaSyB2N41DiH0-Wjdos19dizlWSKOlkpPuOWs",
   authDomain:        "ifriendmatch.firebaseapp.com",
   projectId:         "ifriendmatch",
@@ -30,26 +34,23 @@ let profileUserId      = null;
 let profileUsername    = '';
 let currentProfileData = null;
 let postsDoUsuario     = [];
-let _lastPostSnap       = null;
+let _lastPostSnap      = null;
 let _profileUidForPosts = null;
-let _gridLoading        = false;
-let _gridNoMore         = false;
-let _gridObserver       = null;
+let _gridLoading       = false;
+let _gridNoMore        = false;
+let _gridObserver      = null;
+const _unsubs          = []; // todos os listeners ativos
 
 // ═══════════════════════════════════════════════════════════
 // HELPERS DOM
 // ═══════════════════════════════════════════════════════════
-const $   = id  => document.getElementById(id);
-const $q  = sel => document.querySelector(sel);
-const $qa = sel => document.querySelectorAll(sel);
+const $    = id  => document.getElementById(id);
+const $q   = sel => document.querySelector(sel);
 const urlParam = name => new URLSearchParams(window.location.search).get(name);
 
 function getDisplayName(d) { return d?.displayName || d?.displayname || d?.name || d?.username || 'Usuário'; }
 function getUsername(d)    { return d?.username || ''; }
-
-function safe(fn) {
-  try { fn(); } catch (e) { console.warn(e); }
-}
+function safe(fn)          { try { fn(); } catch (e) { console.warn(e); } }
 
 function mostrarErro(msg) {
   const c = $q('.full-profile-container');
@@ -91,14 +92,12 @@ async function getUserPhoto(uid) {
   } catch { return './public/img/default.jpg'; }
 }
 
-// localStorage perfil — TTL 7 dias, stale após 5 min
-const LS_PFX   = 'profile_cache_';
-const LS_TTL   = 7 * 24 * 60 * 60 * 1000;
-const LS_STALE = 5 * 60 * 1000;
-
-// Cache de UID resolvido por username — evita 3 round-trips repetidos
+// localStorage — TTL 7 dias, stale após 5 min
+const LS_PFX    = 'profile_cache_';
+const LS_TTL    = 7 * 24 * 60 * 60 * 1000;
+const LS_STALE  = 5 * 60 * 1000;
 const LS_UID_PFX = 'uid_cache_';
-const LS_UID_TTL = 30 * 60 * 1000; // 30 min
+const LS_UID_TTL = 30 * 60 * 1000;
 
 function lsSaveUid(username, uid) {
   try { localStorage.setItem(LS_UID_PFX + username, JSON.stringify({ ts: Date.now(), uid })); } catch {}
@@ -112,7 +111,6 @@ function lsGetUid(username) {
     return uid;
   } catch { return null; }
 }
-
 function lsSave(key, data) {
   try { localStorage.setItem(LS_PFX + key, JSON.stringify({ ts: Date.now(), data })); } catch {}
 }
@@ -141,104 +139,93 @@ function lsClean() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// CARREGAR DADOS — tudo em paralelo
-// ═══════════════════════════════════════════════════════════
-async function carregarDados(uid) {
-  try {
-    const [userDoc, mediaDoc, likesDoc, aboutDoc, moreDoc, linksDoc] = await Promise.all([
-      getDoc(doc(db, 'users', uid)),
-      getDoc(doc(db, `users/${uid}/user-infos/user-media`)),
-      getDoc(doc(db, `users/${uid}/user-infos/likes`)),
-      getDoc(doc(db, `users/${uid}/user-infos/about`)),
-      getDoc(doc(db, `users/${uid}/user-infos/more-infos`)),
-      getDoc(doc(db, `users/${uid}/user-infos/links`)),
-    ]);
-    if (!userDoc.exists()) { mostrarErro('Perfil não encontrado'); return null; }
-    return {
-      ...userDoc.data(), uid,
-      media:     mediaDoc.exists() ? mediaDoc.data() : {},
-      likes:     likesDoc.exists() ? likesDoc.data() : {},
-      about:     aboutDoc.exists() ? aboutDoc.data() : {},
-      moreInfos: moreDoc.exists()  ? moreDoc.data()  : {},
-      linksData: linksDoc.exists() ? linksDoc.data() : {},
-    };
-  } catch (e) { console.error('carregarDados:', e); mostrarErro('Erro ao carregar perfil.'); return null; }
-}
-
-// ═══════════════════════════════════════════════════════════
 // RESOLVER USERNAME → UID
-// FIX: cache no localStorage para evitar 3 round-trips sequenciais
 // ═══════════════════════════════════════════════════════════
 async function resolveUsername(raw) {
   const key = raw.trim().toLowerCase();
-
-  // 1. Cache local — retorno imediato sem Firestore
   const cached = lsGetUid(key);
   if (cached) return cached;
-
-  // 2. Tabela de índice (mais rápido — 1 leitura)
   try {
     const s = await getDoc(doc(db, 'usernames', key));
-    if (s.exists() && s.data().uid) {
-      lsSaveUid(key, s.data().uid);
-      return s.data().uid;
-    }
+    if (s.exists() && s.data().uid) { lsSaveUid(key, s.data().uid); return s.data().uid; }
   } catch {}
-
-  // 3. Query por username (fallback, só se índice falhar)
   try {
     const s = await getDocs(query(collection(db, 'users'), where('username', '==', key)));
     if (!s.empty) { lsSaveUid(key, s.docs[0].id); return s.docs[0].id; }
   } catch {}
-
-  // 4. Tenta com capitalização original (último recurso)
   try {
     const s = await getDocs(query(collection(db, 'users'), where('username', '==', raw.trim())));
     if (!s.empty) { lsSaveUid(key, s.docs[0].id); return s.docs[0].id; }
   } catch {}
-
   return null;
 }
 
 // ═══════════════════════════════════════════════════════════
-// LISTENERS TEMPO REAL
+// LISTENERS TEMPO REAL — todos registrados em _unsubs
 // ═══════════════════════════════════════════════════════════
-const _unsubs = [];
 function setupListeners(uid) {
-  _unsubs.forEach(u => u()); _unsubs.length = 0;
-  const on = (ref, fn) => _unsubs.push(onSnapshot(ref, s => { if (s.exists()) fn(s.data()); }));
+  _unsubs.forEach(u => u());
+  _unsubs.length = 0;
 
-  on(doc(db, 'users', uid), d => {
+  const sub = (ref, fn) => _unsubs.push(onSnapshot(ref, s => { if (s.exists()) fn(s.data()); }));
+
+  sub(doc(db, 'users', uid), d => {
     memCache.users.set(uid, d);
     currentProfileData = { ...(currentProfileData || {}), ...d };
     safe(() => renderPrincipal(d));
   });
-  on(doc(db, `users/${uid}/user-infos/user-media`), d => {
+
+  sub(doc(db, `users/${uid}/user-infos/user-media`), d => {
     currentProfileData = { ...(currentProfileData || {}), media: { ...(currentProfileData?.media || {}), ...d } };
     safe(() => renderMidia(d));
   });
-  on(doc(db, `users/${uid}/user-infos/likes`), d => {
+
+  sub(doc(db, `users/${uid}/user-infos/likes`), d => {
     currentProfileData = { ...(currentProfileData || {}), likes: d };
     safe(() => renderGostos(d));
     safe(() => renderModal(currentProfileData));
   });
-  on(doc(db, `users/${uid}/user-infos/about`), d => {
+
+  sub(doc(db, `users/${uid}/user-infos/about`), d => {
     currentProfileData = { ...(currentProfileData || {}), about: d };
     safe(() => renderVisaoGeral(d));
     safe(() => renderPronomes(d));
     safe(() => renderModal(currentProfileData));
   });
-  on(doc(db, `users/${uid}/user-infos/more-infos`), d => {
+
+  sub(doc(db, `users/${uid}/user-infos/more-infos`), d => {
     currentProfileData = { ...(currentProfileData || {}), moreInfos: d };
-    const bioEl = $('bio'); if (bioEl && d.bio) bioEl.textContent = d.bio;
+    const bioEl = $('bio');
+    if (bioEl && d.bio) bioEl.textContent = d.bio;
   });
+
   _unsubs.push(onSnapshot(doc(db, `users/${uid}/user-infos/links`), s => {
     safe(() => renderLinks(s.exists() ? s.data() : {}));
   }));
+
+  // Stats em tempo real
+  _unsubs.push(onSnapshot(collection(db, 'users', uid, 'friends'), snap => {
+    _atualizarStatsFriends(snap.size);
+  }));
+
+  // Botão de amizade em tempo real (só para perfis alheios)
+  if (currentUserId && currentUserId !== uid) {
+    const reqRef = doc(db, 'friendRequests', friendRequestId(currentUserId, uid));
+    _unsubs.push(onSnapshot(reqRef, snap => {
+      let status = 'none';
+      if (snap.exists()) {
+        const { status: s, from } = snap.data();
+        if (s === 'accepted') status = 'friends';
+        else if (s === 'pending') status = from === currentUserId ? 'pending_sent' : 'pending_received';
+      }
+      _renderFriendBtn(status, uid);
+      atualizarStats(uid);
+    }));
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
-// RENDER
+// RENDER — perfil
 // ═══════════════════════════════════════════════════════════
 function renderPrincipal(d) {
   const un = getUsername(d);
@@ -268,31 +255,24 @@ function renderMidia(media) {
   if (foto) {
     document.querySelectorAll('.profile-pic,.user-pic').forEach(el => {
       el.src = foto;
-      el.onerror = () => {
-        el.src = './public/img/default.jpg';
-      };
+      el.onerror = () => { el.src = './public/img/default.jpg'; };
     });
     document.querySelectorAll('.pfp-border').forEach(el => {
       el.style.backgroundImage = `url(${foto})`;
-      el.style.backgroundPosition = "center";
-      el.style.backgroundSize = "cover";
-      el.style.backgroundRepeat = "no-repeat";
+      el.style.backgroundSize = 'cover';
+      el.style.backgroundPosition = 'center';
+      el.style.backgroundRepeat = 'no-repeat';
     });
-    if (profileUserId) {
-      memCache.photos.set(profileUserId, foto);
-    }
-    const navPic = document.getElementById('nav-pic');
+    if (profileUserId) memCache.photos.set(profileUserId, foto);
+    const navPic = $('nav-pic');
     if (navPic && isOwnProfile) {
       navPic.src = foto;
-      try {
-        localStorage.setItem('user_photo_cache', foto);
-      } catch {}
+      try { localStorage.setItem('user_photo_cache', foto); } catch {}
     }
   }
-  const bannerSrc = media.banner || media.headerphoto;
-  const bannerArea = document.querySelector('.pf-banner-area');
-  const bannerEl   = document.querySelector('.profile-banner');
-  const music = document.querySelector('.music');
+  const bannerSrc  = media.banner || media.headerphoto;
+  const bannerArea = $q('.pf-banner-area');
+  const bannerEl   = $q('.profile-banner');
   if (bannerArea && bannerEl) {
     if (bannerSrc) {
       bannerEl.style.backgroundImage = `url(${bannerSrc})`;
@@ -301,13 +281,15 @@ function renderMidia(media) {
       bannerArea.classList.add('hidden');
     }
   }
-if (media.musicTheme) {
-  music?.classList.add('show');
-  initMusicPlayer(media.musicTheme);
-} else {
-  music?.classList.remove('show');
+  const music = $q('.music');
+  if (media.musicTheme) {
+    music?.classList.add('show');
+    initMusicPlayer(media.musicTheme);
+  } else {
+    music?.classList.remove('show');
+  }
 }
-}
+
 function renderModal(d) {
   if (!d) return;
   const set = (cls, val, fb = 'Não informado') => {
@@ -330,10 +312,8 @@ function renderModal(d) {
   set('modal-info-hobbies',      d.likes?.hobbies,     'Ainda não há nada por aqui...');
   set('modal-info-games',        d.likes?.games,       'Ainda não há nada por aqui...');
   set('modal-info-others',       d.likes?.others,      'Ainda não há nada por aqui...');
-
   const enteredEl = $('modal-entered-at');
   if (enteredEl) enteredEl.textContent = formatRelativeTime(d.createdAt || d.criadoem) || 'Data desconhecida';
-
   const birthdayEl = $('modal-birthday');
   if (birthdayEl) birthdayEl.textContent = formatBirthday(d.birthDate || d.nascimento || d.birthday || d.aniversario);
 }
@@ -367,24 +347,24 @@ function renderGostos(l) {
 function renderLinks(dados) {
   const c = $q('.links-tab .about-container'); if (!c) return;
   const redes = {
-    instagram: { base:'https://instagram.com/',         icon:'fab fa-instagram', label:'Instagram' },
-    x:         { base:'https://x.com/',                 icon:'fab fa-x-twitter',   label:'X' },
-    tiktok:    { base:'https://tiktok.com/@',           icon:'fab fa-tiktok',    label:'TikTok' },
-    youtube:   { base:'https://youtube.com/',           icon:'fab fa-youtube',   label:'YouTube' },
-    github:    { base:'https://github.com/',            icon:'fab fa-github',    label:'GitHub' },
-    discord:   { base:'https://discord.com/users/',     icon:'fab fa-discord',   label:'Discord' },
-    pinterest: { base:'https://pinterest.com/',         icon:'fab fa-pinterest', label:'Pinterest' },
-    spotify:   { base:'https://open.spotify.com/user/',icon:'fab fa-spotify',   label:'Spotify' },
-    linkedin:  { base:'https://linkedin.com/in/',       icon:'fab fa-linkedin',  label:'LinkedIn' },
-    twitch:    { base:'https://twitch.tv/',             icon:'fab fa-twitch',    label:'Twitch' },
-    reddit:    { base:'https://reddit.com/u/',          icon:'fab fa-reddit',    label:'Reddit' },
-    facebook:  { base:'https://facebook.com/',          icon:'fab fa-facebook',  label:'Facebook' },
+    instagram: { base:'https://instagram.com/',          icon:'fab fa-instagram', label:'Instagram' },
+    x:         { base:'https://x.com/',                  icon:'fab fa-x-twitter', label:'X' },
+    tiktok:    { base:'https://tiktok.com/@',            icon:'fab fa-tiktok',    label:'TikTok' },
+    youtube:   { base:'https://youtube.com/',            icon:'fab fa-youtube',   label:'YouTube' },
+    github:    { base:'https://github.com/',             icon:'fab fa-github',    label:'GitHub' },
+    discord:   { base:'https://discord.com/users/',      icon:'fab fa-discord',   label:'Discord' },
+    pinterest: { base:'https://pinterest.com/',          icon:'fab fa-pinterest', label:'Pinterest' },
+    spotify:   { base:'https://open.spotify.com/user/', icon:'fab fa-spotify',   label:'Spotify' },
+    linkedin:  { base:'https://linkedin.com/in/',        icon:'fab fa-linkedin',  label:'LinkedIn' },
+    twitch:    { base:'https://twitch.tv/',              icon:'fab fa-twitch',    label:'Twitch' },
+    reddit:    { base:'https://reddit.com/u/',           icon:'fab fa-reddit',    label:'Reddit' },
+    facebook:  { base:'https://facebook.com/',           icon:'fab fa-facebook',  label:'Facebook' },
   };
   const src = (dados.links && typeof dados.links === 'object') ? dados.links : dados;
   const itens = [];
   Object.entries(src).forEach(([k, v]) => {
     if (!v || typeof v !== 'string' || !v.trim()) return;
-    const val = v.trim(); const r = redes[k];
+    const val = v.trim(), r = redes[k];
     const href  = r ? (val.startsWith('http') ? val : r.base + val) : (val.startsWith('http') ? val : 'https://' + val);
     const icon  = r ? `<i class="${r.icon}"></i>` : `<i class="fas fa-external-link-alt"></i>`;
     const label = r ? r.label : k.charAt(0).toUpperCase() + k.slice(1);
@@ -431,30 +411,41 @@ function preencherPerfil(dados) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// FOTO DE PERFIL NO NAV
-// FIX: sem segundo onAuthStateChanged nem leitura Firestore extra.
-// Usa localStorage como cache imediato e memCache como fonte de verdade.
+// FOTO NAV — localStorage como cache imediato
 // ═══════════════════════════════════════════════════════════
 function carregarFotoPerfil() {
   const navPic = $('nav-pic'); if (!navPic) return;
-  // Mostra cache local instantaneamente
   const cached = localStorage.getItem('user_photo_cache');
   if (cached) navPic.src = cached;
-  // A foto real virá via renderMidia() quando os dados carregarem —
-  // não precisamos de uma segunda chamada ao Firestore aqui.
 }
 document.addEventListener('DOMContentLoaded', carregarFotoPerfil);
 
 // ═══════════════════════════════════════════════════════════
 // FORMATAÇÃO
 // ═══════════════════════════════════════════════════════════
+function formatRelativeTime(ts) {
+  if (!ts) return 'Data desconhecida';
+  let d;
+  if (ts.toDate)       d = ts.toDate();
+  else if (ts.seconds) d = new Date(ts.seconds * 1000);
+  else                 d = new Date(ts);
+  const sec = Math.floor((Date.now() - d) / 1000);
+  if (sec < 60)    return 'Agora';
+  const min = Math.floor(sec / 60);    if (min < 60)  return `há ${min} ${min === 1 ? 'minuto' : 'minutos'}`;
+  const hr  = Math.floor(min / 60);    if (hr  < 24)  return `há ${hr} ${hr === 1 ? 'hora' : 'horas'}`;
+  const day = Math.floor(hr  / 24);    if (day < 7)   return `há ${day} ${day === 1 ? 'dia' : 'dias'}`;
+  const wk  = Math.floor(day / 7);     if (wk  < 5)   return `há ${wk} ${wk === 1 ? 'semana' : 'semanas'}`;
+  const mo  = Math.floor(day / 30.44); if (mo  < 12)  return `há ${mo} ${mo === 1 ? 'mês' : 'meses'}`;
+  const yr  = Math.floor(mo  / 12);    return `há ${yr} ${yr === 1 ? 'ano' : 'anos'}`;
+}
+
 function formatTs(ts) {
   if (!ts) return '';
   try {
     const d = typeof ts.toDate === 'function' ? ts.toDate() : ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
     const diff = Date.now() - d;
     const m = Math.floor(diff / 60000), h = Math.floor(diff / 3600000), day = Math.floor(diff / 86400000);
-    if (m < 1) return 'Agora';
+    if (m < 1)  return 'Agora';
     if (m < 60) return `${m}min`;
     if (h < 24) return `${h}h`;
     if (day < 7) return `${day}d`;
@@ -462,26 +453,10 @@ function formatTs(ts) {
   } catch { return ''; }
 }
 
-function formatRelativeTime(ts) {
-  if (!ts) return 'Data desconhecida';
-  let d;
-  if (ts.toDate)   d = ts.toDate();
-  else if (ts.seconds) d = new Date(ts.seconds * 1000);
-  else d = new Date(ts);
-  const sec = Math.floor((Date.now() - d) / 1000);
-  if (sec < 60)   return 'Agora';
-  const min = Math.floor(sec / 60);   if (min < 60)  return `há ${min} ${min === 1 ? 'minuto' : 'minutos'}`;
-  const hr  = Math.floor(min / 60);   if (hr  < 24)  return `há ${hr} ${hr === 1 ? 'hora' : 'horas'}`;
-  const day = Math.floor(hr  / 24);   if (day < 7)   return `há ${day} ${day === 1 ? 'dia' : 'dias'}`;
-  const wk  = Math.floor(day / 7);    if (wk  < 5)   return `há ${wk} ${wk === 1 ? 'semana' : 'semanas'}`;
-  const mo  = Math.floor(day / 30.44);if (mo  < 12)  return `há ${mo} ${mo === 1 ? 'mês' : 'meses'}`;
-  const yr  = Math.floor(mo  / 12);   return `há ${yr} ${yr === 1 ? 'ano' : 'anos'}`;
-}
-
 function formatBirthday(v) {
   if (!v) return 'Não informado';
   try {
-    let d = v.toDate ? v.toDate() : v.seconds ? new Date(v.seconds * 1000) : new Date(v);
+    const d = v.toDate ? v.toDate() : v.seconds ? new Date(v.seconds * 1000) : new Date(v);
     if (isNaN(d)) return 'Data inválida';
     const mes = d.toLocaleString('pt-BR', { month: 'long' });
     return `${d.getDate()} de ${mes.charAt(0).toUpperCase() + mes.slice(1)}`;
@@ -489,8 +464,10 @@ function formatBirthday(v) {
 }
 
 function traduzirGenero(g) {
-  const m = { masculino:'Masculino', feminino:'Feminino', outro:'Outro', prefiro_nao_dizer:'Prefiro não dizer',
-    male:'Masculino', female:'Feminino', other:'Outro', prefer_not_to_say:'Prefiro não dizer' };
+  const m = {
+    masculino:'Masculino', feminino:'Feminino', outro:'Outro', prefiro_nao_dizer:'Prefiro não dizer',
+    male:'Masculino', female:'Feminino', other:'Outro', prefer_not_to_say:'Prefiro não dizer',
+  };
   return m[String(g || '').toLowerCase()] || 'Não informado';
 }
 
@@ -532,7 +509,6 @@ function setupViewMoreModal() {
     const btnEdit   = clone($('open-edit'));
     const btnCancel = clone($('cancel-edit'));
     const btnSave   = clone($('save-view-mode'));
-
     btnEdit  ?.addEventListener('click', () => { if (isOwnProfile) enterEdit(); });
     btnCancel?.addEventListener('click', enterView);
     btnSave  ?.addEventListener('click', async () => {
@@ -594,55 +570,105 @@ function setupViewMoreModal() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// AMIZADES BIDIRECIONAIS
+// AMIZADES — ID CANÔNICO
+//
+// Só existe UM documento por par. ID = [a,b].sort().join('_')
+// "from" = quem enviou · "to" = quem recebe
+// Validação de permissão fica nas Security Rules do Firestore.
 // ═══════════════════════════════════════════════════════════
-
-// Status possíveis: 'none' | 'pending_sent' | 'pending_received' | 'friends'
-async function getFriendshipStatus(meId, targetId) {
-  try {
-    const [friendDoc, reqSent, reqReceived] = await Promise.all([
-      getDoc(doc(db, 'users', meId, 'friends', targetId)),
-      getDoc(doc(db, 'friendRequests', `${meId}_${targetId}`)),
-      getDoc(doc(db, 'friendRequests', `${targetId}_${meId}`)),
-    ]);
-    if (friendDoc.exists()) return 'friends';
-    if (reqSent.exists())     return 'pending_sent';
-    if (reqReceived.exists()) return 'pending_received';
-    return 'none';
-  } catch { return 'none'; }
+function friendRequestId(a, b) {
+  return [a, b].sort().join('_');
 }
 
 async function enviarPedidoAmizade(meId, targetId) {
-  await setDoc(doc(db, 'friendRequests', `${meId}_${targetId}`), {
-    from: meId, to: targetId, status: 'pending', createdAt: serverTimestamp(),
-  });
+  try {
+    await setDoc(doc(db, 'friendRequests', friendRequestId(meId, targetId)), {
+      from: meId, to: targetId, status: 'pending', createdAt: serverTimestamp(),
+    });
+  } catch (e) {
+    if (e.code === 'permission-denied') throw new Error('already_requested');
+    throw e;
+  }
 }
 
 async function cancelarPedidoAmizade(meId, targetId) {
-  await deleteDoc(doc(db, 'friendRequests', `${meId}_${targetId}`));
+  await deleteDoc(doc(db, 'friendRequests', friendRequestId(meId, targetId)));
 }
 
 async function aceitarAmizade(meId, targetId) {
-  const now = serverTimestamp();
-  await Promise.all([
-    setDoc(doc(db, 'users', meId,     'friends', targetId), { uid: targetId, since: now }),
-    setDoc(doc(db, 'users', targetId, 'friends', meId),     { uid: meId,     since: now }),
-    deleteDoc(doc(db, 'friendRequests', `${targetId}_${meId}`)),
-  ]);
+  await updateDoc(doc(db, 'friendRequests', friendRequestId(meId, targetId)), {
+    status: 'accepted', acceptedAt: serverTimestamp(),
+  });
+}
+
+async function recusarPedidoAmizade(meId, targetId) {
+  await deleteDoc(doc(db, 'friendRequests', friendRequestId(meId, targetId)));
 }
 
 async function desfazerAmizade(meId, targetId) {
-  await Promise.all([
-    deleteDoc(doc(db, 'users', meId,     'friends', targetId)),
-    deleteDoc(doc(db, 'users', targetId, 'friends', meId)),
-    deleteDoc(doc(db, 'friendRequests', `${meId}_${targetId}`)),
-    deleteDoc(doc(db, 'friendRequests', `${targetId}_${meId}`)),
-  ]);
+  await deleteDoc(doc(db, 'friendRequests', friendRequestId(meId, targetId)));
 }
 
 // ═══════════════════════════════════════════════════════════
-// ESTATÍSTICAS — amigos / posts / fotos
+// BOTÃO DE AMIZADE — renderizado pelo listener em tempo real
 // ═══════════════════════════════════════════════════════════
+let _friendBtnEl = null; // referência estável ao botão clonado
+
+function _renderFriendBtn(status, targetUid) {
+  if (!_friendBtnEl) return;
+  const btn = _friendBtnEl;
+  if (status === 'friends') {
+    btn.textContent = 'Amigos';
+    btn.style.background = '#2b2f33'; btn.style.borderColor = '#444'; btn.style.color = '#aaa';
+  } else if (status === 'pending_sent') {
+    btn.textContent = 'Pedido enviado';
+    btn.style.background = '#2b2f33'; btn.style.color = '#fff'; btn.style.borderColor = '';
+  } else if (status === 'pending_received') {
+    btn.textContent = 'Aceitar amizade';
+    btn.style.background = 'var(--primary-btn, #4A90E2)'; btn.style.color = '#fff'; btn.style.borderColor = '';
+  } else {
+    btn.textContent = 'Adicionar';
+    btn.style.background = 'var(--primary-btn, #4A90E2)'; btn.style.color = '#fff'; btn.style.borderColor = '';
+  }
+  btn.disabled = false;
+  // Reaplica o handler a cada mudança de status para capturar o valor correto
+  const novo = btn.cloneNode(true);
+  btn.parentNode?.replaceChild(novo, btn);
+  _friendBtnEl = novo;
+  novo.addEventListener('click', async () => {
+    novo.disabled = true;
+    try {
+      if (status === 'none') {
+        try {
+          await enviarPedidoAmizade(currentUserId, targetUid);
+        } catch (e) {
+          if (e.message !== 'already_requested') throw e;
+        }
+      } else if (status === 'pending_sent') {
+        await cancelarPedidoAmizade(currentUserId, targetUid);
+      } else if (status === 'pending_received') {
+        await aceitarAmizade(currentUserId, targetUid);
+        try {
+          const targetData = await getUserData(targetUid);
+          triggerNovaAmizade(targetUid, targetData.username || targetUid).catch(console.warn);
+        } catch {}
+      } else if (status === 'friends') {
+        if (!confirm('Remover amizade?')) { novo.disabled = false; return; }
+        await desfazerAmizade(currentUserId, targetUid);
+      }
+    } catch (e) { console.error('friend toggle:', e); novo.disabled = false; }
+    // Estado atualizado automaticamente pelo onSnapshot
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// ESTATÍSTICAS — atualizadas em tempo real via _unsubs
+// ═══════════════════════════════════════════════════════════
+function _atualizarStatsFriends(totalAmigos) {
+  const el = $q('.profile-stats .stat-item[data-tab="amigos"] .stat-count');
+  if (el) el.textContent = totalAmigos;
+}
+
 async function atualizarStats(uid) {
   try {
     const [friendsSnap, postsSnap] = await Promise.all([
@@ -651,7 +677,6 @@ async function atualizarStats(uid) {
     ]);
     const totalAmigos = friendsSnap.size;
     const totalPosts  = postsSnap.size;
-    // fotos = posts com imagem
     const totalFotos  = postsSnap.docs.filter(d => d.data().img?.trim()).length;
 
     const statsEl = $q('.profile-stats'); if (!statsEl) return;
@@ -676,174 +701,30 @@ async function atualizarStats(uid) {
 // OVERLAY AMIGOS
 // ═══════════════════════════════════════════════════════════
 function abrirOverlay(uid, tabInicial = 'amigos') {
-  if ($('listas-overlay')) return;
-  // só a aba de amigos tem overlay; posts/fotos não abrem overlay
-  if (tabInicial !== 'amigos') return;
+  if ($('listas-overlay') || tabInicial !== 'amigos') return;
 
   const style = document.createElement('style');
   style.id = 'listas-overlay-css';
-style.textContent = `
-  #listas-overlay{
-    position:fixed;
-    inset:0;
-    z-index:999999;
-    background:var(--bg-primary,#0f0f0f);
-    display:flex;
-    flex-direction:column;
-    overflow:hidden;
-    animation:lo-in .25s ease-out
-  }
-
-  @keyframes lo-in{
-    from{transform:translateX(100%)}
-    to{transform:translateX(0)}
-  }
-
-  @keyframes lo-out{
-    from{transform:translateX(0)}
-    to{transform:translateX(100%)}
-  }
-
-  #listas-overlay.closing{
-    animation:lo-out .2s ease-out forwards
-  }
-
-  .lo-header{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    padding:16px;
-    position:fixed;
-    top:0;
-    left:0;
-    width:100%;
-    height:60px;
-    background:var(--bg-primary);
-    z-index:10;
-  }
-
-  .lo-back{
-    width:40px;
-    height:40px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    background:none;
-    border:none;
-    color:#f8f9f9;
-    cursor:pointer;
-    border-radius:50%;
-    z-index:11;
-  }
-
-  .lo-title{
-    font-size:18px;
-    font-weight:700;
-    color:#f8f9f9
-  }
-
-  .lo-spacer{width:40px}
-
-  .lo-page{
-    height:100%;
-    overflow-y:auto;
-    -webkit-overflow-scrolling:touch;
-    padding-bottom:120px;
-    padding-top:60px;
-  }
-
-  .lo-user-row{
-    display:flex;
-    align-items:center;
-    gap:12px;
-    padding:12px 16px;
-    cursor:pointer;
-    transition:background .12s
-  }
-
-  .lo-avatar{
-    width:50px;
-    height:50px;
-    border-radius:50%;
-    object-fit:cover;
-    flex-shrink:0;
-    background:#1e1e1e
-  }
-
-  .lo-user-info{
-    flex:1;
-    min-width:0
-  }
-
-  .lo-user-username{
-    font-size:15px;
-    font-weight:600;
-    color:#f8f9f9;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis
-  }
-
-  .lo-user-pronouns{
-    font-size:13px;
-    color:#666;
-    margin-top:2px
-  }
-
-  .lo-action-btn{
-    flex-shrink:0;
-    padding:7px 16px;
-    border-radius:10px;
-    font-size:13px;
-    font-weight:700;
-    cursor:pointer;
-    transition:all .15s;
-    background:transparent;
-    color:#f8f9f9;
-    border:1.5px solid #333
-  }
-
-  .lo-action-btn.danger{
-    border-color:#f85149;
-    color:#f85149
-  }
-
-  .lo-action-btn:disabled{
-    opacity:.4;
-    pointer-events:none
-  }
-
-  .lo-empty{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    padding:80px 20px;
-    color:#444;
-    text-align:center;
-    gap:12px
-  }
-
-  .lo-empty svg {
-    fill: #fff;
-    height: 50px; width: 50px;
-  }
-
-  .lo-empty i{
-    font-size:42px;
-    color:#fff
-  }
-
-  .lo-empty p{
-    font-size:14px;
-    line-height:1.5
-  }
-
-  .lo-loading{
-    text-align:center;
-    padding:60px;
-    color:#444
-  }
-`;
+  style.textContent = `
+    #listas-overlay{position:fixed;inset:0;z-index:999999;background:var(--bg-primary,#0f0f0f);display:flex;flex-direction:column;overflow:hidden;animation:lo-in .25s ease-out}
+    @keyframes lo-in{from{transform:translateX(100%)}to{transform:translateX(0)}}
+    @keyframes lo-out{from{transform:translateX(0)}to{transform:translateX(100%)}}
+    #listas-overlay.closing{animation:lo-out .2s ease-out forwards}
+    .lo-header{display:flex;align-items:center;justify-content:space-between;padding:16px;position:fixed;top:0;left:0;width:100%;height:60px;background:var(--bg-primary);z-index:10}
+    .lo-back{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:none;border:none;color:#f8f9f9;cursor:pointer;border-radius:50%}
+    .lo-title{font-size:18px;font-weight:700;color:#f8f9f9}.lo-spacer{width:40px}
+    .lo-page{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:120px;padding-top:60px}
+    .lo-user-row{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;transition:background .12s}
+    .lo-avatar{width:50px;height:50px;border-radius:50%;object-fit:cover;flex-shrink:0;background:#1e1e1e}
+    .lo-user-info{flex:1;min-width:0}
+    .lo-user-username{font-size:15px;font-weight:600;color:#f8f9f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .lo-user-pronouns{font-size:13px;color:#666;margin-top:2px}
+    .lo-action-btn{flex-shrink:0;padding:7px 16px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;background:transparent;color:#f8f9f9;border:1.5px solid #333}
+    .lo-action-btn.danger{border-color:#f85149;color:#f85149}
+    .lo-action-btn:disabled{opacity:.4;pointer-events:none}
+    .lo-empty{display:flex;flex-direction:column;align-items:center;padding:80px 20px;color:#444;text-align:center;gap:12px}
+    .lo-empty svg{fill:#fff;height:50px;width:50px}.lo-empty i{font-size:42px;color:#fff}
+    .lo-empty p{font-size:14px;line-height:1.5}.lo-loading{text-align:center;padding:60px;color:#444}`;
   document.head.appendChild(style);
 
   const overlay = document.createElement('div');
@@ -880,12 +761,11 @@ async function carregarListaAmigos(profileUid, page) {
     const uids = snap.docs.map(d => d.id);
     page.innerHTML = '';
     if (!uids.length) {
-      page.innerHTML = `<div class="lo-empty"><svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 512 512" style="enable-background:new 0 0 512 512;" xml:space="preserve"><g><path d="M384,448v-42.7c0-58.9-47.7-106.7-106.7-106.7H106.7C47.7,298.7,0,346.4,0,405.3V448c0,11.8,9.6,21.3,21.3,21.3c11.8,0,21.3-9.6,21.3-21.3v-42.7c0.1-35.3,28.7-63.9,64-64l170.7,0c35.3,0.1,63.9,28.7,64,64V448c0,11.8,9.6,21.3,21.3,21.3S384,459.8,384,448z"/><path d="M192,64v21.3c35.3,0.1,63.9,28.7,64,64c-0.1,35.3-28.7,63.9-64,64c-35.3-0.1-63.9-28.7-64-64c0.1-35.3,28.7-63.9,64-64V64V42.7c-58.9,0-106.7,47.7-106.7,106.7C85.3,208.3,133.1,256,192,256c58.9,0,106.7-47.7,106.7-106.7c0-58.9-47.7-106.7-106.7-106.7V64z"/><path d="M512,448v-42.7c0-48.6-32.9-91.1-80-103.2c-11.4-2.9-23,3.9-26,15.3c-2.9,11.4,3.9,23,15.3,26c28.2,7.3,48,32.8,48,61.9V448c0,11.8,9.6,21.3,21.3,21.3S512,459.8,512,448z"/><path d="M336,87.4c28.9,7.4,48.1,33.5,48.1,61.9c0,5.2-0.6,10.6-2,15.9c-5.8,22.6-23.5,40.3-46.1,46.1c-11.4,2.9-18.3,14.5-15.4,26c2.9,11.4,14.5,18.3,26,15.4c37.7-9.7,67.2-39.1,76.9-76.9c2.3-8.8,3.4-17.7,3.4-26.5c0-47.6-32-90.9-80.2-103.3c-11.4-2.9-23,4-26,15.4C317.7,72.9,324.6,84.5,336,87.4L336,87.4z"/></g></svg>
-      <p>Nenhum amigo ainda.</p></div>`;
+      page.innerHTML = `<div class="lo-empty"><i class="fas fa-user-friends"></i><p>Nenhum amigo ainda.</p></div>`;
       return;
     }
     for (let i = 0; i < uids.length; i += 8) {
-      await Promise.all(uids.slice(i, i+8).map(uid => adicionarLinhaAmigo(uid, profileUid, page)));
+      await Promise.all(uids.slice(i, i + 8).map(uid => adicionarLinhaAmigo(uid, profileUid, page)));
     }
   } catch (e) {
     console.error('carregarListaAmigos:', e);
@@ -902,15 +782,22 @@ async function adicionarLinhaAmigo(uid, profileUid, container) {
 
   let actionHTML = '';
   if (isOwnProfile) {
-    // Dono do perfil pode remover amigo
     actionHTML = `<button class="lo-action-btn danger" data-action="unfriend" data-uid="${uid}">Remover</button>`;
   } else if (currentUserId && uid !== currentUserId) {
-    // Visitante vê o status de amizade com essa pessoa
-    const status = await getFriendshipStatus(currentUserId, uid);
-    if (status === 'friends')          actionHTML = `<button class="lo-action-btn danger" data-action="unfriend" data-uid="${uid}" data-status="friends">Amigos</button>`;
-    else if (status === 'pending_sent') actionHTML = `<button class="lo-action-btn" data-action="cancel"   data-uid="${uid}">Pedido enviado</button>`;
+    // Lê o status do friendRequest (1 leitura, doc pode não existir)
+    let status = 'none';
+    try {
+      const snap = await getDoc(doc(db, 'friendRequests', friendRequestId(currentUserId, uid)));
+      if (snap.exists()) {
+        const { status: s, from } = snap.data();
+        if (s === 'accepted') status = 'friends';
+        else if (s === 'pending') status = from === currentUserId ? 'pending_sent' : 'pending_received';
+      }
+    } catch {}
+    if      (status === 'friends')          actionHTML = `<button class="lo-action-btn danger" data-action="unfriend" data-uid="${uid}">Amigos</button>`;
+    else if (status === 'pending_sent')     actionHTML = `<button class="lo-action-btn" data-action="cancel" data-uid="${uid}">Pedido enviado</button>`;
     else if (status === 'pending_received') actionHTML = `<button class="lo-action-btn" data-action="accept" data-uid="${uid}" style="border-color:#4A90E2;color:#4A90E2">Aceitar</button>`;
-    else                               actionHTML = `<button class="lo-action-btn" data-action="add"      data-uid="${uid}">Adicionar</button>`;
+    else                                    actionHTML = `<button class="lo-action-btn" data-action="add" data-uid="${uid}">Adicionar</button>`;
   }
 
   row.innerHTML = `
@@ -919,7 +806,10 @@ async function adicionarLinhaAmigo(uid, profileUid, container) {
       <div class="lo-user-username">${un}</div>
       ${dn !== un ? `<div class="lo-user-pronouns">${dn}</div>` : ''}
     </div>${actionHTML}`;
-  row.addEventListener('click', e => { if (e.target.closest('.lo-action-btn')) return; window.location.href = `profile.html?username=${encodeURIComponent(un)}`; });
+  row.addEventListener('click', e => {
+    if (e.target.closest('.lo-action-btn')) return;
+    window.location.href = `profile.html?username=${encodeURIComponent(un)}`;
+  });
 
   const btn = row.querySelector('.lo-action-btn');
   if (btn) {
@@ -929,17 +819,19 @@ async function adicionarLinhaAmigo(uid, profileUid, container) {
       try {
         if (action === 'unfriend') {
           await desfazerAmizade(currentUserId || profileUid, uid);
-          row.style.transition = 'opacity .3s'; row.style.opacity = '0'; setTimeout(() => row.remove(), 320);
+          row.style.transition = 'opacity .3s'; row.style.opacity = '0';
+          setTimeout(() => row.remove(), 320);
           atualizarStats(profileUid);
         } else if (action === 'add') {
           await enviarPedidoAmizade(currentUserId, uid);
           btn.textContent = 'Pedido enviado'; btn.dataset.action = 'cancel'; btn.disabled = false;
         } else if (action === 'cancel') {
           await cancelarPedidoAmizade(currentUserId, uid);
-          btn.textContent = '+ Adicionar'; btn.dataset.action = 'add'; btn.disabled = false;
+          btn.textContent = 'Adicionar'; btn.dataset.action = 'add'; btn.disabled = false;
         } else if (action === 'accept') {
           await aceitarAmizade(currentUserId, uid);
-          btn.textContent = 'Amigos'; btn.dataset.action = 'unfriend'; btn.style.borderColor = '#f85149'; btn.style.color = '#f85149'; btn.disabled = false;
+          btn.textContent = 'Amigos'; btn.dataset.action = 'unfriend';
+          btn.style.borderColor = '#f85149'; btn.style.color = '#f85149'; btn.disabled = false;
         }
       } catch (err) { console.error('friend action:', err); btn.disabled = false; btn.textContent = 'Erro'; }
     });
@@ -981,58 +873,12 @@ async function configurarBotoes(targetUid) {
     return;
   }
 
+  // Botão de amizade — controlado em tempo real pelo listener em setupListeners
   const friendBtn = clone(btnOutro);
   if (friendBtn) {
     friendBtn.style.display = 'inline-flex';
-    let status = await getFriendshipStatus(currentUserId, targetUid);
-
-    const renderBtn = () => {
-      if (status === 'friends') {
-        friendBtn.textContent = 'Amigos';
-        friendBtn.style.background  = '#2b2f33';
-        friendBtn.style.borderColor = '#444';
-        friendBtn.style.color = '#aaa';
-      } else if (status === 'pending_sent') {
-        friendBtn.textContent = 'Pedido enviado';
-        friendBtn.style.background  = '#2b2f33';
-        friendBtn.style.color = '#fff';
-      } else if (status === 'pending_received') {
-        friendBtn.textContent = 'Aceitar amizade';
-        friendBtn.style.background  = 'var(--primary-btn, #4A90E2)';
-        friendBtn.style.color = '#fff';
-      } else {
-        friendBtn.textContent = 'Adicionar';
-        friendBtn.style.background  = 'var(--primary-btn, #4A90E2)';
-        friendBtn.style.color = '#fff';
-      }
-      friendBtn.disabled = false;
-    };
-    renderBtn();
-
-    friendBtn.addEventListener('click', async () => {
-      friendBtn.disabled = true;
-      try {
-        if (status === 'none') {
-          await enviarPedidoAmizade(currentUserId, targetUid);
-          status = 'pending_sent';
-        } else if (status === 'pending_sent') {
-          await cancelarPedidoAmizade(currentUserId, targetUid);
-          status = 'none';
-        } else if (status === 'pending_received') {
-          await aceitarAmizade(currentUserId, targetUid);
-          status = 'friends';
-          try {
-            const targetData = await getUserData(targetUid);
-            triggerNovaAmizade(targetUid, targetData.username || targetUid).catch(console.warn);
-          } catch {}
-        } else if (status === 'friends') {
-          if (!confirm('Remover amizade?')) { friendBtn.disabled = false; return; }
-          await desfazerAmizade(currentUserId, targetUid);
-          status = 'none';
-        }
-      } catch (e) { console.error('friend toggle:', e); }
-      renderBtn(); atualizarStats(targetUid);
-    });
+    _friendBtnEl = friendBtn;
+    // Estado inicial renderizado pelo onSnapshot assim que o listener disparar
   }
 
   const nav = $q('.navbar-bottom');
@@ -1058,84 +904,69 @@ async function iniciarChat(targetUid) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// POSTS
-// FIX: query filtrada por creatorid — não baixa a coleção inteira
+// POSTS — grid com infinite scroll
 // ═══════════════════════════════════════════════════════════
 async function carregarPosts(uid) {
   _profileUidForPosts = uid;
-  _lastPostSnap  = null;
-  _gridLoading   = false;
-  _gridNoMore    = false;
-
-  // Desconecta observer anterior se existir
+  _lastPostSnap = null;
+  _gridLoading  = false;
+  _gridNoMore   = false;
   if (_gridObserver) { _gridObserver.disconnect(); _gridObserver = null; }
 
-  const c = $('muralPosts') || $q('.mural-tab'); if (!c || !uid) return;
+  const c = $('muralPosts') || $q('.mural-tab');
+  if (!c || !uid) return;
   c.innerHTML = `<div class="loading-container"><div class="loading-spinner"></div><p>Carregando posts...</p></div>`;
 
   const PAGE = 12;
 
+  function tsMs(x) {
+    return x?.toDate?.()?.getTime?.() || (x?.seconds ? x.seconds * 1000 : new Date(x || 0).getTime());
+  }
+
+  function renderEmpty() {
+    c.classList.add('empty-posts');
+    c.innerHTML = `
+      <div class="about-box" style="text-align:center;padding:30px;width:100%!important;">
+        <div class="icon-area"><div class="icon-place"><i class="fa-solid fa-pen-to-square" style="font-size:38px;color:#fff;"></i></div></div>
+        <h3 style="color:#fff;margin-bottom:12px;">Nenhum post ainda</h3>
+        <p style="color:#555;">Este usuário ainda não fez nenhum post.</p>
+      </div>`;
+  }
+
   try {
-    const snap = await getDocs(query(collection(db, 'posts'), where('creatorid', '==', uid), orderBy('create', 'desc'), limit(PAGE)));
+    const snap = await getDocs(
+      query(collection(db, 'posts'), where('creatorid', '==', uid), orderBy('create', 'desc'), limit(PAGE))
+    );
     const posts = snap.docs.map(d => ({ id: d.id, data: d.data() }));
     _lastPostSnap = snap.docs.at(-1) ?? null;
     if (snap.size < PAGE) _gridNoMore = true;
     postsDoUsuario = posts.map(p => ({ id: p.id, userid: uid, data: p.data }));
     c.innerHTML = '';
-    if (!posts.length) {
-      c.classList.add('empty-posts');
-      c.innerHTML = `
-        <div class="about-box" style="text-align:center;padding:30px;width:100%!important;">
-          <div class="icon-area"><div class="icon-place"><i class="fa-solid fa-pen-to-square" style="font-size:38px;color:#fff;"></i></div></div>
-          <h3 style="color:#fff;margin-bottom:12px;">Nenhum post ainda</h3>
-          <p style="color:#555;">Este usuário ainda não fez nenhum post.</p>
-        </div>`;
-      return;
-    }
+    if (!posts.length) { renderEmpty(); return; }
     c.classList.remove('empty-posts');
     posts.forEach(p => c.appendChild(criarPreview(p.data, p.id)));
     _setupGridScroll(c);
-  } catch (e) {
-    console.error('carregarPosts erro principal:', e?.message || e);
-    // Fallback: sem orderBy nem limit — funciona sem índice composto
+  } catch {
+    // Fallback sem orderBy
     try {
-      c.innerHTML = `<div class="loading-container"><div class="loading-spinner"></div><p>Carregando posts...</p></div>`;
       const snap2 = await getDocs(query(collection(db, 'posts'), where('creatorid', '==', uid)));
       const posts2 = snap2.docs.map(d => ({ id: d.id, data: d.data() }));
-      posts2.sort((a, b) => {
-        const ts = x => x?.toDate?.()?.getTime?.() || (x?.seconds ? x.seconds * 1000 : new Date(x || 0).getTime());
-        return ts(b.data.create) - ts(a.data.create);
-      });
-      _lastPostSnap = null;
-      _gridNoMore   = true;
+      posts2.sort((a, b) => tsMs(b.data.create) - tsMs(a.data.create));
+      _lastPostSnap = null; _gridNoMore = true;
       postsDoUsuario = posts2.map(p => ({ id: p.id, userid: uid, data: p.data }));
       c.innerHTML = '';
-      if (!posts2.length) {
-        c.classList.add('empty-posts');
-        c.innerHTML = `
-          <div class="about-box" style="text-align:center;padding:30px;width:100%!important;">
-            <div class="icon-area"><div class="icon-place"><i class="fa-solid fa-pen-to-square" style="font-size:38px;color:#fff;"></i></i></div></div>
-            <h3 style="color:#fff;margin-bottom:12px;">Nenhum post ainda</h3>
-            <p style="color:#555;">Este usuário ainda não fez nenhum post.</p>
-          </div>`;
-        return;
-      }
+      if (!posts2.length) { renderEmpty(); return; }
       c.classList.remove('empty-posts');
       posts2.forEach(p => c.appendChild(criarPreview(p.data, p.id)));
     } catch (e2) {
-      console.error('carregarPosts fallback erro:', e2?.message || e2);
       c.innerHTML = `<p style="color:#aaa;text-align:center;padding:20px;">Erro ao carregar posts.</p>`;
     }
   }
 }
 
-// Cria um sentinel invisível no fim do grid e observa com IntersectionObserver
 function _setupGridScroll(container) {
   if (_gridNoMore) return;
-
-  // Remove sentinel anterior se houver
   container.querySelector('.grid-sentinel')?.remove();
-
   const sentinel = document.createElement('div');
   sentinel.className = 'grid-sentinel';
   sentinel.style.cssText = 'width:100%;height:1px;grid-column:1/-1;';
@@ -1144,29 +975,20 @@ function _setupGridScroll(container) {
   _gridObserver = new IntersectionObserver(async (entries) => {
     if (!entries[0].isIntersecting || _gridLoading || _gridNoMore) return;
     _gridLoading = true;
-
     try {
       const snap = await getDocs(
         query(collection(db, 'posts'), where('creatorid', '==', _profileUidForPosts), orderBy('create', 'desc'), startAfter(_lastPostSnap), limit(12))
       );
-      if (snap.empty || snap.size === 0) { _gridNoMore = true; sentinel.remove(); _gridObserver.disconnect(); return; }
-
+      if (!snap.size) { _gridNoMore = true; sentinel.remove(); _gridObserver.disconnect(); return; }
       _lastPostSnap = snap.docs.at(-1);
-      if (snap.size < 12) { _gridNoMore = true; }
-
-      const newPosts = snap.docs.map(d => ({ id: d.id, data: d.data() }));
-      newPosts.forEach(p => {
+      if (snap.size < 12) _gridNoMore = true;
+      snap.docs.map(d => ({ id: d.id, data: d.data() })).forEach(p => {
         postsDoUsuario.push({ id: p.id, userid: _profileUidForPosts, data: p.data });
-        // Insere antes do sentinel para ele continuar no fim
         container.insertBefore(criarPreview(p.data, p.id), sentinel);
       });
-
       if (_gridNoMore) { sentinel.remove(); _gridObserver.disconnect(); }
-    } catch (e) {
-      console.error('[grid scroll]', e);
-    } finally {
-      _gridLoading = false;
-    }
+    } catch (e) { console.error('[grid scroll]', e); }
+    finally { _gridLoading = false; }
   }, { rootMargin: '300px' });
 
   _gridObserver.observe(sentinel);
@@ -1175,20 +997,16 @@ function _setupGridScroll(container) {
 function criarPreview(postData, postId) {
   const el = document.createElement('div');
   el.className = 'postpreview';
-
   const imgs = Array.isArray(postData.imgs) && postData.imgs.length
     ? postData.imgs : (postData.img?.trim() ? [postData.img] : []);
-
   if (imgs.length) {
     el.innerHTML = `<img src="${imgs[0]}" class="post-preview-img" loading="lazy" onerror="this.parentElement.innerHTML='<div class=post-preview-error>Erro</div>'">`;
   } else {
     const txt = postData.content || '';
-    el.innerHTML = `<div class="post-preview-text-container"><p class="post-preview-text">${txt.length > 80 ? txt.slice(0,80)+'…' : txt}</p></div>`;
+    el.innerHTML = `<div class="post-preview-text-container"><p class="post-preview-text">${txt.length > 80 ? txt.slice(0, 80) + '…' : txt}</p></div>`;
   }
-
   el.onclick = () => {
     const startIndex = postsDoUsuario.findIndex(p => p.id === postId);
-
     const loadMoreFn = async () => {
       if (!_lastPostSnap || !_profileUidForPosts) return null;
       try {
@@ -1198,17 +1016,10 @@ function criarPreview(postData, postId) {
         if (snap.empty) return null;
         _lastPostSnap = snap.docs.at(-1);
         return snap.docs.map(d => ({ id: d.id, data: d.data() }));
-      } catch (e) { console.error('[loadMore]', e); return null; }
+      } catch { return null; }
     };
-
-    openProfileTimeline(
-      postsDoUsuario,
-      startIndex,
-      profileUsername,
-      loadMoreFn
-    );
+    openProfileTimeline(postsDoUsuario, startIndex, profileUsername, loadMoreFn);
   };
-
   return el;
 }
 
@@ -1245,15 +1056,15 @@ function createMusicPlayer(videoId) {
         fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
           .then(r => r.json()).then(d => { [$('musicTitle'), $('music-title')].forEach(el => { if (el) el.textContent = d.title; }); }).catch(() => {});
       },
-      onStateChange(e) { if (e.data === YT.PlayerState.ENDED) { e.target.seekTo(0); e.target.playVideo(); } }
-    }
+      onStateChange(e) { if (e.data === YT.PlayerState.ENDED) { e.target.seekTo(0); e.target.playVideo(); } },
+    },
   });
 }
 
 function toggleMusic() {
   if (!musicPlayer?.playVideo) return;
   if (musicPlaying) { musicPlayer.pauseVideo(); musicPlaying = false; }
-  else { musicPlayer.playVideo(); musicPlaying = true; }
+  else              { musicPlayer.playVideo();  musicPlaying = true; }
   const btn = $('btnPauseMusic'), play = $('play'), pause = $('pause'), bars = $q('.music-bars'), title = $('musicTitle');
   btn  ?.classList.toggle('playing', musicPlaying);
   play ?.classList.toggle('active', !musicPlaying);
@@ -1280,10 +1091,8 @@ function initMusicPlayer(url) {
   });
 }
 
-
-// ─────────────────────────────────────────────────────────────
-// WALL
-// FIX: cards do wall renderizados em paralelo, não um por um
+// ═══════════════════════════════════════════════════════════
+// WALL — tempo real via onSnapshot
 // ═══════════════════════════════════════════════════════════
 async function iniciarWall() {
   if (!profileUserId) return;
@@ -1294,42 +1103,30 @@ async function iniciarWall() {
   const btnCancel = $q('.cancel-wall-btn');
   const sendWall  = $q('.send-wall');
   const wallFeed  = $('wall-feed');
-
-  const modalImg  = $q('.pfp-modal-wall img');
-  const modalName = $q('.username-modal-wall');
-  const sendImg   = $q('.pfp-send-wall img');
-  const sendText  = $q('.input-send-wall');
-
   if (!modal || !wallFeed) return;
 
-// Verifica se é amigo (seguem um ao outro)
-let isAmigo = false;
-if (auth.currentUser && !isOwnProfile) {
-  const [meSegue, euSigo] = await Promise.all([
-    getDoc(doc(db, 'users', profileUserId, 'followers', auth.currentUser.uid)),
-    getDoc(doc(db, 'users', auth.currentUser.uid, 'followers', profileUserId)),
-  ]);
-  isAmigo = meSegue.exists() && euSigo.exists();
-}
-
-// Esconde ou mostra o botão de escrever no mural
-const sendWallContainer = $q('.send-wall'); // ajuste o seletor se necessário
-if (sendWallContainer) {
-  if (isOwnProfile || isAmigo) {
-    sendWallContainer.style.display = '';
-  } else {
-    sendWallContainer.style.display = 'none';
-    // Mostra aviso de "seja amigo"
-    const aviso = document.createElement('p');
-    aviso.className = 'wall-amizade-aviso';
-    aviso.style.cssText = 'color:#666;text-align:center;padding:16px;font-size:14px;';
-    const targetUsername = (await getUserData(profileUserId)).username || 'usuário';
-    aviso.textContent = `Seja amigo de ${targetUsername} para escrever em seu Mural`;
-    wallFeed.before(aviso);
+  // Verifica amizade pela coleção friends (server-authoritative)
+  let isAmigo = false;
+  if (auth.currentUser && !isOwnProfile) {
+    const friendSnap = await getDoc(doc(db, 'users', profileUserId, 'friends', auth.currentUser.uid)).catch(() => null);
+    isAmigo = friendSnap?.exists() ?? false;
   }
-}
 
-  // FIX: busca dados do wall em paralelo com os outros dados; usa memCache quando possível
+  const sendWallContainer = $q('.send-wall');
+  if (sendWallContainer) {
+    if (isOwnProfile || isAmigo) {
+      sendWallContainer.style.display = '';
+    } else {
+      sendWallContainer.style.display = 'none';
+      const aviso = document.createElement('p');
+      aviso.className = 'wall-amizade-aviso';
+      aviso.style.cssText = 'color:#666;text-align:center;padding:16px;font-size:14px;';
+      const targetUsername = (await getUserData(profileUserId)).username || 'usuário';
+      aviso.textContent = `Seja amigo de ${targetUsername} para escrever em seu Mural`;
+      wallFeed.before(aviso);
+    }
+  }
+
   const [targetUser, targetPhoto, myUser, myPhoto] = await Promise.all([
     getUserData(profileUserId),
     getUserPhoto(profileUserId),
@@ -1340,72 +1137,314 @@ if (sendWallContainer) {
   const targetUsername = targetUser.username || targetUser.name || 'usuário';
   const myName = myUser.username || myUser.name || 'Você';
 
-  if (textarea)  textarea.placeholder = `Escreva para ${targetUsername}...`;
-  if (sendText)  sendText.textContent = `Escreva para ${targetUsername}...`;
-  if (sendImg)   sendImg.src  = myPhoto || './public/img/default.jpg';
-  if (modalImg)  modalImg.src = myPhoto || './public/img/default.jpg';
-  if (modalName) modalName.textContent = myName;
+  const textarea2  = $('wall-input');
+  const sendText   = $q('.input-send-wall');
+  const sendImg    = $q('.pfp-send-wall img');
+  const modalImg   = $q('.pfp-modal-wall img');
+  const modalName  = $q('.username-modal-wall');
 
-  const abrirModal  = () => { modal.classList.add('active'); };
-  const fecharModal = () => { modal.classList.remove('active'); if (textarea) textarea.value = ''; };
+  if (textarea2)  textarea2.placeholder = `Escreva para ${targetUsername}...`;
+  if (sendText)   sendText.textContent  = `Escreva para ${targetUsername}...`;
+  if (sendImg)    sendImg.src           = myPhoto;
+  if (modalImg)   modalImg.src          = myPhoto;
+  if (modalName)  modalName.textContent = myName;
+
+  const abrirModal  = () => modal.classList.add('active');
+  const fecharModal = () => { modal.classList.remove('active'); if (textarea2) textarea2.value = ''; };
 
   sendWall?.addEventListener('click', abrirModal);
   btnCancel?.addEventListener('click', fecharModal);
   modal.addEventListener('click', e => { if (e.target === modal) fecharModal(); });
 
   btnEnviar?.addEventListener('click', async () => {
-    const texto = textarea?.value.trim();
+    const texto = textarea2?.value.trim();
     if (!texto || !currentUserId || !profileUserId) return;
     btnEnviar.disabled = true;
     try {
-      await addDoc(collection(db, 'users', profileUserId, 'wall'), { authorId: auth.currentUser.uid, text: texto, createdAt: serverTimestamp() });
+      await addDoc(collection(db, 'users', profileUserId, 'wall'), {
+        authorId: auth.currentUser.uid, text: texto, createdAt: serverTimestamp(),
+      });
       fecharModal();
     } catch (e) { alert('Erro ao enviar: ' + e.message); }
     finally { btnEnviar.disabled = false; }
   });
 
-  onSnapshot(
+  // onSnapshot → re-renderiza o wall automaticamente a cada mudança
+  _unsubs.push(onSnapshot(
     query(collection(db, 'users', profileUserId, 'wall'), orderBy('createdAt', 'desc')),
-    async snap => {
-      wallFeed.innerHTML = '';
-      if (snap.empty) {
-        wallFeed.innerHTML = '<p style="color:#555;text-align:center;padding:24px">Nenhum post ainda</p>';
-        return;
-      }
+    () => _renderWallUnificado(profileUserId, wallFeed, currentUserId)
+  ));
+}
 
-      // FIX: busca dados de todos os autores em paralelo — não loop sequencial
-      const posts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const authorIds = [...new Set(posts.map(p => p.authorId).filter(Boolean))];
-      await Promise.all(authorIds.map(id => Promise.all([getUserData(id), getUserPhoto(id)])));
+async function _renderWallUnificado(profileUserId, wallFeed, currentUserId) {
+  wallFeed.innerHTML = '<p style="color:#555;text-align:center;padding:24px;font-size:14px;opacity:0.6;">Carregando...</p>';
+  try {
+    const [wallSnap, mentionsSnap] = await Promise.all([
+      getDocs(query(collection(db, 'users', profileUserId, 'wall'), orderBy('createdAt', 'desc'))),
+      getDocs(query(collection(db, 'posts'), where('mentions', 'array-contains', profileUserId), orderBy('create', 'desc'), limit(30))),
+    ]);
 
-      // Agora tudo está no memCache — monta os cards sem I/O adicional
-      const fragment = document.createDocumentFragment();
-      for (const post of posts) {
-        const userData = memCache.users.get(post.authorId) || {};
-        const fotoUrl  = memCache.photos.get(post.authorId) || './public/img/default.jpg';
-        const nome        = userData.username || userData.name || 'usuário';
-        const podeDeletar = currentUserId === post.authorId || currentUserId === profileUserId;
-        const card = document.createElement('div'); card.className = 'wall-card';
-        card.innerHTML = `
-          <div class="wall-card-header">
-            <div class="wall-card-left-header">
-              <div class="wall-card-pfp"><img src="${fotoUrl}" onerror="this.src='./public/img/default.jpg'"></div>
-              <div class="wall-card-infos"><div class="wall-card-username">${nome}</div></div>
-            </div>
-            ${podeDeletar ? `<div class="wall-card-right-header">
-              <button class="card-options"><i class="fa-solid fa-ellipsis"></i></button>
-            </div>` : ''}
-          </div>
-          <div class="wall-card-text">${post.text}</div>`;
-        const snapId = snap.docs.find(d => d.data().authorId === post.authorId && d.data().text === post.text)?.id || post.id;
-        card.querySelector('.card-options')?.addEventListener('click', async () => {
-          if (confirm('Remover este post?')) await deleteDoc(doc(db, 'users', profileUserId, 'wall', snapId));
-        });
-        fragment.appendChild(card);
-      }
-      wallFeed.appendChild(fragment);
+    const items = [];
+    for (const d of wallSnap.docs) {
+      const data = d.data();
+      const ts = data.createdAt?.seconds ?? (data.createdAt ? new Date(data.createdAt).getTime() / 1000 : 0);
+      items.push({ ts, type: 'wall', snapId: d.id, data });
     }
-  );
+    for (const d of mentionsSnap.docs) {
+      const data = d.data();
+      const ts = data.create?.seconds ?? (data.create ? new Date(data.create).getTime() / 1000 : 0);
+      items.push({ ts, type: 'mention', postId: d.id, data });
+    }
+    items.sort((a, b) => b.ts - a.ts);
+
+    wallFeed.innerHTML = '';
+    if (!items.length) {
+      wallFeed.innerHTML = '<p style="color:#555;text-align:center;padding:24px;font-size:14px;">Nenhuma atividade ainda</p>';
+      return;
+    }
+
+    for (const item of items) {
+      if (item.type === 'mention') {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'wall-post-item wall-mention-item';
+        const badge = document.createElement('div');
+        badge.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 16px;font-size:12px;color:#888;';
+        badge.innerHTML = '<i class="fas fa-at" style="font-size:11px;color:#4A90E2;"></i> Você foi mencionado neste post';
+        wrapper.appendChild(badge);
+        renderPost({ ...item.data, postid: item.postId }, wrapper);
+        wallFeed.appendChild(wrapper);
+        continue;
+      }
+
+      const wallData = item.data;
+      if (wallData.postId) {
+        try {
+          const postSnap = await getDoc(doc(db, 'posts', wallData.postId));
+          if (postSnap.exists()) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'wall-post-item';
+            renderPost({ ...postSnap.data(), postid: postSnap.id }, wrapper);
+            const podeDeletar = currentUserId === wallData.authorId || currentUserId === profileUserId;
+            if (podeDeletar) {
+              const delBtn = document.createElement('button');
+              delBtn.style.cssText = 'display:block;margin:0 16px 8px;font-size:12px;color:#f85149;background:none;border:none;cursor:pointer;';
+              delBtn.textContent = 'Remover do mural';
+              delBtn.addEventListener('click', async () => {
+                if (confirm('Remover este post do mural?')) await deleteDoc(doc(db, 'users', profileUserId, 'wall', item.snapId));
+              });
+              wrapper.appendChild(delBtn);
+            }
+            wallFeed.appendChild(wrapper);
+            continue;
+          }
+        } catch (e) { console.warn('[wall] post linkado:', e); }
+      }
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'wall-post-item wall-text-item';
+      const podeDeletar = currentUserId === wallData.authorId || currentUserId === profileUserId;
+      await _renderWallCard({
+        snapId: item.snapId, profileUserId,
+        authorId: wallData.authorId, text: wallData.text || '',
+        createdAt: wallData.createdAt, podeDeletar, container: wrapper,
+      });
+      wallFeed.appendChild(wrapper);
+    }
+  } catch (e) {
+    console.error('[wall unificado]', e);
+    wallFeed.innerHTML = '<p style="color:#f85149;text-align:center;padding:24px;font-size:14px;">Erro ao carregar o mural</p>';
+  }
+}
+
+async function _renderWallCard({ snapId, profileUserId, authorId, text, createdAt, podeDeletar, container }) {
+  const basePath = `users/${profileUserId}/wall/${snapId}`;
+  await Promise.all([getUserData(authorId), getUserPhoto(authorId)]);
+  const userData = memCache.users.get(authorId) || {};
+  const fotoUrl  = memCache.photos.get(authorId) || './public/img/default.jpg';
+  const nome     = userData.username || userData.name || 'usuário';
+  const uid      = auth.currentUser?.uid;
+
+  const [likersSnap, likedSnap, comentSnap] = await Promise.all([
+    getDocs(query(collection(db, basePath + '/likers'), where('like', '==', true))),
+    uid ? getDoc(doc(db, basePath + '/likers/' + uid)) : Promise.resolve(null),
+    getDocs(collection(db, basePath + '/coments')),
+  ]);
+  const likeCount  = likersSnap.size;
+  const jaLikei    = likedSnap?.exists() && likedSnap.data().like === true;
+  const comentCount = comentSnap.size;
+
+  function fmtDate(ts) {
+    if (!ts) return '';
+    const date = ts?.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
+    const diff = Date.now() - date.getTime();
+    const m = Math.floor(diff / 6e4), h = Math.floor(diff / 36e5), d = Math.floor(diff / 864e5);
+    if (m < 1) return 'agora'; if (m < 60) return m + 'm'; if (h < 24) return h + 'h';
+    if (d < 7) return d + 'd';
+    return date.toLocaleDateString('pt-BR', { day:'2-digit', month:'short' });
+  }
+
+  const card = document.createElement('div');
+  card.className = 'post-card wall-text-card';
+  card.innerHTML = `
+    <div class="post-header">
+      <div class="user-info">
+        <img src="${fotoUrl}" alt="Avatar" class="avatar" onerror="this.src='./public/img/default.jpg'">
+        <div class="user-meta">
+          <strong class="user-name-link" data-username="${authorId}">${nome}</strong>
+          <small class="post-date-mobile">${fmtDate(createdAt)}</small>
+        </div>
+      </div>
+      <div class="left-space-options">
+        ${podeDeletar ? `<div class="more-options"><button class="more-options-button wall-card-del-btn"><i class="fas fa-ellipsis-h"></i></button></div>` : ''}
+      </div>
+    </div>
+    <div class="post-content">
+      <div class="post-text">${text}</div>
+      <div class="post-actions">
+        <div class="post-actions-left">
+          <button class="btn-like wall-like-btn ${jaLikei ? 'liked' : ''}" data-snap="${snapId}" data-base="${basePath}">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 456.549"><path fill-rule="nonzero" d="M433.871 21.441c29.483 17.589 54.094 45.531 67.663 81.351 46.924 123.973-73.479 219.471-171.871 297.485-22.829 18.11-44.418 35.228-61.078 50.41-7.626 7.478-19.85 7.894-27.969.711-13.9-12.323-31.033-26.201-49.312-41.01C94.743 332.128-32.73 228.808 7.688 106.7c12.956-39.151 41.144-70.042 75.028-88.266C99.939 9.175 118.705 3.147 137.724.943c19.337-2.232 38.983-.556 57.65 5.619 22.047 7.302 42.601 20.751 59.55 41.271 16.316-18.527 35.37-31.35 55.614-39.018 20.513-7.759 42.13-10.168 63.283-7.816 20.913 2.324 41.453 9.337 60.05 20.442z"/></svg>
+            <span>${likeCount}</span>
+          </button>
+          <button class="btn-comment wall-coment-btn" data-snap="${snapId}" data-base="${basePath}">
+            <svg viewBox="0 0 122.97 122.88" xmlns="http://www.w3.org/2000/svg"><path d="M61.44,0a61.46,61.46,0,0,1,54.91,89l6.44,25.74a5.83,5.83,0,0,1-7.25,7L91.62,115A61.43,61.43,0,1,1,61.44,0ZM96.63,26.25a49.78,49.78,0,1,0-9,77.52A5.83,5.83,0,0,1,92.4,103L109,107.77l-4.5-18a5.86,5.86,0,0,1,.51-4.34,49.06,49.06,0,0,0,4.62-11.58,50,50,0,0,0-13-47.62Z"/></svg>
+            <p>Comentar</p><span>${comentCount}</span>
+          </button>
+        </div>
+      </div>
+    </div>`;
+
+  card.querySelector('.wall-like-btn').addEventListener('click', async (e) => {
+    if (!uid) return;
+    const btn = e.currentTarget, span = btn.querySelector('span');
+    const ref = doc(db, basePath + '/likers/' + uid);
+    const liked = btn.classList.contains('liked');
+    const count = parseInt(span.textContent) || 0;
+    if (liked) {
+      await updateDoc(ref, { like: false, timestamp: Date.now() }).catch(() => setDoc(ref, { uid, like: false, timestamp: Date.now() }));
+      btn.classList.remove('liked'); span.textContent = Math.max(0, count - 1);
+    } else {
+      const op = (await getDoc(ref)).exists() ? updateDoc : setDoc;
+      await op(ref, { uid, like: true, timestamp: Date.now() });
+      btn.classList.add('liked'); span.textContent = count + 1;
+    }
+  });
+
+  card.querySelector('.wall-coment-btn').addEventListener('click', () => {
+    _openWallComentsModal(basePath, snapId, card.querySelector('.wall-coment-btn span'));
+  });
+
+  card.querySelector('.wall-card-del-btn')?.addEventListener('click', async () => {
+    if (confirm('Remover este post do mural?'))
+      await deleteDoc(doc(db, 'users', profileUserId, 'wall', snapId));
+  });
+
+  container.appendChild(card);
+}
+
+function _openWallComentsModal(basePath, snapId, countSpan) {
+  document.querySelector('.mobile-comments-modal')?.remove();
+  const modal = document.createElement('div');
+  modal.className = 'mobile-comments-modal';
+  modal.innerHTML = `
+    <div class="mobile-comments-content">
+      <div class="modal-comments-header">
+        <div class="modal-grab"></div>
+        <div class="modal-info"><h3>Comentários</h3></div>
+      </div>
+      <div class="modal-comments-list-container"><div class="comments-list-mobile"></div></div>
+      <div class="mobile-comment-form-container">
+        <div class="comment-form">
+          <input type="text" class="comment-input-mobile" placeholder="Escreva um comentário...">
+          <button class="comment-submit-mobile">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 404 511.5" style="width:18px;height:18px;fill:currentColor"><path fill-rule="nonzero" d="m219.24 72.97.54 438.53h-34.95l-.55-442.88L25.77 241.96 0 218.39 199.73 0 404 222.89l-25.77 23.58z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  const scrollY = window.scrollY;
+  Object.assign(document.body.style, { overflow:'hidden', position:'fixed', width:'100%', top:`-${scrollY}px` });
+  requestAnimationFrame(() => modal.classList.add('active'));
+
+  modal.addEventListener('click', e => { if (e.target === modal) _closeWallComentsModal(modal); });
+
+  const content = modal.querySelector('.mobile-comments-content');
+  const grab    = modal.querySelector('.modal-grab');
+  const header  = modal.querySelector('.modal-comments-header');
+  let startY = 0, curY = 0, dragging = false;
+  const onStart = e => { startY = e.touches[0].clientY; dragging = true; content.style.transition = 'none'; };
+  const onMove  = e => {
+    if (!dragging) return;
+    curY = e.touches[0].clientY;
+    const dy = curY - startY;
+    if (dy > 0) { content.style.transform = `translateY(${dy}px)`; modal.style.backgroundColor = `rgba(0,0,0,${Math.max(0, 1 - dy/300) * 0.5})`; }
+  };
+  const onEnd = () => {
+    if (!dragging) return; dragging = false;
+    content.style.transition = 'transform 0.3s cubic-bezier(0.4,0,0.2,1)';
+    if (curY - startY > 150) _closeWallComentsModal(modal);
+    else { content.style.transform = 'translateY(0)'; modal.style.backgroundColor = 'rgba(0,0,0,0.5)'; }
+  };
+  [grab, header].forEach(el => {
+    el.addEventListener('touchstart', onStart);
+    el.addEventListener('touchmove',  onMove);
+    el.addEventListener('touchend',   onEnd);
+  });
+
+  const list = modal.querySelector('.comments-list-mobile');
+  _loadWallComents(basePath, list);
+
+  const submitComent = async input => {
+    const text = input.value.trim();
+    if (!text || !auth.currentUser) return;
+    await addDoc(collection(db, basePath + '/coments'), {
+      senderid: auth.currentUser.uid, text, createdAt: serverTimestamp(),
+    });
+    input.value = '';
+    _loadWallComents(basePath, list);
+    const snap = await getDocs(collection(db, basePath + '/coments'));
+    if (countSpan) countSpan.textContent = snap.size;
+  };
+
+  modal.querySelector('.comment-submit-mobile').addEventListener('click', () => submitComent(modal.querySelector('.comment-input-mobile')));
+  modal.querySelector('.comment-input-mobile').addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); submitComent(e.target); } });
+}
+
+function _closeWallComentsModal(modal) {
+  const content = modal.querySelector('.mobile-comments-content');
+  content.style.transition = 'transform 0.3s ease';
+  content.style.transform  = 'translateY(100%)';
+  modal.style.opacity = '0';
+  setTimeout(() => {
+    const scrollY = document.body.style.top;
+    modal.remove();
+    Object.assign(document.body.style, { position:'', top:'', width:'', overflow:'' });
+    window.scrollTo(0, parseInt(scrollY || '0') * -1);
+  }, 300);
+}
+
+async function _loadWallComents(basePath, list) {
+  list.innerHTML = '<p style="color:#555;text-align:center;padding:16px;font-size:13px;">Carregando...</p>';
+  const snap = await getDocs(query(collection(db, basePath + '/coments'), orderBy('createdAt', 'asc')));
+  if (snap.empty) { list.innerHTML = '<p style="color:#555;text-align:center;padding:16px;font-size:13px;">Nenhum comentário ainda.</p>'; return; }
+  list.innerHTML = '';
+  for (const d of snap.docs) {
+    const data = d.data();
+    await getUserData(data.senderid);
+    const u    = memCache.users.get(data.senderid) || {};
+    const foto = memCache.photos.get(data.senderid) || './public/img/default.jpg';
+    const nome = u.username || u.name || 'usuário';
+    const el   = document.createElement('div');
+    el.className = 'comment-item';
+    el.innerHTML = `
+      <img src="${foto}" class="comment-avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" onerror="this.src='./public/img/default.jpg'">
+      <div class="comment-body" style="flex:1;min-width:0;">
+        <strong style="font-size:13px;">${nome}</strong>
+        <p style="margin:2px 0 0;font-size:13px;color:#ccc;">${data.text}</p>
+      </div>`;
+    list.appendChild(el);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1441,19 +1480,40 @@ if (sendWallContainer) {
 })();
 
 // ═══════════════════════════════════════════════════════════
-// BOOT PRINCIPAL
-// FIX: posts + wall + reposts rodam em paralelo
-// FIX: nav foto sem segundo onAuthStateChanged
+// DADOS DO PERFIL
+// ═══════════════════════════════════════════════════════════
+async function carregarDados(uid) {
+  try {
+    const [userDoc, mediaDoc, likesDoc, aboutDoc, moreDoc, linksDoc] = await Promise.all([
+      getDoc(doc(db, 'users', uid)),
+      getDoc(doc(db, `users/${uid}/user-infos/user-media`)),
+      getDoc(doc(db, `users/${uid}/user-infos/likes`)),
+      getDoc(doc(db, `users/${uid}/user-infos/about`)),
+      getDoc(doc(db, `users/${uid}/user-infos/more-infos`)),
+      getDoc(doc(db, `users/${uid}/user-infos/links`)),
+    ]);
+    if (!userDoc.exists()) { mostrarErro('Perfil não encontrado'); return null; }
+    return {
+      ...userDoc.data(), uid,
+      media:     mediaDoc.exists() ? mediaDoc.data() : {},
+      likes:     likesDoc.exists() ? likesDoc.data() : {},
+      about:     aboutDoc.exists() ? aboutDoc.data() : {},
+      moreInfos: moreDoc.exists()  ? moreDoc.data()  : {},
+      linksData: linksDoc.exists() ? linksDoc.data() : {},
+    };
+  } catch (e) { console.error('carregarDados:', e); mostrarErro('Erro ao carregar perfil.'); return null; }
+}
+
+// ═══════════════════════════════════════════════════════════
+// BOOT
 // ═══════════════════════════════════════════════════════════
 lsClean();
-
 document.addEventListener('DOMContentLoaded', () => { safe(setupViewMoreModal); });
 
 onAuthStateChanged(auth, async user => {
   currentUser   = user;
   currentUserId = user?.uid || null;
 
-  // Foto do nav: usa cache local imediatamente (sem Firestore aqui)
   const navPic = $('nav-pic');
   if (navPic && !user) navPic.src = './public/img/default.jpg';
 
@@ -1461,7 +1521,6 @@ onAuthStateChanged(auth, async user => {
   const useridURL   = urlParam('userid')   || urlParam('uid');
 
   async function boot(uid) {
-    // FIX: tudo em paralelo — posts, wall, reposts, botões e stats ao mesmo tempo
     await Promise.all([
       Promise.all([configurarBotoes(uid), atualizarStats(uid)]).catch(console.error),
       carregarPosts(uid).catch(console.error),
@@ -1479,14 +1538,11 @@ onAuthStateChanged(auth, async user => {
     isOwnProfile  = !!(user && user.uid === uid);
 
     const cacheKey = usernameURL.toLowerCase().trim();
-    const cached = lsGet(cacheKey);
+    const cached   = lsGet(cacheKey);
     if (cached) {
       safe(() => preencherPerfil(cached));
       safe(() => setupListeners(uid));
-      // Atualiza em background se stale — sem bloquear o render
-      if (cached.__stale) {
-        carregarDados(uid).then(d => { if (d) lsSave(cacheKey, d); }).catch(() => {});
-      }
+      if (cached.__stale) carregarDados(uid).then(d => { if (d) lsSave(cacheKey, d); }).catch(() => {});
     } else {
       const dados = await carregarDados(uid);
       if (!dados) return;
@@ -1518,18 +1574,11 @@ onAuthStateChanged(auth, async user => {
   }
 });
 
-
 const btnLogout = document.querySelector('.logoff');
-
 if (btnLogout) {
-  btnLogout.addEventListener('click', async (e) => {
+  btnLogout.addEventListener('click', async e => {
     e.preventDefault();
-
-    try {
-      await signOut(auth);
-      window.location.replace('login.html');
-    } catch (err) {
-      console.error('Erro ao sair:', err);
-    }
+    try { await signOut(auth); window.location.replace('login.html'); }
+    catch (err) { console.error('Erro ao sair:', err); }
   });
 }

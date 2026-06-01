@@ -345,6 +345,7 @@
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     padding-bottom: 40px;
+    padding-top: 60px;
     height: 100%;
   }
 
@@ -390,7 +391,7 @@
   }
   .fr-btn:active { transform: scale(.9); }
   .fr-btn:disabled { opacity: .4; pointer-events: none; }
-  .fr-accept  { background: #fff; color: #fff; }
+  .fr-accept  { background: var(--primary-btn); color: #fff; }
   .fr-decline { background: #2a2a2a; color: #aaa; }
 
   /* ── Botões aceitar/recusar dentro da notificação ── */

@@ -1006,14 +1006,14 @@ function _injectTimelineStyles() {
       flex: 1;
     }
     .ptl-title {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
-      letter-spacing: 0.08em;
-      color: var(--text-primary, #f8f9f9);
+      letter-spacing: 0.04em;
+      color: #888;
       text-transform: uppercase;
     }
     .ptl-username {
-      font-size: 15px;
+      font-size: 15px !important;
       font-weight: 600;
       color: var(--text-primary, #f8f9f9);
     }
