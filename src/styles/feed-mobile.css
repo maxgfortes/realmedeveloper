@@ -74,16 +74,13 @@ nav {
 
 
 .welcome-box {
-  background: var(--bg-card);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border-primary);
   border-radius: 12px;
   width: 100%;
   margin-bottom: 0px;
-  padding: 12px;
-  padding-top: 6px;
+  padding: 4px 12px;
   border: none;
-  background: var(--bg-primary);
   border-radius: 0;
   box-shadow: none;
 }
@@ -92,13 +89,15 @@ nav {
     background-color: rgba(0, 255, 255, 0);
     display: flex;
     align-items: center;
+    gap: 10px;
 }
 
 .user-welcome img {
-    width: 74px !important;         /* largura fixa */
-    height: 74px !important;        /* altura igual = quadrado */
+    width: 72px !important;         /* largura fixa */
+    height: 72px !important;        /* altura igual = quadrado */
     object-fit: cover;    /* cobre toda a área, mesmo que corte */
     border-radius: 12px !important;
+    flex-shrink: 0;
 }
 
 
@@ -276,7 +275,7 @@ body.modal-open {
   gap: 8px;
   background: #323232;
   border-radius: 20px;
-  padding: 16px 16px;
+  padding: 14px 16px;
   width: 100%;
   animation: slideUpSuave 0.4s ease-in-out;
 }
@@ -505,7 +504,6 @@ body.modal-open {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 12px 10px;
   width: 100%;
 }
 
@@ -518,13 +516,13 @@ body.modal-open {
 
 
 .np-btn {
-  background-color: #1f1f1f;
+  background-color: #202020;
   border: none;
   border-radius: 14px;
-  padding: 12px 14px;
-  color: #cacaca;
+  padding: 10px 14px;
+  color: #aaaaaa;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 0.88rem;
   text-align: left;
   width: 100%;
 }
@@ -648,11 +646,12 @@ body.modal-open {
 .user-meta {
   display: flex;
   flex-direction: column;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .user-meta span {
-  font-size: 12px;
+  font-size: 13px;
+  width: 100%;
   color: #aaaaaa;
 }
 
@@ -1388,13 +1387,6 @@ body.modal-open {
   display: none;
 }
 
-
-.user-welcome img {
-    object-fit: cover;
-    flex-shrink: 0;  /* ADICIONE - evita que o flex comprima */
-    border-bottom-right-radius: 12px;
-    border-top-left-radius: 12px;
-}
 .feed-header h2 {
   font-size: 24px;
   margin-left: 1vh;
@@ -1507,7 +1499,6 @@ body.modal-open {
 
   .user-meta {
     position: relative;
-    overflow: hidden;
   }
   
   
@@ -2326,9 +2317,11 @@ footer {
       cursor: pointer;
     }
 
-    .user-name-link:hover {
-      color: #4A90E2;
+    .user-name-link span{
+      color: #f7f7f7;
+      font-size: 0.9rem !important;
     }
+
 
     /* Loading melhorado */
     .loading-bar {
@@ -3140,7 +3133,7 @@ footer {
 .music-info {
   display: flex;
   flex-direction: column;
-  width: 100%;
+  width: 80%;
   height: 100%;
   justify-content: center;
 }
@@ -3413,8 +3406,10 @@ footer {
   height: 14px;
   margin-top: 2px;
   overflow: hidden;
-  max-width: 200px;
-  font-size: 16px;
+  width: 100%;
+      white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .post-music-meta-date,
@@ -3441,7 +3436,7 @@ footer {
 
 
 .user-meta, .user-info {
-  width: 300px;
+  width: 320px;
 }
 /* ── Oculta a data padrão quando há música (evita duplicata) ─ */
 .post-card[data-has-music] .post-date-mobile {

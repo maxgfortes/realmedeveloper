@@ -426,8 +426,8 @@
 .update-dot-nt::after {
   content: "";
   position: absolute;
-  bottom: 14px;
-  right: 8px;
+  top: 14px;
+  right: 4px;
 
   width: 8px;
   height: 8px;
